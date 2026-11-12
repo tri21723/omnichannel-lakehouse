@@ -218,3 +218,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project data, credentials and infrastructure state
+.env.*
+!.env.example
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+*.pem
+*.key
+.aws/
+.local-data/
+*.parquet
+*.jsonl
+# Shared source directories must not inherit the generic Python lib/ ignore.
+!spark/lib/
+!spark/lib/**

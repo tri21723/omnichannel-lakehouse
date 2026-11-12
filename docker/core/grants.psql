@@ -1,0 +1,11 @@
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA walmart TO generator, spark_reader, trino_ro, debezium_repl;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA walmart TO generator;
+GRANT SELECT ON ALL TABLES IN SCHEMA walmart TO spark_reader, trino_ro, debezium_repl;
+ALTER DEFAULT PRIVILEGES IN SCHEMA walmart GRANT SELECT ON TABLES TO spark_reader, trino_ro, debezium_repl;
+ALTER DEFAULT PRIVILEGES IN SCHEMA walmart GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO generator;
+GRANT USAGE ON SCHEMA warehouse TO trino_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA warehouse TO trino_ro;
+ALTER DEFAULT PRIVILEGES FOR ROLE spark_writer IN SCHEMA warehouse GRANT SELECT ON TABLES TO trino_ro;
+SELECT 'CREATE PUBLICATION dbz_pub FOR TABLE walmart.orders'
+WHERE NOT EXISTS (SELECT FROM pg_publication WHERE pubname = 'dbz_pub') \gexec
