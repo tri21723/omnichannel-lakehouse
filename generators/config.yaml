@@ -1,4 +1,4 @@
-# Proposed generator defaults; CLI implementation arrives in Phase 2.
+# Batch/load defaults. Late/burst controls are reserved for Phase 7 streaming.
 seed: 42
 start_date: '2026-01-01'
 days: 3
@@ -10,3 +10,5 @@ late_max_minutes: 60
 skew_top_seller_share: 0.50
 schema_drift_at_day: 2
 burst_multiplier: 50
+return_rate: 0.10
+rows_per_file: 10000

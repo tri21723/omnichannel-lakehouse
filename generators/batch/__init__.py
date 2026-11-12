@@ -1,0 +1,1 @@
+"""Synthetic JSONL batch generation."""
