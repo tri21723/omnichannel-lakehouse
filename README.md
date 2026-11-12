@@ -7,7 +7,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 
 ## Trạng thái
 
-Đã có scaffold và core storage Phase 1: PostgreSQL + MinIO, bootstrap và smoke test.
+Đã có core storage Phase 1 và generator batch/load Phase 2 chạy end-to-end.
 Pipeline Spark/Airflow chưa triển khai.
 Chi tiết: [implementation status](docs/implementation-status.md).
 
@@ -42,6 +42,23 @@ PostgreSQL: `localhost:5432`; MinIO API: `localhost:9000`; console: `localhost:9
 Credential được sinh ngẫu nhiên trong `.env`, không ghi vào Git. `make down` giữ volume.
 MinIO build từ source release đã pin vì image public không tải được; lần đầu có thể
 mất vài phút. Xem [runbook](docs/runbook.md) để xử lý Docker credential helper trong WSL.
+
+## Sinh dữ liệu nguồn
+
+Sau khi core chạy, thực hiện:
+
+```sh
+make build-generator
+make gen-sources
+make verify-sources
+```
+
+Nếu đã cài core từ trước, chạy `make init-core` để bổ sung quyền bảng tạm cho generator.
+Dataset mặc định có 15.600 dòng JSONL trên MinIO (15.000 đơn duy nhất) và 3.000 đơn
+Walmart trong PostgreSQL. Chạy lại cùng config không nhân đôi dữ liệu.
+
+[Hướng dẫn generator](docs/generators.md) · [Kết quả kiểm chứng](docs/generator-validation.md).
+Streaming và pipeline Spark/Airflow chưa triển khai.
 
 ## Kiến trúc và source
 

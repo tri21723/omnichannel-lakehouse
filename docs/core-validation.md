@@ -43,3 +43,6 @@ step took about 260 seconds; subsequent build used cache.
 Not covered: DBeaver UI connection, Python boto3 access (mc covers S3 access here),
 Spark/Iceberg/Trino runtime integration, CDC capture/replay and cloud deployment.
 These checks do not claim completion of every manual DoD item in the original plan.
+
+Follow-up: Python boto3 reads/writes and non-root access have since passed in the
+[generator integration validation](generator-validation.md). DBeaver remains manual.

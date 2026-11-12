@@ -9,17 +9,25 @@
 - Re-runnable database/role/schema/publication and bucket/user/policy bootstrap.
 - Generated local credentials; service permissions and denied-access smoke tests.
 - Core build, startup, restart and persistence checks validated locally.
+- Deterministic five-channel JSONL, exact duplicate/skew/return counts and schema drift.
+- Chunked files and SHA-256 manifests; create-only S3 publish with manifest last.
+- Walmart COPY staging, transactional idempotent upserts and full-row reconciliation.
+- Generator Docker image, CLI, gen-batch/gen-load/gen-sources/verify-sources targets.
+- 23 unit tests; default dataset generated and verified twice against MinIO/PostgreSQL.
 
-See [validation evidence](core-validation.md). DBeaver UI and boto3 checks remain
-unverified; automated S3 tests currently use mc. Service containers are left running
+See [validation evidence](core-validation.md). DBeaver UI remains unverified.
+Boto3 access is now exercised by [generator integration](generator-validation.md). Service containers are left running
 for local use. `make down` stops them while retaining data.
 
-## Next: Phase 2 — generators
+## Next: Phase 3 — Iceberg + Lakekeeper
 
-- Deterministic batch/load CLI using generator config and seed.
-- Walmart source load and JSONL exports with manifest/reconciliation.
-- Controlled duplicates, skew and Amazon schema drift for five channels.
-- Runtime image, tests and working make gen-batch/gen-load targets.
+- Verify/pin Spark, Iceberg, Java/Scala and S3/JDBC compatibility.
+- Deploy Lakekeeper backed by the existing PostgreSQL database and MinIO bucket.
+- Bootstrap REST catalog and namespaces; test create/read/MERGE/time travel.
+- Begin Walmart batch vertical slice, selecting one dataset manifest explicitly.
+
+Batch/load parts of Phase 2 are implemented. Streaming generator and its late/burst
+controls remain reserved for Phase 7. Million-row benchmarks have not been run.
 
 ## Later phases
 
