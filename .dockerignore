@@ -1,0 +1,8 @@
+**
+!generators/
+!generators/**
+generators/**/__pycache__/
+generators/**/*.pyc
+!docker/
+!docker/images/
+!docker/images/Dockerfile.generator

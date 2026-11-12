@@ -41,3 +41,11 @@ returns. Walmart IDs are source-local primary keys; channel is added at ingestio
 Only orders is published to CDC initially. Sellers remain embedded seller_id values;
 a standalone OLTP seller table is deferred until generator requirements justify it.
 No Silver/Gold physical tables have been created yet.
+
+## Implemented generator payload (batch-v1)
+
+Orders embed `customer`, `items[].product` and `returns[]`; each order has one line
+in this version. Walmart load splits these into the existing five OLTP tables.
+Amounts are strings with two decimal places in JSONL, NUMERIC(18,2) in PostgreSQL.
+Amazon drift, Shopee timestamps and Lazada optional fields differ by channel.
+See [generator contracts](generators.md) and ADR-0005 for dataset boundaries.

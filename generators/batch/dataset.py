@@ -27,7 +27,10 @@ def manifest_files(root: Path, manifest: dict) -> list[tuple[Path, dict]]:
     seen = set()
     for channel in manifest["channels"].values():
         for entry in channel["files"]:
-            path = root / entry["path"]
+            relative = Path(entry["path"])
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError("Manifest path must be relative without traversal")
+            path = root / relative
             if path.resolve().is_relative_to(root.resolve()) is False or path == root:
                 raise ValueError("Manifest path escapes dataset directory")
             if entry["path"] in seen:

@@ -114,6 +114,38 @@ services:
     mem_limit: 128m
     restart: "no"
 
+  generator:
+    image: omnichannel/generator:batch-v1
+    profiles: [batch]
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.generator
+    environment:
+      S3_ENDPOINT: ${S3_ENDPOINT:?Run make env}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:?Run make env}
+      S3_RAW_BUCKET: ${S3_RAW_BUCKET:?Run make env}
+      GENERATOR_S3_ACCESS_KEY: ${GENERATOR_S3_ACCESS_KEY:?Run make env}
+      GENERATOR_S3_SECRET_KEY: ${GENERATOR_S3_SECRET_KEY:?Run make env}
+      POSTGRES_HOST: ${POSTGRES_HOST:?Run make env}
+      POSTGRES_PORT: ${POSTGRES_PORT:?Run make env}
+      POSTGRES_SOURCES_DB: ${POSTGRES_SOURCES_DB:?Run make env}
+      GENERATOR_DB_PASSWORD: ${GENERATOR_DB_PASSWORD:?Run make env}
+    volumes:
+      - generator-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    mem_limit: 512m
+    restart: "no"
+    healthcheck:
+      test: [CMD, python, -m, generators, --help]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres-data:
   minio-data:
+  generator-data:

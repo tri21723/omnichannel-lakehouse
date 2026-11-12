@@ -48,3 +48,11 @@ Sources checked:
 
 Validation evidence is recorded in docs/core-validation.md. No Spark/Iceberg/Trino
 compatibility is claimed by these core smoke tests.
+
+## Generator runtime
+
+Python image: `python:3.11.11-slim-bookworm`. Direct Python dependencies are pinned in
+`generators/requirements.txt`; dependency upgrades affecting bytes require reviewing
+batch-v1 identity/replay compatibility. This is a direct-dependency pin set, not a
+fully hashed transitive lockfile. Python 3.12 host unit tests and Python 3.11 container
+integration are both exercised. No existing service image version was changed.

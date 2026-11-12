@@ -24,3 +24,8 @@
   manifest are not ingestible. Existing dataset artifacts must reconcile before reuse.
 - Local generation writes into staging then renames to the immutable run directory.
   Streaming late/burst fields are reserved; batch does not implement those behaviors.
+
+Implementation references:
+- [Psycopg COPY and transaction behavior](https://www.psycopg.org/psycopg3/docs/basic/copy.html)
+- [S3 put_object conditional writes](https://docs.aws.amazon.com/boto3/latest/reference/services/s3/client/put_object.html)
+- [Pydantic model configuration](https://docs.pydantic.dev/latest/concepts/models/)

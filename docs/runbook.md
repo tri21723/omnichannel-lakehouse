@@ -58,3 +58,10 @@ public registries return unauthorized for their old binary images. `make up-core
 runs `make build-core` automatically; the first build needs internet, several GB
 of free disk and additional time. Later builds reuse Docker cache. `make pull-core`
 only pulls PostgreSQL. The source build includes the upstream AGPL license.
+
+## Source generation
+
+After core storage is healthy, run `make build-generator`, then `make gen-sources`
+and `make verify-sources`. On a core installation created before the generator,
+run `make init-core` to grant TEMPORARY to the generator role. See
+[generator usage and contracts](generators.md) for config overrides and retry behavior.

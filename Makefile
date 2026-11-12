@@ -32,7 +32,7 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-batch up-orch up-query up-stream up-cdc up-gov gen-batch gen-load gen-stream spark-submit e2e:
+up-batch up-orch up-query up-stream up-cdc up-gov gen-stream spark-submit e2e:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -80,3 +80,24 @@ verify-persistence-core: ## Verify smoke markers after restart; does not rewrite
 .PHONY: build-core
 build-core: ## Build MinIO server/client from pinned upstream source releases
 	$(COMPOSE) build minio minio-init
+
+GEN_ARGS ?=
+GEN := $(COMPOSE) --profile batch run --rm --no-deps generator
+.PHONY: build-generator gen-batch gen-load gen-sources verify-sources gen-local
+build-generator: ## Build the pinned Python 3.11 generator image
+	$(COMPOSE) --profile batch build generator
+
+gen-local: ## Generate local files only (GEN_ARGS supports CLI overrides)
+	$(BIN)/python -m generators batch $(GEN_ARGS)
+
+gen-batch: ## Generate/upload five-channel batch JSONL and manifest
+	$(GEN) batch --output /data --upload $(GEN_ARGS)
+
+gen-load: ## Load Walmart from the same exported dataset
+	$(GEN) load --output /data $(GEN_ARGS)
+
+gen-sources: ## One command for S3 batch + Walmart relational load
+	$(GEN) sources --output /data $(GEN_ARGS)
+
+verify-sources: ## Reconcile local/S3 bytes and SQL rows without rewriting data
+	$(GEN) verify --output /data --remote --database $(GEN_ARGS)

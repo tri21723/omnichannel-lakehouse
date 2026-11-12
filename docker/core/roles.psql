@@ -51,3 +51,4 @@ SELECT 'CREATE DATABASE mlflow OWNER mlflow' WHERE NOT EXISTS (SELECT FROM pg_da
 REVOKE ALL ON DATABASE mlflow FROM PUBLIC;
 GRANT CONNECT, TEMPORARY ON DATABASE mlflow TO mlflow;
 GRANT CONNECT ON DATABASE sources TO generator, spark_reader, spark_writer, trino_ro, debezium_repl;
+GRANT TEMPORARY ON DATABASE sources TO generator;
