@@ -127,8 +127,8 @@ restart-lakehouse: ## Restart catalog and Spark; preserve data
 
 .PHONY: spark-submit
 BRONZE_ARGS ?=
-spark-submit: ## Submit JOB=smoke or JOB=dp1_bronze (BRONZE_ARGS required)
-	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze'; exit 2 ;; esac
+spark-submit: ## Submit smoke, dp1_bronze or dp2_silver validation (BRONZE_ARGS required)
+	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
@@ -175,3 +175,17 @@ test-bronze-contract: ## Read-only raw drift/duplicate assertions on the default
 .PHONY: smoke-silver-input
 smoke-silver-input: ## Pin/reconcile five JDBC inputs, replay Bronze and verify old snapshots (small fixture)
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/input_smoke.py --run-id 186ae107d0793d2ee237
+
+.PHONY: env-silver
+env-silver: env-batch ## Initialize a persistent random PII HMAC key for local Silver
+	$(PYTHON) docker/batch/silver_env.py
+
+.PHONY: smoke-silver-normalize
+SILVER_ARGS ?=
+smoke-silver-normalize: ## Validate typed Walmart candidates twice without publishing Silver tables
+	$(MAKE) spark-submit JOB=dp2_silver SILVER_ARGS='--run-id 186ae107d0793d2ee237 --run-date 2026-01-01 --channel walmart --mode full --validate-only --expect-orders 25 --fail-on-reject'
+	$(MAKE) spark-submit JOB=dp2_silver SILVER_ARGS='--run-id 186ae107d0793d2ee237 --run-date 2026-01-01 --channel walmart --mode full --validate-only --expect-orders 25 --fail-on-reject'
+
+.PHONY: test-silver-normalize
+test-silver-normalize: ## Verify typed values, total mismatch, parent rejection and accounting in Spark
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/normalization_cases.py

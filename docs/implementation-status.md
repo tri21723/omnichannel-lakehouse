@@ -78,4 +78,6 @@ ADR-0008 and draft Silver DDL are defined; no Silver entity tables have been app
 A strict Bronze completion reader captures content-addressed immutable input references,
 reads exact Iceberg snapshots and reconciles them without latest fallback.
 Unit coverage and real Spark replay tests are recorded in silver-validation.md.
-The next implementation task is Walmart orders/customers/items normalization (P4B-04).
+P4B-04 now normalizes Walmart orders/customers/items as validation-only typed frames
+with HMAC PII, lineage, rejection codes and accounting. Next is P4B-05: products,
+returns and relational DQ; no Silver publishing has been implemented.

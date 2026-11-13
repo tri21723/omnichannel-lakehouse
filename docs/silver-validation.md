@@ -41,3 +41,30 @@ Current checks: make check = 58 tests pass, Spark SQL DDL lint pass; baseline ru
 Bronze verification and raw-contract checks pass after stack startup. P4B-01/02/03
 are complete. Next is P4B-04: Walmart entity normalization. No Silver publishing
 job, HMAC enforcement, quarantine writer or contribution ledger exists yet.
+
+## P4B-04 Walmart normalization — 2026-11-13
+
+make check: lint + 77 tests pass. Strict parser handles missing/null fields, invalid
+syntax/scalar JSON, ID types, UTC timestamp offsets, enum/currency, positive INT and
+DECIMAL(18,2) overflow/scale/nonfinite values. JSON numbers are parsed as Decimal,
+not float. Discounts cannot exceed qty * unit price.
+
+Customer names/emails are HMAC-SHA256 hashed with NFKC normalization and channel/
+field domain separation. make env-silver generates a persistent random 32-byte key
+in ignored .env; tests confirm repeat initialization does not rotate it, including
+a blank setting at EOF. Missing key/version fails before Spark processing.
+
+make test-silver-normalize passes on real Spark executors: valid candidates 1/entity,
+rejected orders=2, customers=1, items=2 (5 total). Assertions cover Decimal 10.25, UTC
+order timestamp, inherited item updated_ts, slice-local customer first_order_ts and
+64-character hashed email. Rejections carry codes/references, not raw/name/email.
+
+make smoke-silver-normalize passes twice with strict expected-order/reject checks:
+25 orders, 5 customers, 25 items; rejected=0 each. input = valid + rejected by entity.
+These are in-memory candidate frames; no Silver entity/quarantine table or publishing
+completion is written. Pin references remain in /runtime/silver/inputs.
+
+Commit 449d5ff records strict types/PII setup. Upcoming P4B-05 adds products/returns
+and full relational DQ. Quarantine persistence, global dedup/contributions/correction
+ledger and publish recovery remain P4B-06/07. Hosted results for these changes have
+not been checked; the user's earlier CI success applies to preceding work.

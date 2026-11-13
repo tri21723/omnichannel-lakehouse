@@ -87,13 +87,13 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-04 — Vertical slice Walmart
 
-- [ ] Tạo spark/jobs/dp2_silver với thư viện parse/schema/audit dùng chung và structured logs.
-- [ ] Parse _raw bằng schema explicit; phân biệt missing, null, cast failure, JSON scalar và invalid syntax.
-- [ ] Chuẩn hóa orders/customers/items: timestamp UTC, DECIMAL chính xác, ID dạng string và giữ currency.
-- [ ] Không dùng float hoặc làm tròn âm thầm; overflow/sai scale theo policy phải có error code.
-- [ ] Kiểm tra qty > 0, line_no hợp lệ, amount không âm và key bắt buộc; định nghĩa kiểm tra tổng tiền với discount.
-- [ ] Giữ provenance về batch/snapshot/record fingerprint; chưa publish customer PII rõ ra bảng Silver.
-- [ ] Chạy một ngày Walmart trên Spark cluster; assert schema, giá trị và accounting theo entity.
+- [x] Tạo spark/jobs/dp2_silver với thư viện parse/schema/audit dùng chung và structured logs.
+- [x] Parse _raw bằng schema explicit; phân biệt missing, null, cast failure, JSON scalar và invalid syntax.
+- [x] Chuẩn hóa orders/customers/items: timestamp UTC, DECIMAL chính xác, ID dạng string và giữ currency.
+- [x] Không dùng float hoặc làm tròn âm thầm; overflow/sai scale theo policy phải có error code.
+- [x] Kiểm tra qty > 0, line_no hợp lệ, amount không âm và key bắt buộc; định nghĩa kiểm tra tổng tiền với discount.
+- [x] Giữ provenance về batch/snapshot/record fingerprint; chưa publish customer PII rõ ra bảng Silver.
+- [x] Chạy một ngày Walmart trên Spark cluster; assert schema, giá trị và accounting theo entity.
 
 **Đạt khi:** Một slice typed có expected values và provenance; PII chưa được xuất rõ.
 **Commit gợi ý:** `feat(silver): normalize Walmart orders customers and items`.
@@ -112,8 +112,8 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-06 — PII và quarantine
 
-- [ ] Chốt normalization/hash policy trong ADR: tên/email, giá trị null, key/version, scope liên kết giữa kênh; tránh tự tạo cross-channel identity.
-- [ ] Nếu dùng keyed hash/HMAC: secret qua env, không có default key; cùng key cho kết quả ổn định, ghi key version và quy trình rotation.
+- [x] Chốt normalization/hash policy trong ADR: tên/email, giá trị null, key/version, scope liên kết giữa kênh; tránh tự tạo cross-channel identity.
+- [x] Nếu dùng keyed hash/HMAC: secret qua env, không có default key; cùng key cho kết quả ổn định, ghi key version và quy trình rotation.
 - [ ] Test không còn full_name/email rõ trong Silver schema, data mẫu, logs và exception; raw/quarantine có policy hạn chế truy cập.
 - [ ] Tạo silver.quarantine_<entity> với error code ổn định, provenance và record fingerprint; quyết định rõ có lưu raw hay chỉ tham chiếu Bronze.
 - [ ] Quarantine idempotent; retry không tăng bản sao, sửa lỗi nguồn giải quyết hoặc thay trạng thái quarantine cũ theo contract.

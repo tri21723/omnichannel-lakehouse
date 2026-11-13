@@ -219,3 +219,22 @@ and Bronze fixture with the commands in the Bronze section first.
 Input pins live in /runtime/silver/inputs/<sha256>.json. They contain references and
 summaries only, not raw customer data or credentials. Silver transforms/publishing
 are not implemented by this checkpoint. See ADR-0008 and silver-validation.md.
+
+## Silver Walmart normalization (P4B-04)
+
+```sh
+make env-silver            # random local HMAC key, preserve existing key/version
+make build-batch
+make up-batch              # workers need the new Python normalization modules
+make test-silver-normalize
+make smoke-silver-normalize
+make spark-submit JOB=dp2_silver SILVER_ARGS='--run-id 186ae107d0793d2ee237 --run-date 2026-01-01 --channel walmart --mode full --validate-only'
+```
+
+Validation requires --validate-only until publishing is implemented. Full/incremental
+select validation context; neither performs publish/skip semantics yet. --input-id
+can select an existing immutable input; otherwise current completion is pinned first.
+Missing/malformed SILVER_PII_KEY (hex, >=32 decoded bytes) or missing version fails
+early. Keep key/version stable across replays; rotation requires a later explicit
+backfill policy. Never print or commit the key. Normalization reports counts only.
+Candidate rejection frames are in memory with references, not persisted quarantine.

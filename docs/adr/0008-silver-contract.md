@@ -1,7 +1,7 @@
 # ADR-0008: Silver input and entity state contract
 
-Status: accepted design; input reader under implementation. Physical transforms and
-publishing are not yet implemented. No Silver tables are created by this ADR/DDL.
+Status: accepted design; input reader under implementation. Walmart orders/customers/items normalization is implemented in validation mode;
+publishing is not yet implemented. No Silver tables are created by this ADR/DDL.
 
 ## Source selection and schema
 
@@ -81,3 +81,15 @@ CREATE IF NOT EXISTS is not a migration mechanism. Gold stays outside this phase
 
 Reference checked 2026-11-13:
 https://iceberg.apache.org/docs/1.9.2/spark-queries/
+
+P4B-04 implementation notes: discount is an absolute amount for the complete line,
+so line value = qty * unit_price - discount, with discount bounded by line value.
+Orders require at least one valid item and an exact DECIMAL sum match. Items whose
+order is rejected produce a missing_valid_parent rejection. Full cross-entity DQ
+and invalid-child cascade rules remain P4B-05 work. first_order_ts is currently the
+minimum valid order timestamp in the selected slice; global first-order aggregation
+is a later contribution-reduction responsibility.
+
+Candidate _record_hash is computed on parsed normalized fields before enrichment.
+P4B-07 must finalize the canonical hash after derived fields before publishing/dedup;
+no persisted Silver state relies on this provisional candidate hash yet.
