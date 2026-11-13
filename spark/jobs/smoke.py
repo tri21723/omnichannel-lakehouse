@@ -24,8 +24,9 @@ def verify(spark):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--bad-catalog", action="store_true")
     args = parser.parse_args()
-    spark = get_spark()
+    spark = get_spark("/missing" if args.bad_catalog else "")
     try:
         for name in ["bronze", "silver", "gold"]:
             if not args.verify:

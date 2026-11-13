@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 
-def get_spark():
+def get_spark(catalog_suffix=""):
     from pyspark.sql import SparkSession
 
     warehouse = json.loads(Path("/runtime/catalog.json").read_text())["warehouse_name"]
@@ -21,7 +21,7 @@ def get_spark():
         "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
         "spark.sql.catalog.lh": "org.apache.iceberg.spark.SparkCatalog",
         "spark.sql.catalog.lh.type": "rest",
-        "spark.sql.catalog.lh.uri": os.environ["LAKEKEEPER_URI"] + "/catalog",
+        "spark.sql.catalog.lh.uri": os.environ["LAKEKEEPER_URI"] + catalog_suffix + "/catalog",
         "spark.sql.catalog.lh.warehouse": warehouse,
         "spark.sql.catalog.lh.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
         "spark.sql.catalog.lh.s3.endpoint": os.environ["S3_ENDPOINT"],

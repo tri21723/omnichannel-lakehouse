@@ -133,3 +133,13 @@ spark-submit: ## Submit the supported smoke fixture (JOB=smoke)
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
 	$(BATCH) run --rm --no-deps --entrypoint /bin/sh minio-init /bootstrap/lakehouse-smoke.sh
+
+.PHONY: verify-runtime
+verify-runtime: ## Inspect JVM classpath in the built Spark image
+	$(BATCH) run --rm --no-deps spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/runtime.py
+
+.PHONY: test-catalog-failure
+test-catalog-failure: ## Wrong catalog path must fail, then existing fixture must still read
+	@if $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/smoke.py --verify --bad-catalog > /tmp/omnichannel-catalog-failure.log 2>&1; then echo 'Expected catalog failure'; exit 1; fi
+	@rg -q '404|NotFound' /tmp/omnichannel-catalog-failure.log
+	$(MAKE) verify-lakehouse
