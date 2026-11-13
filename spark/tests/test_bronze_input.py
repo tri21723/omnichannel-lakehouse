@@ -72,3 +72,34 @@ def test_lock_released_and_conflict(tmp_path):
             pass
     with writer_lock(tmp_path):
         pass
+
+
+def test_malformed_lines_preserved_and_encoding_rejected(tmp_path):
+    import hashlib
+
+    key = "raw.jsonl"
+    payload = b'broken\n\nNaN\n{"unknown": 1}\n'
+    (tmp_path / key).write_bytes(payload)
+    entry = {
+        "path": key,
+        "bytes": len(payload),
+        "rows": 4,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    paths = stage(Client(tmp_path), "raw", [entry], tmp_path, 1000)
+    rows = [json.loads(line) for line in paths[0].read_text().splitlines()]
+    assert [row["_parse_status"] for row in rows] == ["invalid", "blank", "invalid", "valid"]
+    assert [row["_raw"] for row in rows] == payload.decode().splitlines()
+    payload = b"\xff\n"
+    (tmp_path / key).write_bytes(payload)
+    entry.update(bytes=len(payload), rows=1, sha256=hashlib.sha256(payload).hexdigest())
+    with pytest.raises(UnicodeDecodeError):
+        stage(Client(tmp_path), "raw", [entry], tmp_path, 1000)
+
+
+@pytest.mark.parametrize("path", ["../secret", "/absolute", "s3://other/path"])
+def test_reject_manifest_paths_before_io(tmp_path, path):
+    _, cfg, manifest, entries = fixture(tmp_path)
+    entries[0]["path"] = path
+    with pytest.raises(ValueError):
+        select_files(manifest, cfg.run_id, "2026-01-01", "amazon")

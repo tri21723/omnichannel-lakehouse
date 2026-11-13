@@ -34,9 +34,9 @@ Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not bee
 ## Next: Phase 4 — business Bronze pipeline
 
 Detailed upcoming work: [Phase 4A checklist](../TODO.md). Phase 3 checklist is
-[archived](phase3-checklist.md); Phase 4A implementation has not started.
+[archived](phase3-checklist.md); Initial Walmart JSONL/JDBC slice now runs locally; Phase 4A validation is in progress.
 
-Implement dp1_bronze against [the ingestion/replay contract](bronze-contract.md), then
+Continue dp1_bronze validation against [the ingestion/replay contract](bronze-contract.md), then
 Walmart Silver/Gold vertical slice. Multi-table JDBC snapshot coordination needs
 explicit implementation/testing before claiming consistent parallel source ingestion.
 Streaming generator and million-row benchmarks remain deferred.
@@ -47,3 +47,14 @@ Business Spark jobs, Airflow, Trino, streaming, CDC capture, governance and AWS
 are not implemented. Their placeholder Make targets fail explicitly. Later components
 still need compatibility verification. No cloud resources exist
 as a result of this implementation.
+
+## Phase 4A initial vertical slice
+
+- Manifest-selected bounded JSONL staging shared by driver and workers.
+- Raw payload/provenance/parse status preserved, including intentional duplicates.
+- Atomic MERGE replacement and persistent completion state with replay/verify.
+- Eager JVM JDBC export under one PostgreSQL snapshot across all 5 Walmart tables.
+- Walmart one-day JSONL/JDBC full replay, incremental and read-only verification pass.
+- Extended multi-channel, mutation, failure and persistence coverage is tracked in TODO.
+
+No Silver/Gold business transforms or full Phase 4A completion is claimed.

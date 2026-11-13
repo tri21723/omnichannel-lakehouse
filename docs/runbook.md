@@ -127,3 +127,39 @@ not pin every preinstalled tool version. Local checks remain available via make 
 
 Reference: https://docs.github.com/en/billing/how-tos/troubleshooting/locked-account
 Runner policy: https://github.com/actions/runner-images
+
+## Bronze Phase 4A — initial slice
+
+Requires the source run already published/loaded, then `make build-batch` and
+`make up-batch` (workers and driver must share the staging volume).
+
+```sh
+make smoke-bronze  # Walmart 2026-01-01, both JSONL and all 5 JDBC tables, replay/verify
+make spark-submit JOB=dp1_bronze BRONZE_ARGS='--run-id b1e64afaff0176de180a --run-date 2026-01-01 --channel amazon --source jsonl --mode full'
+make verify-bronze BRONZE_ARGS='--run-id b1e64afaff0176de180a --run-date 2026-01-01 --channel walmart --source jdbc --mode full'
+```
+
+`make integration-bronze` runs the extended 5-channel/3-day matrix against the
+existing default source dataset; it writes Bronze slices and takes longer. The
+small config in spark/tests/fixtures is for future fixture setup, not automatically
+published by this command. Do not point the fixed-date matrix at arbitrary date ranges.
+Run jobs sequentially: the fixed driver name rejects simultaneous submits and Bronze
+also holds a POSIX lock for the full pipeline. A crash releases the lock; a remaining
+state JSON with status running is incomplete and must be replayed, not manually
+marked completed. Both workers mount /staging read-only; driver alone downloads.
+
+Raw input is limited to BRONZE_STAGE_MAX_BYTES (default 64MiB/slice). Increase only
+with measured disk/memory headroom. Raw LF/CRLF terminators are omitted in _raw;
+blank or malformed JSON lines remain available with _parse_status. Invalid UTF-8,
+checksum or manifest inventory fails before target writing.
+
+Iceberg overwrite-by-expression failed replay because truncated column statistics
+could not prove full-file deletion for run IDs. The writer uses an atomic MERGE
+with one delete marker plus unmatched insert rows, retaining duplicate rows.
+No table reset or data purge is needed for recovery.
+
+JDBC is materialized eagerly through JVM JDBC under an exported PostgreSQL snapshot;
+all 5 read-only repeatable-read connections import it before querying. Spark reads
+staged raw rows after DB connections close. JDBC incremental refreshes rather than
+skipping from the JSON manifest alone. Concurrent mutation/fault tests are still pending;
+see TODO and bronze-validation before claiming full Phase 4A completion.

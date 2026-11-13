@@ -1,6 +1,6 @@
 # TODO — Phase 4A: Batch ingestion vào Bronze
 
-Cập nhật: **2026-11-13**. Trạng thái: **Đã lập kế hoạch; chưa triển khai Phase 4A**.
+Cập nhật: **2026-11-13**. Trạng thái: **Đang triển khai; vertical slice Walmart JSONL/JDBC đã pass local**.
 
 Mục tiêu: triển khai `dp1_bronze` đọc JSONL theo manifest và Walmart PostgreSQL
 qua JDBC, ghi Iceberg có provenance, đối soát được và chạy lại không nhân đôi dữ liệu.
@@ -117,34 +117,34 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-04 — Vertical slice JSONL một kênh/một ngày
 
-- [ ] Tạo entrypoint `spark/jobs/dp1_bronze/`, tái sử dụng session và structured logging.
-- [ ] Bắt đầu Walmart JSONL export hoặc một kênh đơn giản trên fixture nhỏ.
-- [ ] Đọc từng dòng thành `_raw` không reserialize; giữ unknown fields và intentional duplicates.
-- [ ] Thêm audit/parse status theo schema explicit; không tự cast/clean trường nghiệp vụ.
-- [ ] Tạo bảng Iceberg v2, Parquet/ZSTD; kiểm tra schema bảng hiện hữu, không tự drop/recreate.
-- [ ] Dùng thư viện writer có filter slice đầy đủ ngay từ đầu; không append tạm rồi
+- [x] Tạo entrypoint `spark/jobs/dp1_bronze/`, tái sử dụng session và structured logging.
+- [x] Bắt đầu Walmart JSONL export hoặc một kênh đơn giản trên fixture nhỏ.
+- [x] Đọc từng dòng thành `_raw` không reserialize; giữ unknown fields và intentional duplicates.
+- [x] Thêm audit/parse status theo schema explicit; không tự cast/clean trường nghiệp vụ.
+- [x] Tạo bảng Iceberg v2, Parquet/ZSTD; kiểm tra schema bảng hiện hữu, không tự drop/recreate.
+- [x] Dùng thư viện writer có filter slice đầy đủ ngay từ đầu; không append tạm rồi
   coi là idempotent. Hoàn thiện kiểm thử failure/concurrency ở P4A-05.
-- [ ] Assert physical count, raw multiset/fingerprint và provenance khớp nguồn.
-- [ ] Có unit test CLI/audit/parse và integration một job thực sự trên cluster.
+- [x] Assert physical count, raw multiset/fingerprint và provenance khớp nguồn.
+- [x] Có unit test CLI/audit/parse và integration một job thực sự trên cluster.
 
 **Đạt khi:** một slice đọc lại đúng payload, duplicate và nguồn gốc.
 **Commit:** `feat(bronze): ingest manifest JSONL with raw provenance`.
 
 ### P4A-05 — Replay, commit và completion
 
-- [ ] Ghi replace theo run/channel/date/source bằng overwrite filter có kiểm chứng;
+- [x] Ghi replace theo run/channel/date/source bằng MERGE atomic có kiểm chứng;
   không overwrite cả ngày vì ngày đó có thể chứa nhiều run/source.
 - [ ] Kiểm tra mọi row đầu ra thuộc filter; xử lý slice 0 row được khai báo hợp lệ,
   phân biệt với source bị thiếu. Không để dữ liệu cũ còn sót vì dynamic overwrite rỗng.
-- [ ] Chạy cùng batch hai lần: row count và raw multiset không đổi; timestamp/snapshot
+- [x] Chạy cùng batch hai lần: row count và raw multiset không đổi; timestamp/snapshot
   có thể thay đổi. Dữ liệu slice khác phải nguyên vẹn.
-- [ ] Completion chứa batch/attempt, manifest fingerprint, bảng/snapshot, count, thời gian
+- [x] Completion chứa batch/attempt, manifest fingerprint, bảng/snapshot, count, thời gian
   và source snapshot evidence; chỉ đánh dấu completed sau read-back reconciliation.
 - [ ] Failed/partial attempt không được mang completion của attempt cũ như kết quả mới;
   consumer kiểm tra snapshot references, không chỉ sự tồn tại của marker.
 - [ ] Kiểm thử lỗi sau commit bảng nhưng trước completion; retry phải khôi phục được.
 - [ ] Giới hạn writer đồng thời, kiểm thử conflict và retry hữu hạn; không blind retry append.
-- [ ] Không tuyên bố atomic nhiều bảng: consumer dùng bộ snapshot đã được completion xác nhận.
+- [x] Không tuyên bố atomic nhiều bảng: consumer dùng bộ snapshot đã được completion xác nhận.
 
 **Đạt khi:** replay không thêm bản sao, failure không tạo trạng thái thành công giả.
 **Commit:** `feat(bronze): make slice writes and completion replay safe`.
@@ -165,16 +165,16 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-07 — JDBC orders một connection nhất quán
 
-- [ ] Truyền credential `spark_reader` vào runtime qua env; không dùng superuser,
+- [x] Truyền credential `spark_reader` vào runtime qua env; không dùng superuser,
   không log JDBC password/URL chứa secret; xác minh read-only permission.
-- [ ] Lọc đúng run prefix và UTC order date, parameter hóa hoặc validate chặt giá trị SQL.
+- [x] Lọc đúng run prefix và UTC order date, parameter hóa hoặc validate chặt giá trị SQL.
 - [ ] Kiểm chứng hành vi JDBC đọc với phiên bản đã pin: transaction, autocommit,
   isolation, session init và fetch size; không giả định option write áp dụng cho read.
 - [ ] Bắt đầu một partition/connection REPEATABLE READ; xác minh isolation thực tế và
   test nguồn thay đổi giữa lúc đọc bằng fixture riêng.
 - [ ] Bảo đảm Spark lazy evaluation/recomputation không âm thầm đọc snapshot mới;
   materialize dữ liệu đọc một lần hoặc giữ lifecycle snapshot đến hết action liên quan.
-- [ ] Serialize typed rows vào `_raw`, ghi bảng JDBC riêng và đối soát full-row fingerprint.
+- [x] Serialize typed rows vào `_raw`, ghi bảng JDBC riêng và đối soát full-row fingerprint.
 - [ ] Chạy hai lần; default toàn run là 3.000 orders JDBC, không so bằng 3.120 JSONL.
 
 **Đạt khi:** JDBC orders chính xác, nhất quán và replay-safe.
@@ -182,11 +182,11 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-08 — JDBC đủ 5 bảng và snapshot coordination
 
-- [ ] Thiết kế coordinator giữ transaction export snapshot đến khi tất cả readers kết thúc;
+- [x] Thiết kế coordinator giữ transaction export snapshot đến khi tất cả readers kết thúc;
   reader import snapshot trước query, cùng database và isolation phù hợp.
 - [ ] Kiểm thử tích hợp JDBC import snapshot thực tế trên pinned runtime trước khi mở rộng;
   nếu không khả thi, ghi ADR thay thế rõ và chưa tick hoàn tất consistency.
-- [ ] Nạp orders, order_items, customers, products, returns theo scope P4A-02.
+- [x] Nạp orders, order_items, customers, products, returns theo scope P4A-02.
 - [ ] Đối soát count/hash của từng bảng từ cùng snapshot; không dùng count nguồn live
   sau transaction để kết luận snapshot ingestion sai.
 - [ ] Test update/insert đồng thời trên fixture: không trộn thế hệ dữ liệu giữa bảng.
@@ -194,7 +194,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
   attempt incomplete và không reuse snapshot token hết hạn.
 - [ ] Chỉ bật partitioned JDBC sau test import cùng snapshot ở mọi connection; nếu giữ
   một partition mỗi bảng thì ghi rõ giới hạn và để tối ưu song song sang đợt sau.
-- [ ] Publish completion tập bảng sau khi toàn bộ reconcile; partial retry không nhân đôi.
+- [x] Publish completion tập bảng sau khi toàn bộ reconcile; partial retry không nhân đôi.
 
 **Đạt khi:** 5 bảng có bằng chứng cùng snapshot, không chỉ row counts tình cờ khớp.
 **Commit:** `feat(bronze): coordinate Walmart table snapshots and ingestion`.
@@ -218,11 +218,11 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-10 — Make, CI, tài liệu và đóng milestone
 
-- [ ] Mở rộng `make spark-submit JOB=dp1_bronze` với tham số job được validate;
+- [x] Mở rộng `make spark-submit JOB=dp1_bronze` với tham số job được validate;
   giữ `JOB=smoke`, không làm hỏng các target hiện có.
-- [ ] Thêm `make smoke-bronze` cho fixture nhỏ, `make verify-bronze` read-only và target
+- [x] Thêm `make smoke-bronze` cho fixture nhỏ, `make verify-bronze` read-only và target
   integration riêng; ghi rõ các target này hiện mới là kế hoạch.
-- [ ] Unit tests nhẹ nằm trong `make check`; Spark/Docker integration chạy riêng,
+- [x] Unit tests nhẹ nằm trong `make check`; Spark/Docker integration chạy riêng,
   không im lặng skip rồi báo end-to-end thành công.
 - [ ] Cập nhật workflow integration dùng fixture nhỏ, timeout, failure logs đã redaction,
   cleanup container không xóa volume dữ liệu local.

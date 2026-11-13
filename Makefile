@@ -126,9 +126,9 @@ restart-lakehouse: ## Restart catalog and Spark; preserve data
 	$(BATCH) up -d --wait lakekeeper spark-master spark-worker1 spark-worker2
 
 .PHONY: spark-submit
-spark-submit: ## Submit the supported smoke fixture (JOB=smoke)
-	@test "$(JOB)" = "smoke" || (echo 'Supported JOB=smoke; business jobs are not implemented'; exit 2)
-	$(MAKE) smoke-lakehouse
+BRONZE_ARGS ?=
+spark-submit: ## Submit JOB=smoke or JOB=dp1_bronze (BRONZE_ARGS required)
+	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
@@ -143,3 +143,16 @@ test-catalog-failure: ## Wrong catalog path must fail, then existing fixture mus
 	@if $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/smoke.py --verify --bad-catalog > /tmp/omnichannel-catalog-failure.log 2>&1; then echo 'Expected catalog failure'; exit 1; fi
 	@rg -q '404|NotFound' /tmp/omnichannel-catalog-failure.log
 	$(MAKE) verify-lakehouse
+
+.PHONY: smoke-bronze verify-bronze integration-bronze
+BRONZE_RUN_ID ?= b1e64afaff0176de180a
+smoke-bronze: ## Ingest/replay/verify one day Walmart JSONL and JDBC (existing source run)
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/validate.py --run-id $(BRONZE_RUN_ID)
+integration-bronze: ## Extended matrix: default dataset 5 JSONL channels/3 dates plus JDBC
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/validate.py --run-id $(BRONZE_RUN_ID) --all-slices
+verify-bronze: ## Verify a completed slice; pass selection in BRONZE_ARGS
+	$(MAKE) spark-submit JOB=dp1_bronze BRONZE_ARGS='$(BRONZE_ARGS) --verify'
+
+.PHONY: test-bronze-recovery
+test-bronze-recovery: ## Test both-worker staging, empty slice, isolation and partial recovery
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/recovery.py --run-id $(BRONZE_RUN_ID)

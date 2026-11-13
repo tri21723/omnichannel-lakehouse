@@ -237,3 +237,8 @@ __marimo__/
 # Shared source directories must not inherit the generic Python lib/ ignore.
 !spark/lib/
 !spark/lib/**
+
+# Reapply cache exclusions after the spark/lib source exception.
+spark/lib/**/__pycache__/
+spark/lib/__pycache__/
+spark/lib/**/*.pyc

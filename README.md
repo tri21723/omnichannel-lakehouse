@@ -95,3 +95,7 @@ Chi tiết: [runbook](docs/runbook.md), [bằng chứng kiểm thử](docs/lakeh
 Ưu tiên Walmart batch → Iceberg Gold → Trino, sau đó Airflow và các kênh còn lại.
 Streaming, CDC, governance và AWS triển khai sau MVP batch.
 Các điểm làm rõ so với plan được ghi riêng trong ADR; plan gốc được giữ nguyên.
+
+Bronze Phase 4A initial slice: `make smoke-bronze` exercises Walmart JSONL and all
+5 JDBC tables with replay and verification. See [Bronze validation](docs/bronze-validation.md)
+and [runbook](docs/runbook.md); extended validation is tracked in TODO.

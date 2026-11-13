@@ -1,6 +1,6 @@
 # Phase 4 handoff: manifest ingestion and replay
 
-Status: design contract; no business Bronze job is implemented.
+Status: initial JSONL/JDBC vertical slice implemented; expanded validation pending.
 
 CLI: dp1_bronze --run-id ID --run-date YYYY-MM-DD --channel CHANNEL --mode full|incremental.
 run-id is mandatory; it selects s3://raw/manifests/ID/stream_manifest.json. Run date
@@ -40,9 +40,10 @@ raw payloads must remain captured with an explicit raw parse-status contract.
 
 ## Phase 4A implementation contract
 
-See ADR-0007. JSONL CLI now also accepts `--source jsonl`; JDBC support is pending.
+See ADR-0007. CLI accepts `--source jsonl|jdbc`; JDBC is restricted to Walmart.
 `full` replaces one run/channel/date/source slice. `incremental` verifies completion
-and current slice contents before skipping. It is not source CDC. `--verify` reads
+and current slice contents before skipping JSONL. JDBC always refreshes from a new
+consistent snapshot because an immutable manifest cannot identify live DB changes. It is not source CDC. `--verify` reads
 completion and target state without writing business rows.
 
 JSONL Walmart uses `bronze.walmart_orders_export_raw`; other JSONL channels use

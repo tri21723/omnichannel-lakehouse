@@ -72,6 +72,9 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
       SPARK_SHUFFLE_PARTITIONS: ${SPARK_SHUFFLE_PARTITIONS}
       SPARK_MASTER_URL: spark://spark-master:7077
+      S3_RAW_BUCKET: ${S3_RAW_BUCKET}
+      BRONZE_STAGE_DIR: /staging
+      BRONZE_STAGE_MAX_BYTES: ${BRONZE_STAGE_MAX_BYTES:-67108864}
     mem_limit: 512m
     volumes:
     - lakehouse-config:/runtime
@@ -103,6 +106,7 @@ services:
     mem_limit: 2560m
     volumes:
     - lakehouse-config:/runtime
+    - bronze-staging:/staging:ro
     command:
     - /opt/spark/bin/spark-class
     - org.apache.spark.deploy.worker.Worker
@@ -131,6 +135,7 @@ services:
     mem_limit: 2560m
     volumes:
     - lakehouse-config:/runtime
+    - bronze-staging:/staging:ro
     command:
     - /opt/spark/bin/spark-class
     - org.apache.spark.deploy.worker.Worker
@@ -155,10 +160,23 @@ services:
       dockerfile: docker/images/Dockerfile.spark
     profiles:
     - batch
-    environment: *id002
+    environment:
+      LAKEKEEPER_URI: ${LAKEKEEPER_URI}
+      SPARK_S3_ACCESS_KEY: ${SPARK_S3_ACCESS_KEY}
+      SPARK_S3_SECRET_KEY: ${SPARK_S3_SECRET_KEY}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      SPARK_SHUFFLE_PARTITIONS: ${SPARK_SHUFFLE_PARTITIONS}
+      SPARK_MASTER_URL: spark://spark-master:7077
+      S3_RAW_BUCKET: ${S3_RAW_BUCKET}
+      BRONZE_STAGE_DIR: /staging
+      BRONZE_STAGE_MAX_BYTES: ${BRONZE_STAGE_MAX_BYTES:-67108864}
+      SPARK_READER_DB_PASSWORD: ${SPARK_READER_DB_PASSWORD}
+      BRONZE_JDBC_URL: ${BRONZE_JDBC_URL:-jdbc:postgresql://postgres:5432/sources}
     mem_limit: 1536m
     volumes:
     - lakehouse-config:/runtime
+    - bronze-staging:/staging
     command:
     - sleep
     - infinity
@@ -171,3 +189,4 @@ services:
       interval: 30s
 volumes:
   lakehouse-config: {}
+  bronze-staging: {}

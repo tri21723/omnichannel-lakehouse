@@ -3,7 +3,7 @@
 Status: accepted for implementation; runtime validation tracked in bronze-validation.md.
 
 - CLI selects run/date/channel/source. A source slice is replaced by explicit Iceberg
-  overwrite filter, including run ID and source type, never by day alone.
+  MERGE predicate, including run ID and source type, never by day alone.
 - `full` replaces the selected slice. `incremental` skips only a completed slice whose
   input fingerprint and current target content still match. It does not mean CDC.
 - JSONL goes to `<channel>_orders_raw`, except Walmart exports use
@@ -37,3 +37,10 @@ are distinct referenced rows within the slice; a shared entity may appear in sev
 logical dates. JDBC raw is typed row JSON (DECIMAL retained without float conversion,
 UTC timestamps, explicit NULL). All 5 tables must be read under the same exported
 snapshot before completion. Snapshot tokens are ephemeral and must never be logged.
+
+Runtime finding: overwrite-by-filter failed on replay because default truncated column
+metrics could not prove all rows in a data file matched the 20-character run ID.
+Use one atomic MERGE with a single delete marker matched to the target slice and
+unmatched insert rows. This preserves intentional duplicate input rows and supports
+empty slices without depending on file metric bounds. Local flock prevents concurrent
+Bronze commits; other tools must not write these tables while Bronze is running.
