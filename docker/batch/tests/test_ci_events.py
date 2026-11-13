@@ -26,3 +26,17 @@ def test_failure_output_does_not_copy_credentials_or_payload():
     assert secret not in json.dumps(result)
     assert result[0] == {"event": "bronze_failed", "error_type": "ValueError"}
     assert result[1]["metrics"] == {"rows": 4}
+
+
+def test_untrusted_event_names_and_nonstring_reasons_are_not_copied():
+    lines = [
+        json.dumps({"event": "bronze_private_value"}),
+        json.dumps(
+            {
+                "event": "bronze_failed",
+                "reason": {"private": "value"},
+                "error_type": "PrivateValueError",
+            }
+        ),
+    ]
+    assert list(module.safe_events(lines)) == [{"event": "bronze_failed"}]

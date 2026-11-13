@@ -5,6 +5,36 @@ import re
 import sys
 from pathlib import Path
 
+EVENTS = {
+    "bronze_completed",
+    "bronze_verified",
+    "bronze_failed",
+    "bronze_skipped",
+    "bronze_staging_probe_passed",
+    "bronze_empty_and_isolation_passed",
+    "bronze_partial_recovery_passed",
+    "bronze_matrix_passed",
+    "bronze_snapshot_mutation_passed",
+    "bronze_snapshot_failure_recovered",
+    "bronze_malformed_input_passed",
+    "bronze_input_rejected",
+    "bronze_input_failure_matrix_passed",
+    "bronze_channel_contract_passed",
+    "bronze_raw_contract_passed",
+}
+ERROR_TYPES = {
+    "ValueError",
+    "RuntimeError",
+    "Py4JJavaError",
+    "ClientError",
+    "UnicodeDecodeError",
+    "KeyError",
+    "OSError",
+    "JSONDecodeError",
+    "ModuleNotFoundError",
+    "ConnectionError",
+}
+
 REASONS = {
     "source_fingerprint_mismatch",
     "source_row_count_mismatch",
@@ -30,9 +60,9 @@ def safe_events(lines):
             item = json.loads(line)
         except ValueError:
             continue
-        if not isinstance(item, dict) or not re.fullmatch(
-            r"bronze_[a-z_]+", str(item.get("event", ""))
-        ):
+        if not isinstance(item, dict) or not isinstance(item.get("event"), str):
+            continue
+        if item["event"] not in EVENTS:
             continue
         clean = {"event": item["event"]}
         for key in ("batch_id", "attempt"):
@@ -57,7 +87,7 @@ def safe_events(lines):
                 if key in {"duration_seconds", "rows", "rows_per_second", "staged_bytes"}
                 and type(value) in (int, float)
             }
-        if re.fullmatch(r"[A-Za-z]+(?:Error|Exception)", str(item.get("error_type", ""))):
+        if isinstance(item.get("error_type"), str) and item["error_type"] in ERROR_TYPES:
             clean["error_type"] = item["error_type"]
         yield clean
 
