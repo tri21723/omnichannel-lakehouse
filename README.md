@@ -10,6 +10,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 Đã có core storage Phase 1 và generator batch/load Phase 2 chạy end-to-end.
 Pipeline Spark/Airflow chưa triển khai.
 Chi tiết: [implementation status](docs/implementation-status.md).
+Kế hoạch giai đoạn tiếp theo: [TODO — Phase 3](TODO.md).
 
 ## Bắt đầu phát triển
 
