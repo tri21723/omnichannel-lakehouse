@@ -9,7 +9,7 @@ from copy import copy
 from pathlib import Path
 from unittest.mock import patch
 
-from spark.lib.bronze import audit, event, replace_slice, slice_filter
+from spark.lib.bronze import audit, event, replace_slice, slice_filter, snapshot
 from spark.lib.bronze_input import identity
 from spark.lib.session import get_spark
 
@@ -61,6 +61,8 @@ def run() -> None:
             fixture,
             identity(fixture.run_id, fixture.run_date, fixture.channel, fixture.source),
         )
+        empty = replace_slice(spark, "lh.bronze._smoke_initial_empty", first.limit(0), fixture)
+        assert empty["content"]["rows"] == "0"
         table = "lh.bronze._smoke_slice_isolation"
         replace_slice(spark, table, first, fixture)
         other = copy(fixture)
@@ -74,6 +76,16 @@ def run() -> None:
         assert spark.table(table).filter(slice_filter(other)).count() == 1
         replace_slice(spark, table, first, fixture)
         assert spark.table(table).filter(slice_filter(fixture)).count() == 1
+        from pyspark.sql import functions as F
+
+        before_snapshot = snapshot(spark, table)
+        try:
+            replace_slice(spark, table, first.withColumn("_dataset_run_id", F.lit(None)), fixture)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("NULL slice identity was accepted")
+        assert snapshot(spark, table) == before_snapshot
         event("bronze_empty_and_isolation_passed")
 
         original = job.replace_slice

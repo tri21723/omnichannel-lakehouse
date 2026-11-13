@@ -114,3 +114,25 @@ def test_cli_rejects_missing_or_invalid_selection(monkeypatch, extra):
     monkeypatch.setattr(sys, "argv", ["dp1_bronze", *extra])
     with pytest.raises(SystemExit):
         arguments()
+
+
+@pytest.mark.parametrize(
+    "message,reason",
+    [
+        ("Object fingerprint mismatch", "source_fingerprint_mismatch"),
+        ("Staging byte/disk limit exceeded", "staging_limit_exceeded"),
+        ("private-payload-do-not-log", "runtime_or_validation_failure"),
+    ],
+)
+def test_cli_failure_exit_and_safe_reason(message, reason, caplog):
+    from unittest.mock import patch
+
+    from spark.jobs.dp1_bronze.main import run_cli
+
+    with patch("spark.jobs.dp1_bronze.main.main", side_effect=ValueError(message)):
+        with caplog.at_level("INFO"), pytest.raises(SystemExit) as failure:
+            run_cli()
+    assert failure.value.code == 1
+    output = json.loads(caplog.records[-1].message)
+    assert output["reason"] == reason
+    assert "private-payload-do-not-log" not in caplog.text

@@ -87,3 +87,25 @@ opened connection closes and a new attempt stages successfully with a fresh snap
 Fixture rows are cleaned by their exclusive non-generator prefix. No dataset rows
 are changed. Cleanup also closes the connection if rollback itself fails (unit test).
 make check: 43 tests pass.
+
+## Real MinIO input/fault matrix and completion bookkeeping
+
+make test-bronze-input passes with immutable transport fixtures under dedicated
+run IDs: valid inventory/checksum with 4 rows (2 valid JSON, 1 malformed, 1 blank).
+_raw and parse status survive MinIO staging and Iceberg read-back. Missing manifest,
+missing data file, bad checksum, wrong date/channel, a 1-byte staging budget and
+a wrong catalog URI all fail without changing the previous target snapshot.
+Retries restore a valid completion. Accepted attempts now explicitly persist failed
+status after staging/write failure; no completed flag or timestamp is carried forward.
+CLI unit tests confirm exit 1 and safe reason codes without copying exception data.
+
+Completion also includes explicit selection/contract, elapsed time, row throughput,
+staged wrapper bytes and current table file counts/bytes. Example small JDBC fixture:
+66 entity rows, 22,118 staged bytes, 18.859 seconds / 3.500 rows/s including read-back
+verification. Current orders table had 4 data files / 79,150 bytes across all runs.
+These are local smoke timings with two 1GiB executors, not a scale benchmark.
+No compaction, expiry or orphan cleanup ran.
+
+Recovery tests also cover an initially empty table and reject NULL slice identity
+without changing its target snapshot. Snapshot lookup now uses the main ref, avoiding
+ambiguity in history entries with equal timestamps. make check: 47 tests pass.

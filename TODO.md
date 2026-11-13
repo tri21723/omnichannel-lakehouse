@@ -157,7 +157,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [x] Assert mỗi kênh default có 3.120 physical rows, 3.000 unique orders, 120 extra copies;
   toàn JSONL 15.600. Khi dùng fixture khác, kỳ vọng lấy từ manifest, không hard-code default.
 - [x] Kiểm thử hai run cùng ngày vào cùng bảng không ghi đè nhau.
-- [ ] Dữ liệu malformed dùng fixture riêng có manifest/checksum hợp lệ; raw vẫn được giữ,
+- [x] Dữ liệu malformed dùng fixture riêng có manifest/checksum hợp lệ; raw vẫn được giữ,
   parse status rõ, chưa tạo Silver quarantine trong phase này.
 
 **Đạt khi:** schema drift và duplicate được bảo toàn ở cả 5 kênh.
@@ -202,15 +202,15 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 ### P4A-09 — Bộ kiểm chứng và phục hồi
 
 - [x] Tạo verifier read-only cho count, payload fingerprint, provenance, snapshot/completion.
-- [ ] Test thiếu manifest/file, checksum sai, channel/date sai, staging vượt giới hạn:
+- [x] Test thiếu manifest/file, checksum sai, channel/date sai, staging vượt giới hạn:
   nonzero exit, thông báo rõ và không có commit đích mới.
-- [ ] Test malformed JSON hợp lệ về inventory; giữ dòng và parse status theo contract.
-- [ ] Test catalog lỗi và write failure giữa pipeline; dữ liệu đã commit vẫn đọc được,
+- [x] Test malformed JSON hợp lệ về inventory; giữ dòng và parse status theo contract.
+- [x] Test catalog lỗi và write failure giữa pipeline; dữ liệu đã commit vẫn đọc được,
   attempt thất bại chưa completed, retry đạt kết quả chuẩn.
 - [x] Test rerun, hai run cùng ngày, empty slice và nhiều attempt theo ma trận riêng.
 - [x] Restart catalog/Spark rồi verify read-only trước mọi thao tác ghi lại.
 - [x] Chạy regression `make smoke-core`, `make verify-sources`, `make verify-lakehouse`.
-- [ ] Ghi duration, rows/s, staging bytes, data file count/size và tài nguyên fixture;
+- [x] Ghi duration, rows/s, staging bytes, data file count/size và tài nguyên fixture;
   không suy diễn thành benchmark scale lớn hoặc tự chạy compaction/cleanup.
 
 **Đạt khi:** có assertion và evidence cho cả happy path lẫn failure/recovery.

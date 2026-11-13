@@ -104,12 +104,9 @@ def ensure_table(spark: Any, table: str) -> None:
         raise ValueError("Existing Bronze schema differs from contract")
 
 
-def snapshot(spark: Any, table: str) -> int:
-    return int(
-        spark.sql(
-            f"SELECT snapshot_id FROM {table}.history ORDER BY made_current_at DESC LIMIT 1"
-        ).first()[0]
-    )
+def snapshot(spark: Any, table: str) -> int | None:
+    row = spark.sql(f"SELECT snapshot_id FROM {table}.refs WHERE name = 'main'").first()
+    return int(row[0]) if row is not None and row[0] is not None else None
 
 
 def verify_state(spark: Any, state: dict, args: Any, input_hash: str) -> bool:
@@ -118,7 +115,10 @@ def verify_state(spark: Any, state: dict, args: Any, input_hash: str) -> bool:
     for table, evidence in state["tables"].items():
         if not spark.catalog.tableExists(table):
             return False
-        if (
+        if evidence["snapshot"] is None:
+            if evidence["content"]["rows"] != "0":
+                return False
+        elif (
             spark.sql(
                 f"SELECT snapshot_id FROM {table}.snapshots "
                 f"WHERE snapshot_id = {int(evidence['snapshot'])}"
@@ -134,13 +134,13 @@ def verify_state(spark: Any, state: dict, args: Any, input_hash: str) -> bool:
 def replace_slice(spark: Any, table: str, df: Any, args: Any) -> dict:
     ensure_table(spark, table)
     selected = slice_filter(args)
-    if df.filter(~selected).limit(1).count():
+    from pyspark.sql import functions as F
+
+    if df.filter(~F.coalesce(selected, F.lit(False))).limit(1).count():
         raise ValueError("Output escapes selected slice")
     expected = content_summary(df)
     # A delete marker plus insert rows preserves duplicates and supports an empty slice.
     # MERGE avoids relying on truncated file-level statistics to prove a full-file delete.
-    from pyspark.sql import functions as F
-
     marker = spark.createDataFrame([tuple(None for _ in spark.table(table).columns)], AUDIT_SCHEMA)
     source = df.select(*spark.table(table).columns).withColumn("_replace", F.lit(False))
     source = source.unionByName(marker.withColumn("_replace", F.lit(True)))
@@ -162,7 +162,15 @@ def replace_slice(spark: Any, table: str, df: Any, args: Any) -> dict:
         or df.select(*CONTENT).exceptAll(actual.select(*CONTENT)).limit(1).count()
     ):
         raise ValueError("Bronze read-back differs from input")
-    return {"snapshot": snapshot(spark, table), "content": expected}
+    files = (
+        spark.sql(
+            f"SELECT count(*) AS files, coalesce(sum(file_size_in_bytes), 0) "
+            f"AS bytes FROM {table}.data_files"
+        )
+        .first()
+        .asDict()
+    )
+    return {"snapshot": snapshot(spark, table), "content": expected, "table_files": files}
 
 
 def input_digest(manifest_hash: str, args: Any) -> str:

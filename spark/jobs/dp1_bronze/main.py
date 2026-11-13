@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import tempfile
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -64,6 +65,8 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
         path = root / f"{batch}.json"
         old = json.loads(path.read_text()) if path.exists() else {}
         spark = get_spark() if spark is None else spark
+        state = None
+        started = time.monotonic()
         try:
             valid = verify_state(spark, old, args, fingerprint)
             if args.verify:
@@ -80,6 +83,24 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
             with tempfile.TemporaryDirectory(prefix=attempt + "-", dir=stage_root) as directory:
                 from pyspark.sql import functions as F
 
+                state = {
+                    "status": "running",
+                    "started_at": datetime.now(UTC).isoformat(),
+                    "batch_id": batch,
+                    "attempt": attempt,
+                    "input_hash": fingerprint,
+                    "manifest_hash": manifest_hash,
+                    "source_evidence": {},
+                    "selection": {
+                        "run_id": args.run_id,
+                        "run_date": args.run_date,
+                        "channel": args.channel,
+                        "source": args.source,
+                    },
+                    "contract": "bronze-v1",
+                    "tables": {},
+                }
+                save_state(path, state)
                 frames = {}
                 source_evidence = {}
                 if args.source == "jsonl":
@@ -110,34 +131,70 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
                             "_raw string, _source_file string, "
                             "_source_table string, _parse_status string"
                         ).json(str(file))
-                state = {
-                    "status": "running",
-                    "started_at": datetime.now(UTC).isoformat(),
-                    "batch_id": batch,
-                    "attempt": attempt,
-                    "input_hash": fingerprint,
-                    "manifest_hash": manifest_hash,
-                    "source_evidence": source_evidence,
-                    "tables": {},
-                }
-                save_state(path, state)
+                state["source_evidence"] = source_evidence
                 for table, df in frames.items():
                     state["tables"][table] = replace_slice(
                         spark, table, audit(df, args, batch), args
                     )
+                duration = time.monotonic() - started
+                staged_bytes = sum(p.stat().st_size for p in Path(directory).glob("*.jsonl"))
+                rows = sum(int(e["content"]["rows"]) for e in state["tables"].values())
+                state["metrics"] = {
+                    "duration_seconds": round(duration, 3),
+                    "rows": rows,
+                    "rows_per_second": round(rows / duration, 3),
+                    "staged_bytes": staged_bytes,
+                }
                 state["status"] = "completed"
                 state["completed_at"] = datetime.now(UTC).isoformat()
                 save_state(path, state)
-                event("bronze_completed", batch_id=batch, attempt=attempt, tables=state["tables"])
+                event(
+                    "bronze_completed",
+                    batch_id=batch,
+                    attempt=attempt,
+                    tables=state["tables"],
+                    metrics=state["metrics"],
+                )
+        except Exception as exc:
+            if state is not None:
+                state["status"] = "failed"
+                state["failed_at"] = datetime.now(UTC).isoformat()
+                state["error_type"] = type(exc).__name__
+                save_state(path, state)
+            raise
         finally:
             if own_spark:
                 spark.stop()
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+def run_cli() -> None:
+    """Report safe reason codes and a nonzero exit, without logging raw exceptions."""
+    from botocore.exceptions import ClientError
+
+    reasons = {
+        "Object fingerprint mismatch": "source_fingerprint_mismatch",
+        "Object row count mismatch": "source_row_count_mismatch",
+        "Channel/date outside manifest": "invalid_selection",
+        "Staging byte/disk limit exceeded": "staging_limit_exceeded",
+        "Object exceeds declared size": "staging_limit_exceeded",
+        "JDBC staging byte limit exceeded": "staging_limit_exceeded",
+    }
     try:
         main()
     except Exception as exc:
-        event("bronze_failed", error_type=type(exc).__name__)
+        if isinstance(exc, ClientError):
+            code = exc.response["Error"]["Code"]
+            reason = (
+                "source_object_missing" if code in {"NoSuchKey", "404"} else "source_storage_error"
+            )
+        elif isinstance(exc, UnicodeError):
+            reason = "raw_encoding_invalid"
+        else:
+            reason = reasons.get(str(exc), "runtime_or_validation_failure")
+        event("bronze_failed", error_type=type(exc).__name__, reason=reason)
         raise SystemExit(1) from None
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    run_cli()
