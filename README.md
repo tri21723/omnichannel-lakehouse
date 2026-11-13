@@ -9,7 +9,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 
 Đã có core storage, generator batch/load và Iceberg + Lakekeeper chạy trên Spark cluster.
 Đã có `dp1_bronze` cho JSONL 5 kênh và JDBC Walmart, kèm replay/recovery và đối soát.
-Phase 4B đã triển khai Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
+Phase 4B hoàn thành local (`v0.4b-silver`): Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
 Gold và Airflow là các giai đoạn tiếp theo.
 Chi tiết: [implementation status](docs/implementation-status.md).
 Kế hoạch Silver: [TODO — Phase 4B](TODO.md). Bàn giao tiếp theo: [Gold](docs/gold-handoff.md).

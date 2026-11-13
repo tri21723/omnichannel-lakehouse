@@ -49,8 +49,9 @@ See [Bronze validation](bronze-validation.md), [contract](bronze-contract.md) an
 [completed checklist](phase4a-checklist.md). Historical test counts above refer to earlier
 milestones; the final Phase 4A report records the current count.
 
-## Phase 4B — Silver available
+## Phase 4B — Silver complete locally
 
+- Local milestone v0.4b-silver; 98 unit tests and lint, matrix/recovery/restart/regression pass.
 - Five entities across Walmart JDBC and four authoritative JSONL channels.
 - Strict typed parsing, schema drift mappings, channel-scoped keys and relational DQ.
 - Required keyed HMAC PII, reference-only quarantine and per-entity occurrence accounting.

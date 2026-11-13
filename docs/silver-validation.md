@@ -1,6 +1,6 @@
 # Silver validation — Phase 4B
 
-Date: 2026-11-13. Runtime verification is being finalized before milestone tagging.
+Date: 2026-11-13. Local DoD complete; milestone v0.4b-silver.
 Earlier normalization-only checkpoints have been superseded by five-entity publishing.
 See ADR-0008, the physical SQL contract and gold-handoff.md for implemented semantics.
 
@@ -33,6 +33,18 @@ Default orders = 3,000 per channel. The 15,600 raw JSONL rows include intentiona
 duplicates; those remain in Bronze. Walmart JSONL is not a sixth authoritative source.
 Profile/return counts come from actual source keys, not the order count. Two datasets
 coexist on the same logical dates with disjoint run-prefixed business IDs.
+
+Input occurrences summed once per selected input pin (15 pins per matrix), all valid
+and zero rejected on the clean reference matrices:
+
+| Dataset | orders | order_items | customers | products | returns |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| small | 387 | 387 | 327 | 339 | 33 |
+| default | 15,480 | 15,480 | 13,080 | 12,540 | 1,559 |
+
+For orders, local duplicate losers = 12 small / 480 default. Embedded profile
+occurrences and shared profiles across dates explain why input and global profile
+counts differ; do not interpret their difference as invalid rows.
 
 Commands: make integration-silver, make integration-silver-reference and
 make reconcile-silver (set SILVER_RUN_ID for the default run). The real Spark
@@ -92,10 +104,13 @@ Writer conflicts, mixed PII keys, NULL scope and natural-key ownership are fail-
 
 ## Completion and persistence gates
 
-Pending final evidence: final source reconciliation of both runs, read-only Silver
-verification immediately after catalog/Spark restart, and
-core/source/lakehouse/Bronze regression. These gates remain unchecked in TODO until
-successful logs are available.
+Final source reconciliation passes for both runs after extended recovery. Catalog,
+master and both workers were restarted, then verify-silver passed before any Silver
+rewrite. smoke-core, verify-sources, verify-lakehouse, verify-bronze with explicit
+Walmart JDBC selection and test-bronze-contract all pass. Original default sources
+retain 15,600 JSONL rows and 3,000 JDBC orders, with zero changed source rows.
+TODO closes all 78 local checklist items; the whole Phase 4 remains open for Gold,
+features/labels, export and later batch performance work.
 
 The completed ledger contains all 15 output snapshots, content row/hash summaries,
 file counts/bytes, per-input accounting, source snapshot references, policy/key version,
@@ -103,6 +118,20 @@ revision and publication duration. Read-back verifies exact schema, key uniquene
 PII hash format, required keys, quarantine reasons, FK, order-line sum, refund cap and
 return timestamps before visibility. Latest table heads are not a multi-table transaction.
 Gold consumers must pin the completed ledger and read its snapshot IDs.
+
+## Post-restart publication diagnostics
+
+Read-only verify-silver after restarting catalog/master/both workers passes all 15
+tables and 32 slice references (30 dataset slices plus two explicitly empty recovery
+fixture slices). Global materialized counts are orders/items/customers/products/returns
+= 15,375/15,375/1,025/188/1,530. Recovery fixture business rows are zero.
+
+The last empty-fixture publication took 60.228 seconds on this local stack; its
+completed table snapshots reference 38 current data files totaling 7,800,401 bytes
+across all 15 tables. These figures exclude retained historical files and are not
+a full-matrix duration or throughput benchmark. Per-table rows/hashes/files/bytes
+and per-slice accounting remain in the completed ledger; Spark UI supplies ephemeral
+stage/shuffle diagnostics. No large shuffle benchmark is claimed.
 
 ## CI and practical limits
 

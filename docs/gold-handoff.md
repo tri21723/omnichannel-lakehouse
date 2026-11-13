@@ -10,7 +10,10 @@ Read /runtime/silver/publication/ledger.json once, require status=completed and 
 its immutable publication archive before processing. Resolve each of the five
 lh.silver.<entity> tables from that same ledger's tables map and read Iceberg with
 option snapshot-id. A NULL snapshot means typed empty data only when content rows=0.
-Never fall back to latest, including after failure/restart or snapshot expiration.
+Archive identity is SHA-256 of json.dumps(ledger, sort_keys=True).encode() using
+Python's default JSON separators/escaping, as in silver_publish.py; the archive is
+publication-<identity>.json. Hashing the pretty-printed ledger bytes yields a different
+identity. Never fall back to latest, including after failure/restart or snapshot expiration.
 Do not treat attempt.json as completion. Keep referenced snapshots until retention
 and downstream replay requirements have been designed.
 

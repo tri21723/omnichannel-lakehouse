@@ -1,6 +1,6 @@
 # TODO — Phase 4B: Chuẩn hóa Bronze thành Silver
 
-Cập nhật: **2026-11-13**. Trạng thái: **Đang kiểm chứng publish 5 entity/5 kênh và recovery**.
+Cập nhật: **2026-11-13**. Trạng thái: **Hoàn thành Phase 4B local DoD — 78/78 checklist**.
 
 Mục tiêu: triển khai phần Silver của `dp2_silver`, tạo dữ liệu chuẩn cho 5 kênh,
 không trùng natural key, bảo vệ PII, có quarantine và đối soát từng bước.
@@ -161,8 +161,8 @@ Return quantity: **N/A** vì nguồn không cung cấp field; kiểm tra refund 
 - [x] Kiểm tra tổng tiền/refund theo channel/currency bằng DECIMAL; không tổng hợp USD và VND vào cùng một số.
 - [x] Test malformed fixtures có expected reject/dedup/winner counts; mọi đầu vào được giải thích, kể cả parent-child rejection.
 - [x] Test replay hai lần, source correction, late older batch, PII key thiếu, snapshot mất, input completion sai và catalog failure.
-- [ ] Restart rồi verify trước mọi ghi lại; regression Bronze/core/source vẫn pass.
-- [ ] Ghi runtime, input/output rows, duration, staging/shuffle/file metrics phù hợp; không diễn giải fixture nhỏ thành benchmark lớn.
+- [x] Restart rồi verify trước mọi ghi lại; regression Bronze/core/source vẫn pass.
+- [x] Ghi runtime, input/output rows, duration, staging/shuffle/file metrics phù hợp; không diễn giải fixture nhỏ thành benchmark lớn.
 
 **Đạt khi:** Có evidence cho correctness, privacy, recovery và persistence.
 **Commit gợi ý:** `test(silver): verify reconciliation PII replay and persistence`.
@@ -173,9 +173,9 @@ Return quantity: **N/A** vì nguồn không cung cấp field; kiểm tra refund 
 - [x] Tách unit/local Spark tests khỏi Docker integration; không im lặng skip rồi báo pipeline pass.
 - [x] Workflow manual dùng fixture nhỏ, timeout, cleanup không xóa volumes local và failure logs đã lọc PII/secret.
 - [x] Chạy make check và integration local; ghi hosted CI riêng, không tick hosted pass khi chưa có run.
-- [ ] Hoàn tất docs/silver-validation.md, README, runbook, implementation-status, DDL và ADR bằng expected/actual evidence.
+- [x] Hoàn tất docs/silver-validation.md, README, runbook, implementation-status, DDL và ADR bằng expected/actual evidence.
 - [x] Bàn giao Gold: grain, natural keys, currency, relationships, quarantine accounting, PII fields và snapshot input contract.
-- [ ] Rà soát TODO theo bằng chứng; commit mỗi task nhỏ, tag v0.4b-silver chỉ sau local DoD đạt. Chưa tag toàn Phase 4.
+- [x] Rà soát TODO theo bằng chứng; commit mỗi task nhỏ, tag v0.4b-silver chỉ sau local DoD đạt. Chưa tag toàn Phase 4.
 
 **Đạt khi:** Có cách tái lập Silver và contract đủ để lập kế hoạch Gold.
 **Commit gợi ý:** `docs(silver): publish validation and Gold handoff`.
@@ -185,9 +185,14 @@ Return quantity: **N/A** vì nguồn không cung cấp field; kiểm tra refund 
 - [x] 5 entity/5 kênh đúng schema, key uniqueness và source ownership.
 - [x] Input pinned theo completion/snapshot; replay và correction có semantics được kiểm thử.
 - [x] PII policy đạt; quarantine/accounting không mất dòng âm thầm.
-- [ ] Partial failure/retry và restart pass; Bronze/source regression xanh.
-- [ ] Lint, unit/integration local đạt; CI hosted và giới hạn được ghi trung thực.
-- [ ] DDL/ADR/runbook/evidence/handoff cập nhật, commits và milestone hoàn tất.
+- [x] Partial failure/retry và restart pass; Bronze/source regression xanh.
+- [x] Lint, unit/integration local đạt; CI hosted và giới hạn được ghi trung thực.
+- [x] DDL/ADR/runbook/evidence/handoff cập nhật, commits và milestone hoàn tất.
+
+Local evidence: [silver-validation.md](docs/silver-validation.md). make check: 98 tests
+và lint pass; matrix nhỏ/default, DQ, recovery, đối soát, restart/read-only verify và
+regression core/source/Lakehouse/Bronze đều pass. Milestone: `v0.4b-silver`.
+Workflow Silver manual đã thêm; chưa có hosted run mới, không suy ra hosted pass.
 
 ## 5. Quy tắc thực hiện
 
