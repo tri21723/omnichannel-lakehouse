@@ -39,6 +39,20 @@ class Fields:
                 return None
         return value
 
+    def optional_text(self, name: str) -> str | None:
+        value = self.value.get(name)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            self.errors.append(name + ":invalid_string")
+            return None
+        try:
+            value.encode("utf-8")
+        except UnicodeError:
+            self.errors.append(name + ":invalid_unicode")
+            return None
+        return value
+
     def timestamp(self, name: str) -> datetime | None:
         value = self.text(name)
         if value is None:
@@ -128,11 +142,11 @@ def normalize(
         return {}, ["_raw:expected_object"]
     fields = Fields(value, channel)
     row = {"channel": channel}
-    if value.get("_parent_error"):
+    if entity in {"order_items", "returns"} and value.get("_parent_error"):
         fields.errors.append("order_id:conflicting_parent")
-    if value.get("_product_error"):
+    if entity == "order_items" and value.get("_product_error"):
         fields.errors.append("product_id:conflicting_embedded_product")
-    if value.get("_customer_error"):
+    if entity == "orders" and value.get("_customer_error"):
         fields.errors.append("customer_id:conflicting_embedded_customer")
     if entity == "orders":
         for name in ("order_id", "customer_id", "status", "currency", "shipping_country"):
@@ -141,9 +155,7 @@ def normalize(
             row[name] = fields.timestamp(name)
         row["total_amount"] = fields.money("total_amount")
         row["is_deleted"] = False
-        row["fulfillment_type"] = value.get("fulfillment_type")
-        if row["fulfillment_type"] is not None and not isinstance(row["fulfillment_type"], str):
-            fields.errors.append("fulfillment_type:invalid_string")
+        row["fulfillment_type"] = fields.optional_text("fulfillment_type")
         if value.get("_mapping_error"):
             fields.errors.append("customer_id:conflicting_alias")
         for error in value.get("_array_errors", []):
@@ -163,9 +175,7 @@ def normalize(
         for name in ("product_id", "seller_id", "title", "category"):
             row[name] = fields.text(name)
         row["updated_ts"] = fields.timestamp("updated_ts")
-        row["brand"] = value.get("brand")
-        if row["brand"] is not None and not isinstance(row["brand"], str):
-            fields.errors.append("brand:invalid_string")
+        row["brand"] = fields.optional_text("brand")
     elif entity == "returns":
         for name in ("return_id", "order_id", "reason"):
             row[name] = fields.text(name)

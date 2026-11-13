@@ -78,3 +78,22 @@ separate Iceberg snapshots; the committed publication ledger is the visibility b
 Unit suite currently passes 89 tests, including source snapshot ancestry and alias/
 embedded-parent validation. Extended matrix and correction/failure tests are ongoing;
 this checkpoint does not close Phase 4B.
+
+## Matrix and source reconciliation — 2026-11-13
+
+Small fixture: all 15 channel/date slices and an identical-pin replay passed. Source
+key comparisons for every entity yield orders/items/customers/products/returns =
+375/375/25/88/30. Default reference: all 15 slices passed, 3,000 orders per channel,
+15,000 total. Exact authoritative source keys and DECIMAL totals/refunds by currency
+match: 15,000/15,000/1,000/100/1,500. Walmart JSONL is excluded.
+
+Spark DQ fixture checks pass: duplicate occurrences reduce deterministically under
+reordering/repartition, identical IDs in two channels stay separate, malformed/scalar
+roots generate no phantom children, missing products cascade to dependent records,
+and excessive refunds reject explicitly. Original real JDBC correction/recovery
+checks pass all three failure boundaries. Extended privacy/catalog/ownership checks
+and final restart/regression are still being finalized.
+
+Current make check: 98 tests pass plus Python/SQL/YAML lint. New coverage includes
+Unicode/optional field validation, missing key/version, incomplete table inventory
+and stale snapshot ancestry. No new hosted CI result is claimed.

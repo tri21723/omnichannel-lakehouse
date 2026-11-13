@@ -189,6 +189,26 @@ def run():
         assert table(ledger, "products").count() == table(ledger, "customers").count() == 1
         assert table(ledger, "orders").count() == table(ledger, "returns").count() == 2
         release(spark)
+        execute(writer, f"UPDATE walmart.customers SET email='' WHERE customer_id='{prefix}c'")
+        writer.commit()
+        private_bad = prepare(1)
+        ledger = apply(private_bad)
+        qcustomer = "lh.silver.quarantine_customers"
+        private_frame = frame_at(
+            spark, qcustomer, ledger["tables"][qcustomer], spark.table(qcustomer).schema
+        ).filter("_dataset_run_id='" + run_id + "'")
+        assert private_frame.count() == 1
+        text = "".join(private_frame.toJSON().collect())
+        assert "Fixture User" not in text and "fixture@example.invalid" not in text
+        assert table(ledger, "customers").count() == 1
+        execute(
+            writer,
+            "UPDATE walmart.customers SET email='fixture@example.invalid' "
+            f"WHERE customer_id='{prefix}c'",
+        )
+        writer.commit()
+        ledger = apply(prepare(1))
+        release(spark)
         execute(writer, f"UPDATE walmart.orders SET total_amount=10.26 WHERE order_id='{prefix}o1'")
         writer.commit()
         bad = prepare(1)
@@ -226,6 +246,23 @@ def run():
         good = prepare(1)
         rows, state = result(good)
         before = (ROOT / "ledger.json").read_bytes()
+        # Real REST catalog failure before the first table commit preserves publication.
+        from spark.lib.silver_publish import replace
+
+        spark.conf.set(
+            "spark.sql.catalog.silver_unavailable", "org.apache.iceberg.spark.SparkCatalog"
+        )
+        spark.conf.set("spark.sql.catalog.silver_unavailable.type", "rest")
+        spark.conf.set("spark.sql.catalog.silver_unavailable.uri", "http://127.0.0.1:1/catalog")
+        try:
+            replace(spark, "silver_unavailable.silver.orders", rows["orders"]["valid"])
+        except Exception:
+            pass
+        else:
+            raise AssertionError("Unavailable REST catalog unexpectedly succeeded")
+        assert (ROOT / "ledger.json").read_bytes() == before
+        verify(spark, json.loads(before))
+        event("silver_catalog_failure_preserved")
         for failure in ("contribution", "quarantine", "completion"):
             try:
                 publish(
@@ -268,6 +305,28 @@ def run():
             pass
         else:
             raise AssertionError("NULL slice identity accepted")
+        assert (ROOT / "ledger.json").read_bytes() == before
+        # An internal caller cannot relabel an existing source key as another dataset.
+        from copy import deepcopy
+
+        foreign = deepcopy(state)
+        foreign["selection"]["run_id"] = "d" * 20
+        foreign["batch_id"] = identity(**foreign["selection"])
+        foreign_rows = {
+            name: {
+                **value,
+                "valid": value["valid"]
+                .withColumn("_dataset_run_id", F.lit("d" * 20))
+                .withColumn("_source_batch_id", F.lit(foreign["batch_id"])),
+            }
+            for name, value in rows.items()
+        }
+        try:
+            publish(spark, foreign_rows, good.stem, foreign, version, ROOT, key_id=key_id)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Natural key ownership collision was accepted")
         assert (ROOT / "ledger.json").read_bytes() == before
         ledger = publish(spark, rows, good.stem, state, version, ROOT, key_id=key_id)[0]
         assert table(ledger, "orders").count() == 2

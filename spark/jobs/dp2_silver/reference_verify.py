@@ -128,6 +128,10 @@ def check_reference(spark, run_id):
     actual_amounts = (
         outputs["orders"].groupBy("channel", "currency").agg(F.sum("total_amount").alias("amount"))
     )
+    # Break the aggregate/ExceptAll lineage: Spark 3.5 can otherwise prune a grouping
+    # attribute while rewriting ExceptAll's duplicate expansion.
+    source_amounts = source_amounts.localCheckpoint(eager=True)
+    actual_amounts = actual_amounts.localCheckpoint(eager=True)
     if (
         source_amounts.exceptAll(actual_amounts).count()
         or actual_amounts.exceptAll(source_amounts).count()
@@ -142,6 +146,8 @@ def check_reference(spark, run_id):
         .groupBy("channel", "currency")
         .agg(F.sum("refund_amount").alias("refund"))
     )
+    source_refunds = source_refunds.localCheckpoint(eager=True)
+    actual_refunds = actual_refunds.localCheckpoint(eager=True)
     if (
         source_refunds.exceptAll(actual_refunds).count()
         or actual_refunds.exceptAll(source_refunds).count()

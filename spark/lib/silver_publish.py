@@ -66,9 +66,21 @@ def replace(spark, table, df):
         and "PARTITIONED BY" not in spark.sql(f"SHOW CREATE TABLE {table}").first()[0].upper()
     ):
         spark.sql(f"ALTER TABLE {table} ADD PARTITION FIELD {partition}")
-    actual_schema = [(f.name, f.dataType) for f in spark.table(table).schema]
-    if actual_schema != [(f.name, f.dataType) for f in df.schema]:
+    actual_schema = {f.name: f.dataType for f in spark.table(table).schema}
+    if actual_schema != {f.name: f.dataType for f in df.schema}:
         raise ValueError("Silver schema mismatch; reviewed migration required")
+    df = df.select(*spark.table(table).columns)
+    current = spark.table(table)
+    if summary(current) == expected and not df.exceptAll(current).limit(1).count():
+        files = (
+            spark.sql(
+                f"SELECT count(*) AS count, coalesce(sum(file_size_in_bytes),0) "
+                f"AS bytes FROM {table}.data_files"
+            )
+            .first()
+            .asDict()
+        )
+        return dict(snapshot=snapshot(spark, table), content=expected, files=files)
     # One delete marker matches every old row, insert occurrences never match it.
     from pyspark.sql.types import StructField, StructType
 
@@ -197,8 +209,30 @@ def publish(
                         F.length(F.trim(F.col(name).cast("string"))) == 0
                     )
                     invalid = condition if invalid is None else invalid | condition
+                invalid = (
+                    invalid
+                    | (F.col("_source_batch_id") != batch)
+                    | (F.col("_input_id") != pin_id)
+                    | F.col("_source_snapshot").isNull()
+                    | F.col("_source_channel").isNull()
+                    | (F.col("_source_channel") != select["channel"])
+                    | F.col("_policy_version").isNull()
+                    | (F.col("_policy_version") != POLICY)
+                )
                 if valid.filter(invalid | ~F.coalesce(scope, F.lit(False))).limit(1).count():
                     raise ValueError("Invalid or out-of-scope Silver row identity")
+                qinvalid = (
+                    F.col("_dataset_run_id").isNull()
+                    | F.col("_run_date").isNull()
+                    | (F.col("_dataset_run_id") != select["run_id"])
+                    | (F.col("_source_batch_id") != batch)
+                    | (F.col("_input_id") != pin_id)
+                    | (F.col("_source_channel") != select["channel"])
+                    | F.col("_source_snapshot").isNull()
+                    | (F.col("_run_date") != F.lit(select["run_date"]).cast("date"))
+                )
+                if rejected.filter(F.coalesce(qinvalid, F.lit(True))).limit(1).count():
+                    raise ValueError("Invalid quarantine identity")
                 # Rebuild exclusively from the last committed snapshots, even after partial failure.
                 base = frame_at(spark, contrib, old["tables"].get(contrib), valid.schema)
                 combined = base.filter(~scope).unionByName(valid).localCheckpoint(eager=True)
@@ -284,6 +318,15 @@ def publish(
 def verify(spark, ledger):
     if ledger.get("status") != "completed":
         raise ValueError("No completed Silver publication")
+    required = {
+        f"lh.silver.{prefix}{entity}"
+        for entity in FIELDS
+        for prefix in ("", "_contrib_", "quarantine_")
+    }
+    if set(ledger["tables"]) != required:
+        raise ValueError("Incomplete Silver table inventory")
+    from pyspark.sql import functions as F
+
     outputs = {}
     for table, evidence in ledger["tables"].items():
         # Table names are produced by this module, but validate persisted control-plane input.
@@ -295,6 +338,45 @@ def verify(spark, ledger):
             raise ValueError("Unexpected Silver table in ledger")
         schema = spark.table(table).schema
         frame = frame_at(spark, table, evidence, schema)
+        entity = table.rsplit(".", 1)[-1]
+        base_entity = entity.removeprefix("_contrib_").removeprefix("quarantine_")
+        from spark.lib.silver_entities import AUDIT
+
+        declared = (
+            AUDIT + ", _error_reason array<string>"
+            if entity.startswith("quarantine_")
+            else FIELDS[base_entity] + ", " + AUDIT
+        )
+        expected_schema = spark.createDataFrame([], declared).schema
+        if {f.name: f.dataType for f in schema} != {f.name: f.dataType for f in expected_schema}:
+            raise ValueError("Published Silver schema differs from contract")
+        if entity.startswith("quarantine_"):
+            if (
+                frame.filter(F.col("_error_reason").isNull() | (F.size("_error_reason") < 1))
+                .limit(1)
+                .count()
+            ):
+                raise ValueError("Quarantine record has no error reason")
+        else:
+            for key in KEYS[base_entity]:
+                if (
+                    frame.filter(
+                        F.col(key).isNull() | (F.length(F.trim(F.col(key).cast("string"))) == 0)
+                    )
+                    .limit(1)
+                    .count()
+                ):
+                    raise ValueError("Published natural key is NULL or empty")
+            if base_entity == "customers":
+                condition = (
+                    F.col("name_hash").isNull()
+                    | F.col("email_hash").isNull()
+                    | ~F.col("name_hash").rlike("^[0-9a-f]{64}$")
+                    | ~F.col("email_hash").rlike("^[0-9a-f]{64}$")
+                )
+                if frame.filter(condition).limit(1).count():
+                    raise ValueError("Customer PII hashes violate policy")
+
         if summary(frame) != evidence["content"]:
             raise ValueError("Committed Silver snapshot failed verification")
         if not any(token in table for token in ("quarantine_", "_contrib_")):
@@ -311,8 +393,6 @@ def verify(spark, ledger):
                 or counts["valid"] != counts["winners"] + counts["duplicate_losers"]
             ):
                 raise ValueError("Published accounting mismatch")
-
-    from pyspark.sql import functions as F
 
     def no_orphans(child, parent, keys):
         if child.join(parent.select(*keys).distinct(), keys, "left_anti").limit(1).count():
@@ -335,3 +415,29 @@ def verify(spark, ledger):
         .count()
     ):
         raise ValueError("Published Silver monetary reconciliation failed")
+    paid = outputs["order_items"].select(
+        "channel",
+        "order_id",
+        "line_no",
+        (F.col("qty") * F.col("unit_price") - F.col("discount")).alias("_paid"),
+    )
+    refunds = (
+        outputs["returns"]
+        .groupBy("channel", "order_id", "line_no")
+        .agg(F.sum("refund_amount").alias("_refund"))
+    )
+    if (
+        refunds.join(paid, ["channel", "order_id", "line_no"])
+        .filter("_refund > _paid")
+        .limit(1)
+        .count()
+    ):
+        raise ValueError("Published refunds exceed paid line amount")
+    if (
+        outputs["returns"]
+        .join(outputs["orders"].select("channel", "order_id", "order_ts"), ["channel", "order_id"])
+        .filter("return_ts < order_ts")
+        .limit(1)
+        .count()
+    ):
+        raise ValueError("Published return predates its order")

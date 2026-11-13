@@ -117,3 +117,50 @@ def test_child_parent_ids_are_validated_before_injection():
     returned = json.loads(next(r["_raw"] for r in rows if r["entity"] == "returns"))
     assert order["_customer_error"] and item["_product_error"]
     assert item["_parent_error"] and returned["_parent_error"]
+
+
+def test_unknown_product_fields_do_not_activate_order_mapping_rules():
+    raw = dict(
+        product_id="p",
+        seller_id="s",
+        title="fixture",
+        category="fixture",
+        updated_ts="2026-01-01T00:00:00Z",
+        _parent_error=True,
+        _customer_error=True,
+    )
+    row, errors = normalize(json.dumps(raw), "products", "lazada", KEY, "v1")
+    assert not errors and row["product_id"] == "p"
+
+
+@pytest.mark.parametrize("brand", [42, "\ud800"])
+def test_optional_product_strings_reject_bad_type_or_unicode(brand):
+    raw = dict(
+        product_id="p",
+        seller_id="s",
+        title="fixture",
+        category="fixture",
+        updated_ts="2026-01-01T00:00:00Z",
+        brand=brand,
+    )
+    row, errors = normalize(json.dumps(raw), "products", "lazada", KEY, "v1")
+    assert not row and any(error.startswith("brand:") for error in errors)
+
+
+@pytest.mark.parametrize("key,version", [(None, "v1"), ("00", "v1"), ("zz", "v1"), ("00" * 32, "")])
+def test_missing_or_invalid_pii_settings_fail_before_spark(monkeypatch, key, version):
+    from spark.jobs.dp2_silver.main import key_settings
+
+    monkeypatch.delenv("SILVER_PII_KEY", raising=False)
+    if key is not None:
+        monkeypatch.setenv("SILVER_PII_KEY", key)
+    monkeypatch.setenv("SILVER_PII_KEY_VERSION", version)
+    with pytest.raises((KeyError, ValueError)):
+        key_settings()
+
+
+def test_incomplete_ledger_rejected_before_table_reads():
+    from spark.lib.silver_publish import verify
+
+    with pytest.raises(ValueError, match="Incomplete Silver table inventory"):
+        verify(None, dict(status="completed", tables={}))

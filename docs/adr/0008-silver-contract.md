@@ -1,7 +1,7 @@
 # ADR-0008: Silver input and entity state contract
 
-Status: accepted design; input reader under implementation. Walmart orders/customers/items normalization is implemented in validation mode;
-publishing is not yet implemented. No Silver tables are created by this ADR/DDL.
+Status: accepted and implemented for all five entities and channels (Phase 4B).
+Physical schemas are published in sql/iceberg/silver_contract.sql.
 
 ## Source selection and schema
 
@@ -30,7 +30,7 @@ absence is not a CDC delete event.
 
 Items/returns inherit parent order updated_ts as version time because the source
 has no update timestamp for those entities. Customers/products use their own source
-updated_ts. Orders/customer/items are the first implementation slice. Sellers is
+updated_ts. Sellers is
 explicitly deferred: retain seller_id, do not invent seller name/country.
 
 ## Corrections, ordering and scope
@@ -42,7 +42,8 @@ Full replaces the selected contribution, including retraction when a former vali
 becomes invalid/disappears. Incremental skips only a successfully published identical
 pin/policy/key version; otherwise processes a new explicit source revision.
 
-Recompute affected keys from committed contributions plus the new slice. Thus shared
+The bounded local implementation recomputes all keys from committed contributions
+plus the new slice and atomically replaces each table using MERGE. Thus shared
 customer/product rows referenced by other dates survive correction of one slice.
 Choose winners by updated_ts DESC, canonical normalized payload SHA-256 DESC. Exclude
 attempt timestamps and ingest order from canonical tie-break input. Exact duplicates
@@ -66,7 +67,11 @@ PII policy v1: Unicode NFKC and trim/collapse whitespace for names; trim/lowerca
 email. HMAC-SHA256 with a required secret >=32 bytes, domain separated by field and
 channel; record key version. Null optional values remain NULL. Missing key fails
 before writes. Key rotation needs explicit backfill/revision; never mix key versions
-silently. Secret transport and runtime enforcement are Phase 4B-06 tasks.
+silently. make env-silver initializes a persistent random key in ignored .env. Only the driver
+receives the environment settings; executor closures receive the required key. A
+fingerprint in the ledger rejects replacement with a different key under the same
+version. Rotation/full policy migration requires a separately reviewed complete
+backfill; --correction does not bypass that guard.
 
 Quarantine stores stable record identity, sorted reason codes and references to the
 restricted Bronze snapshot/raw record rather than copying raw PII. For exploded
@@ -82,14 +87,48 @@ CREATE IF NOT EXISTS is not a migration mechanism. Gold stays outside this phase
 Reference checked 2026-11-13:
 https://iceberg.apache.org/docs/1.9.2/spark-queries/
 
-P4B-04 implementation notes: discount is an absolute amount for the complete line,
-so line value = qty * unit_price - discount, with discount bounded by line value.
-Orders require at least one valid item and an exact DECIMAL sum match. Items whose
-order is rejected produce a missing_valid_parent rejection. Full cross-entity DQ
-and invalid-child cascade rules remain P4B-05 work. first_order_ts is currently the
-minimum valid order timestamp in the selected slice; global first-order aggregation
-is a later contribution-reduction responsibility.
+Implemented DQ: discount is an absolute amount for the complete line, so line value
+= qty * unit_price - discount. Orders require at least one valid item and an exact
+DECIMAL sum match. Invalid identifiable children invalidate their order; rejected
+parents reject dependent items/returns. All FK joins include channel. Returns must
+reference a valid line, occur on/after the order timestamp and cumulative refund
+cannot exceed the paid line. Source has no return quantity: quantity validation is
+N/A, not an inferred quantity. Returns are selected by order membership, including
+returns after the logical run date. Products/customers can survive independently.
 
-Candidate _record_hash is computed on parsed normalized fields before enrichment.
-P4B-07 must finalize the canonical hash after derived fields before publishing/dedup;
-no persisted Silver state relies on this provisional candidate hash yet.
+Canonical business hashes are computed after enrichment. Customer first_order_ts is
+a derived global minimum across active contributions and is excluded from the
+customer profile tie-break; changing a date slice cannot choose a different profile
+solely through the derived timestamp. Customer keys and HMAC identity remain scoped
+to channel. Profile reduction is current state, not SCD2 or historical as-of state.
+
+Both full and incremental modes skip a successfully published identical pin after
+read-back verification. A changed pin fully replaces that selected contribution;
+source absence retracts a contribution but is_deleted stays false. Previous known
+pins require --correction to reactivate. Previously unseen pins also require each
+new Bronze snapshot to descend from the previous snapshot: compare ancestry, never
+numeric snapshot IDs. Missing ancestry fails closed; explicit --correction records
+an operator-selected revision. Policy/key changes remain forbidden.
+
+Publication writes 15 tables: five materialized entities, five private contributions,
+five quarantine tables. Quarantine holds one reference/reason list per rejected
+occurrence, including intentional source duplicates; retry replaces rather than
+appends. Ledger accounting is per input slice before global entity reduction.
+
+On failure attempt.json becomes failed and ledger.json stays byte-for-byte unchanged.
+Retry uses committed snapshot references, so it can recover despite dirty table heads.
+If a head already exactly matches expected content/schema, its snapshot is reused.
+The completion inventory, schema, key uniqueness, PII hashes, monetary totals,
+refund cap, timestamps, FK and accounting are verified before ledger publication.
+
+Orders/returns and private/quarantine partitions are explicitly added on initial
+creation. The first local bootstrap created unpartitioned tables; reviewed metadata
+partition evolution adds fields without DROP/recreate or deleting prior snapshots.
+Schema comparison is by field name/type, not column position. Unknown Bronze fields
+stay in Bronze; incompatible Silver changes require reviewed migration.
+
+Limits: one serialized local writer, full-table MERGE/reduction and local file-ledger
+atomic replacement; these are correctness choices for a small portfolio dataset.
+They are not a distributed multi-writer transaction or a large-scale performance
+claim. Do not expire snapshots referenced by Bronze pins or completed Silver ledgers.
+Gold consumers must read all tables using one completed ledger's snapshot IDs.

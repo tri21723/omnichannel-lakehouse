@@ -102,10 +102,10 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 - [x] Mở rộng parser cho products và returns; giữ brand nullable và return line key đầy đủ.
 - [x] Returns chọn theo membership của orders; không loại vì return_ts sau run_date.
-- [ ] Dedup customers/products lặp giữa date slices theo version contract, không tăng entity count mỗi ngày.
-- [ ] Chốt và test orphan order/item/product/return: quarantine hay deferred lookup phải rõ.
-- [ ] Join luôn gồm channel; test cùng source ID xuất hiện ở hai kênh không bị join nhầm.
-- [ ] Kiểm tra refund/return quantity theo dữ liệu hiện có; không tự suy ra field nguồn chưa cung cấp.
+- [x] Dedup customers/products lặp giữa date slices theo version contract, không tăng entity count mỗi ngày.
+- [x] Chốt và test orphan order/item/product/return: quarantine hay deferred lookup phải rõ.
+- [x] Join luôn gồm channel; test cùng source ID xuất hiện ở hai kênh không bị join nhầm.
+- [x] Kiểm tra refund/return quantity theo dữ liệu hiện có; không tự suy ra field nguồn chưa cung cấp.
 
 **Đạt khi:** Đủ 5 entity Walmart với DQ quan hệ và ngày hoàn trả được xử lý đúng.
 **Commit gợi ý:** `feat(silver): normalize Walmart products returns and relationships`.
@@ -114,9 +114,9 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 - [x] Chốt normalization/hash policy trong ADR: tên/email, giá trị null, key/version, scope liên kết giữa kênh; tránh tự tạo cross-channel identity.
 - [x] Nếu dùng keyed hash/HMAC: secret qua env, không có default key; cùng key cho kết quả ổn định, ghi key version và quy trình rotation.
-- [ ] Test không còn full_name/email rõ trong Silver schema, data mẫu, logs và exception; raw/quarantine có policy hạn chế truy cập.
+- [x] Test không còn full_name/email rõ trong Silver schema, data mẫu, logs và exception; raw/quarantine có policy hạn chế truy cập.
 - [x] Tạo silver.quarantine_<entity> với error code ổn định, provenance và record fingerprint; quyết định rõ có lưu raw hay chỉ tham chiếu Bronze.
-- [ ] Quarantine idempotent; retry không tăng bản sao, sửa lỗi nguồn giải quyết hoặc thay trạng thái quarantine cũ theo contract.
+- [x] Quarantine idempotent; retry không tăng bản sao, sửa lỗi nguồn giải quyết hoặc thay trạng thái quarantine cũ theo contract.
 - [x] Định nghĩa thứ tự kiểm tra lỗi và reason list; một record nhiều lỗi không bị đếm thành nhiều record.
 - [x] Ghi accounting: input occurrences = rejected + valid candidates; candidates = winners + duplicate losers. Tách accounting cha/con khi explode.
 
@@ -126,38 +126,38 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 ### P4B-07 — Dedup, MERGE và phục hồi
 
 - [x] Dedup trước MERGE để mỗi target key chỉ có một source winner; giữ conflict/duplicate metrics.
-- [ ] Test đổi thứ tự input/repartition vẫn chọn cùng winner, kể cả bằng updated_ts nhưng payload khác.
-- [ ] MERGE không để batch cũ ghi đè phiên bản mới; kiểm thử late replay của date cũ sau date mới.
-- [ ] Full replacement có scope chính xác; không xóa customer/product dùng chung bởi ngày khác. Chốt xử lý record biến mất/invalid trước khi coi full là hoàn chỉnh.
-- [ ] Không suy ra CDC delete hoặc is_deleted từ việc thiếu row nếu source contract không đảm bảo full snapshot scope.
-- [ ] Publish completion Silver sau read-back/DQ tất cả bảng, gồm input snapshots, output snapshots, counts và policy versions.
-- [ ] Tiêm lỗi sau commit một bảng, trước completion và trong quarantine; marker incomplete, retry phục hồi và không tạo bản sao.
-- [ ] Test writer conflict, empty output, NULL identity và hai dataset cùng ngày; nguồn Bronze giữ nguyên.
+- [x] Test đổi thứ tự input/repartition vẫn chọn cùng winner, kể cả bằng updated_ts nhưng payload khác.
+- [x] MERGE không để batch cũ ghi đè phiên bản mới; kiểm thử late replay của date cũ sau date mới.
+- [x] Full replacement có scope chính xác; không xóa customer/product dùng chung bởi ngày khác. Chốt xử lý record biến mất/invalid trước khi coi full là hoàn chỉnh.
+- [x] Không suy ra CDC delete hoặc is_deleted từ việc thiếu row nếu source contract không đảm bảo full snapshot scope.
+- [x] Publish completion Silver sau read-back/DQ tất cả bảng, gồm input snapshots, output snapshots, counts và policy versions.
+- [x] Tiêm lỗi sau commit một bảng, trước completion và trong quarantine; marker incomplete, retry phục hồi và không tạo bản sao.
+- [x] Test writer conflict, empty output, NULL identity và hai dataset cùng ngày; nguồn Bronze giữ nguyên.
 
 **Đạt khi:** Replay deterministic, không rollback dữ liệu mới và partial publish không thành công giả.
 **Commit gợi ý:** `feat(silver): publish deterministic replay-safe entity state`.
 
 ### P4B-08 — Mở rộng JSONL đa kênh
 
-- [ ] Amazon: coalesce customer_id/buyer_id; nếu cả hai có giá trị khác nhau thì xử lý conflict rõ; giữ fulfillment_type nullable.
-- [ ] TikTok Shop: parse schema hiện có và explode customer/items/products/returns với provenance.
-- [ ] Shopee: parse timestamp có +0700 bằng format explicit, chuyển UTC, test boundary qua ngày và malformed date.
-- [ ] Lazada: brand nullable, VND và decimal strings giữ nguyên; không dùng hệ số generator như FX rate.
-- [ ] Giữ fields lạ trong Bronze; Silver schema evolution theo contract/version, không mergeSchema mù.
-- [ ] Phân biệt missing array với empty array; dùng policy để tránh sinh child row NULL hoặc bỏ mất lỗi.
-- [ ] Test embedded customer/product lặp ở nhiều orders; natural-key dedup không làm mất order/item/return.
-- [ ] Nạp đủ 4 JSONL kênh + Walmart JDBC; chạy lại toàn bộ không tăng business keys.
+- [x] Amazon: coalesce customer_id/buyer_id; nếu cả hai có giá trị khác nhau thì xử lý conflict rõ; giữ fulfillment_type nullable.
+- [x] TikTok Shop: parse schema hiện có và explode customer/items/products/returns với provenance.
+- [x] Shopee: parse timestamp có +0700 bằng format explicit, chuyển UTC, test boundary qua ngày và malformed date.
+- [x] Lazada: brand nullable, VND và decimal strings giữ nguyên; không dùng hệ số generator như FX rate.
+- [x] Giữ fields lạ trong Bronze; Silver schema evolution theo contract/version, không mergeSchema mù.
+- [x] Phân biệt missing array với empty array; dùng policy để tránh sinh child row NULL hoặc bỏ mất lỗi.
+- [x] Test embedded customer/product lặp ở nhiều orders; natural-key dedup không làm mất order/item/return.
+- [x] Nạp đủ 4 JSONL kênh + Walmart JDBC; chạy lại toàn bộ không tăng business keys.
 
 **Đạt khi:** 5 kênh dùng chung schema Silver, source differences được kiểm thử rõ.
 **Commit gợi ý:** `feat(silver): normalize omnichannel JSONL entities`.
 
 ### P4B-09 — Đối soát và vận hành
 
-- [ ] Tạo verifier read-only theo completion/snapshot, kiểm tra schema, uniqueness, FK/DQ, PII policy và row accounting.
-- [ ] Baseline default kỳ vọng 15.000 orders duy nhất = 3.000/kênh; không cộng Walmart export thành kênh thứ sáu.
-- [ ] Expected counts của items/customers/products/returns tính theo source keys và scope, không mặc định bằng số orders.
-- [ ] Kiểm tra tổng tiền/refund theo channel/currency bằng DECIMAL; không tổng hợp USD và VND vào cùng một số.
-- [ ] Test malformed fixtures có expected reject/dedup/winner counts; mọi đầu vào được giải thích, kể cả parent-child rejection.
+- [x] Tạo verifier read-only theo completion/snapshot, kiểm tra schema, uniqueness, FK/DQ, PII policy và row accounting.
+- [x] Baseline default kỳ vọng 15.000 orders duy nhất = 3.000/kênh; không cộng Walmart export thành kênh thứ sáu.
+- [x] Expected counts của items/customers/products/returns tính theo source keys và scope, không mặc định bằng số orders.
+- [x] Kiểm tra tổng tiền/refund theo channel/currency bằng DECIMAL; không tổng hợp USD và VND vào cùng một số.
+- [x] Test malformed fixtures có expected reject/dedup/winner counts; mọi đầu vào được giải thích, kể cả parent-child rejection.
 - [ ] Test replay hai lần, source correction, late older batch, PII key thiếu, snapshot mất, input completion sai và catalog failure.
 - [ ] Restart rồi verify trước mọi ghi lại; regression Bronze/core/source vẫn pass.
 - [ ] Ghi runtime, input/output rows, duration, staging/shuffle/file metrics phù hợp; không diễn giải fixture nhỏ thành benchmark lớn.
