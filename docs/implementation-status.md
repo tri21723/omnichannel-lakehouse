@@ -51,7 +51,7 @@ milestones; the final Phase 4A report records the current count.
 
 ## Next: Phase 4B — Silver
 
-Detailed implementation plan: [TODO](../TODO.md); implementation has not started.
+Detailed implementation plan: [TODO](../TODO.md); contract and pinned input reader are implemented; entity transforms are pending.
 
 Use the [Silver handoff](silver-handoff.md): choose completed snapshot inputs, make
 Walmart JDBC authoritative, normalize JSONL schema drift, deduplicate deterministically,
@@ -71,3 +71,11 @@ The user confirmed that the billing issue is resolved and hosted CI succeeded.
 No workflow name, run URL/ID or commit was supplied, so this records user-reported
 success rather than independent verification of every integration workflow.
 Future Silver changes still require their own relevant checks.
+
+## Phase 4B current checkpoint
+
+ADR-0008 and draft Silver DDL are defined; no Silver entity tables have been applied.
+A strict Bronze completion reader captures content-addressed immutable input references,
+reads exact Iceberg snapshots and reconciles them without latest fallback.
+Unit coverage and real Spark replay tests are recorded in silver-validation.md.
+The next implementation task is Walmart orders/customers/items normalization (P4B-04).

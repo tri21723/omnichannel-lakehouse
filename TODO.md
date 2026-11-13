@@ -48,11 +48,11 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-01 — Baseline và fixture
 
-- [ ] Đọc AGENTS, ADR và Git status; giữ thay đổi ngoài task.
-- [ ] Chạy make check, verify-runtime, verify-bronze và test-bronze-contract khi bắt đầu; ghi kết quả mới.
-- [ ] Chọn rõ run/date/completion đầu vào; xác minh snapshot còn tồn tại, không tự dùng latest khi thiếu.
-- [ ] Chuẩn bị fixture nhỏ riêng cho missing fields, null, JSON scalar, decimal overflow, timestamp lỗi, duplicate và key conflict.
-- [ ] Fixture mutation/recovery phải dùng namespace/run riêng; không sửa raw đã publish hoặc reset volume.
+- [x] Đọc AGENTS, ADR và Git status; giữ thay đổi ngoài task.
+- [x] Chạy make check, verify-runtime, verify-bronze và test-bronze-contract khi bắt đầu; ghi kết quả mới.
+- [x] Chọn rõ run/date/completion đầu vào; xác minh snapshot còn tồn tại, không tự dùng latest khi thiếu.
+- [x] Chuẩn bị fixture nhỏ riêng cho missing fields, null, JSON scalar, decimal overflow, timestamp lỗi, duplicate và key conflict.
+- [x] Fixture mutation/recovery phải dùng namespace/run riêng; không sửa raw đã publish hoặc reset volume.
 
 **Đạt khi:** Có baseline tái lập, fixture và expected outcomes, không chứa PII thật.
 **Commit gợi ý:** `test(silver): establish source snapshots and fixtures`.
@@ -74,13 +74,13 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-03 — Reader Bronze theo snapshot cố định
 
-- [ ] Tạo reader dùng chung trong spark/lib; kiểm tra status completed, contract, selection, batch ID và allowlist bảng.
-- [ ] Copy bộ input references thành manifest bất biến cho attempt Silver; completion Bronze bị thay sau đó không làm đổi input đang xử lý.
-- [ ] Đọc Iceberg bằng snapshot ID rồi lọc run/channel/date/source/batch; reconcile count/content với completion.
-- [ ] Với snapshot NULL chỉ chấp nhận evidence zero rows và tạo input rỗng typed; snapshot bị expire phải fail rõ.
-- [ ] Từ chối completion legacy thiếu selection; hướng dẫn replay Bronze full để nâng metadata.
-- [ ] JDBC Walmart yêu cầu đủ 5 bảng cùng completion; JSONL Walmart không được chọn cho authoritative Silver.
-- [ ] Test Bronze latest thay đổi sau khi chọn input, completion failed/running, thiếu bảng và snapshot không tồn tại.
+- [x] Tạo reader dùng chung trong spark/lib; kiểm tra status completed, contract, selection, batch ID và allowlist bảng.
+- [x] Copy bộ input references thành manifest bất biến cho attempt Silver; completion Bronze bị thay sau đó không làm đổi input đang xử lý.
+- [x] Đọc Iceberg bằng snapshot ID rồi lọc run/channel/date/source/batch; reconcile count/content với completion.
+- [x] Với snapshot NULL chỉ chấp nhận evidence zero rows và tạo input rỗng typed; snapshot bị expire phải fail rõ.
+- [x] Từ chối completion legacy thiếu selection; hướng dẫn replay Bronze full để nâng metadata.
+- [x] JDBC Walmart yêu cầu đủ 5 bảng cùng completion; JSONL Walmart không được chọn cho authoritative Silver.
+- [x] Test Bronze latest thay đổi sau khi chọn input, completion failed/running, thiếu bảng và snapshot không tồn tại.
 
 **Đạt khi:** Input Silver được cố định và đối soát trước mọi ghi đích.
 **Commit gợi ý:** `feat(silver): read validated Bronze snapshot inputs`.

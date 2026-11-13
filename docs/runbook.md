@@ -199,3 +199,23 @@ CI uses ci_run.sh/ci_events.py to print allowlisted structured summaries only; r
 logs remain on the disposable runner and are not uploaded. Local raw logs must stay
 out of Git. Hosted CI success is user-confirmed; validate new workflow changes
 against their own runs.
+
+## Silver input checkpoint
+
+After Docker Desktop/WSL integration is enabled, start the stack with `make up-batch`;
+starting Docker alone does not start PostgreSQL, MinIO or spark-master. UnknownHost
+spark-master / endpoint connection errors indicate the stack must be checked first.
+
+```sh
+make build-batch
+make up-batch
+make smoke-silver-input
+```
+
+The smoke uses the existing small run 186ae107d0793d2ee237, pins all five JDBC table
+snapshots and replays that Bronze slice. It preserves prior input manifests and
+checks missing snapshot rejection. For a fresh environment prepare the small source
+and Bronze fixture with the commands in the Bronze section first.
+Input pins live in /runtime/silver/inputs/<sha256>.json. They contain references and
+summaries only, not raw customer data or credentials. Silver transforms/publishing
+are not implemented by this checkpoint. See ADR-0008 and silver-validation.md.

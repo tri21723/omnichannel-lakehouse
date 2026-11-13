@@ -171,3 +171,7 @@ test-bronze-input: ## Test malformed MinIO fixtures and failure paths without ch
 .PHONY: test-bronze-contract
 test-bronze-contract: ## Read-only raw drift/duplicate assertions on the default reference dataset
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/contract_test.py --run-id $(BRONZE_RUN_ID)
+
+.PHONY: smoke-silver-input
+smoke-silver-input: ## Pin/reconcile five JDBC inputs, replay Bronze and verify old snapshots (small fixture)
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/input_smoke.py --run-id 186ae107d0793d2ee237
