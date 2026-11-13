@@ -46,10 +46,12 @@ Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not bee
   allowlisted CI diagnostics. Hosted execution remains unverified.
 
 See [Bronze validation](bronze-validation.md), [contract](bronze-contract.md) and
-[completed checklist](../TODO.md). Historical test counts above refer to earlier
+[completed checklist](phase4a-checklist.md). Historical test counts above refer to earlier
 milestones; the final Phase 4A report records the current count.
 
 ## Next: Phase 4B — Silver
+
+Detailed implementation plan: [TODO](../TODO.md); implementation has not started.
 
 Use the [Silver handoff](silver-handoff.md): choose completed snapshot inputs, make
 Walmart JDBC authoritative, normalize JSONL schema drift, deduplicate deterministically,

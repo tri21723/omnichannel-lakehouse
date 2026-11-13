@@ -11,7 +11,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 Đã có `dp1_bronze` cho JSONL 5 kênh và JDBC Walmart, kèm replay/recovery và đối soát.
 Giai đoạn tiếp theo là Silver (Phase 4B); Airflow chưa triển khai.
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist Bronze: [TODO — Phase 4A](TODO.md). Bàn giao tiếp theo: [Silver](docs/silver-handoff.md).
+Kế hoạch Silver: [TODO — Phase 4B](TODO.md). Bàn giao tiếp theo: [Silver](docs/silver-handoff.md).
 
 ## Bắt đầu phát triển
 
