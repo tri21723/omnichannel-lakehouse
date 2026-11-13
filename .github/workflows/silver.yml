@@ -1,0 +1,25 @@
+name: Silver integration
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  silver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-silver config-batch
+      - run: make build-generator build-batch up-batch
+      - run: sh docker/batch/ci_run.sh make prepare-silver-fixture
+      - run: sh docker/batch/ci_run.sh make test-silver-dq
+      - run: sh docker/batch/ci_run.sh make integration-silver
+      - run: sh docker/batch/ci_run.sh make test-silver-recovery
+      - run: sh docker/batch/ci_run.sh make reconcile-silver
+      - run: make restart-lakehouse
+      - run: sh docker/batch/ci_run.sh make verify-silver
+      - if: always()
+        run: make down

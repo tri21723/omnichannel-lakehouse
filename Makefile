@@ -127,7 +127,7 @@ restart-lakehouse: ## Restart catalog and Spark; preserve data
 
 .PHONY: spark-submit
 BRONZE_ARGS ?=
-spark-submit: ## Submit smoke, dp1_bronze or dp2_silver validation (BRONZE_ARGS required)
+spark-submit: ## Submit smoke, dp1_bronze or dp2_silver (use BRONZE_ARGS / SILVER_ARGS)
 	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse

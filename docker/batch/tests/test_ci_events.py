@@ -40,3 +40,17 @@ def test_untrusted_event_names_and_nonstring_reasons_are_not_copied():
         ),
     ]
     assert list(module.safe_events(lines)) == [{"event": "bronze_failed"}]
+
+
+def test_silver_nested_counts_cannot_copy_private_fields():
+    event = {
+        "event": "silver_published",
+        "entities": {
+            "customers": {"valid": 5, "email": "private@example.invalid", "rejected": 0},
+            "private": "not-a-supported-entity",
+        },
+    }
+    result = list(module.safe_events([json.dumps(event)]))
+    assert result == [
+        {"event": "silver_published", "entities": {"customers": {"valid": 5, "rejected": 0}}}
+    ]

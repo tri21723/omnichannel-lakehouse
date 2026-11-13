@@ -31,7 +31,20 @@ def run_job(spark, args):
     if getattr(args, "verify", False):
         ledger = json.loads((ROOT / "ledger.json").read_text())
         verify(spark, ledger)
-        event("silver_verified", tables=len(ledger["tables"]), slices=len(ledger["slices"]))
+        event(
+            "silver_verified",
+            tables=len(ledger["tables"]),
+            slices=len(ledger["slices"]),
+            counts={
+                name: int(ledger["tables"][f"lh.silver.{name}"]["content"]["rows"])
+                for name in ("orders", "order_items", "customers", "products", "returns")
+            },
+            metrics={
+                "duration_seconds": ledger["duration_seconds"],
+                "files": sum(value["files"]["count"] for value in ledger["tables"].values()),
+                "bytes": sum(value["files"]["bytes"] for value in ledger["tables"].values()),
+            },
+        )
         return ledger
     selection = dict(
         run_id=args.run_id,

@@ -6,6 +6,18 @@ import sys
 from pathlib import Path
 
 EVENTS = {
+    "silver_published",
+    "silver_verified",
+    "silver_candidates_validated",
+    "silver_normalization_failed",
+    "silver_matrix_slice_passed",
+    "silver_matrix_passed",
+    "silver_publish_failure_preserved",
+    "silver_catalog_failure_preserved",
+    "silver_correction_recovery_passed",
+    "silver_reference_verified",
+    "silver_channel_dedup_passed",
+    "silver_dq_cases_passed",
     "bronze_completed",
     "bronze_verified",
     "bronze_failed",
@@ -68,6 +80,32 @@ def safe_events(lines):
         for key in ("batch_id", "attempt"):
             if re.fullmatch(r"[a-f0-9]{20,32}", str(item.get(key, ""))):
                 clean[key] = item[key]
+        if isinstance(item.get("input_id"), str) and re.fullmatch(
+            r"[a-f0-9]{64}", item["input_id"]
+        ):
+            clean["input_id"] = item["input_id"]
+        if item.get("channel") in ("walmart", "amazon", "tiktok_shop", "shopee", "lazada"):
+            clean["channel"] = item["channel"]
+        if item.get("stage") in ("contribution", "quarantine", "completion"):
+            clean["stage"] = item["stage"]
+        for name in ("slices", "orders", "channels", "failures"):
+            if type(item.get(name)) is int:
+                clean[name] = item[name]
+        for name in ("entities", "counts"):
+            if isinstance(item.get(name), dict):
+                values = {}
+                for entity in ("orders", "order_items", "customers", "products", "returns"):
+                    value = item[name].get(entity)
+                    if type(value) is int:
+                        values[entity] = value
+                    elif isinstance(value, dict):
+                        values[entity] = {
+                            k: v
+                            for k, v in value.items()
+                            if k in {"input", "valid", "rejected", "winners", "duplicate_losers"}
+                            and type(v) is int
+                        }
+                clean[name] = values
         if isinstance(item.get("reason"), str) and item["reason"] in REASONS:
             clean["reason"] = item["reason"]
         for key in (
@@ -84,7 +122,8 @@ def safe_events(lines):
             clean["metrics"] = {
                 key: value
                 for key, value in item["metrics"].items()
-                if key in {"duration_seconds", "rows", "rows_per_second", "staged_bytes"}
+                if key
+                in {"duration_seconds", "rows", "rows_per_second", "staged_bytes", "files", "bytes"}
                 and type(value) in (int, float)
             }
         if isinstance(item.get("error_type"), str) and item["error_type"] in ERROR_TYPES:
