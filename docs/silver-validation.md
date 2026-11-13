@@ -1,99 +1,120 @@
-# Silver implementation evidence — Phase 4B in progress
+# Silver validation — Phase 4B
 
-## Contract checkpoint — 2026-11-13
+Date: 2026-11-13. Runtime verification is being finalized before milestone tagging.
+Earlier normalization-only checkpoints have been superseded by five-entity publishing.
+See ADR-0008, the physical SQL contract and gold-handoff.md for implemented semantics.
 
-ADR-0008 defines physical draft schemas, input selection, deterministic tie-break,
-per-slice contributions/corrections, PII and completed-ledger publication semantics.
-DDL is a draft only: no Silver entity table or transform has been applied.
-Sellers is deferred because the source lacks a standalone seller profile.
+## Runtime and source selection
 
-Fixture specification: spark/tests/fixtures/silver_cases.json. It covers missing/null
-fields, JSON scalar, decimal overflow/scale, bad date, duplicates/ties and corrections.
-Expected outcomes are a specification; transform behavior is not yet tested/implemented.
+Local Docker: Spark 3.5.5, Python 3.11.11, Java 17, Iceberg 1.9.2, Lakekeeper 0.9.3,
+PostgreSQL 16.15, MinIO. Versions/ports are unchanged. Two workers retain their
+2-core/2-GiB resource limits; submitted jobs request two total cores and 1-GiB executors.
+Only core and batch profiles are needed. No cloud resources or destructive reset.
 
-make check passes: 58 tests (49 baseline + 9 reader/input validation tests). SQLFluff
-validates the Spark DDL. Hosted CI success for previous work was user-confirmed;
-no hosted result is claimed for these new changes.
+Walmart JDBC is authoritative; four other channels use JSONL. Walmart JSONL is
+excluded from Silver. Completed Bronze selection/batch/table inventory/content is
+validated, then copied into immutable content-addressed pins. Readers use exact
+snapshot IDs and filter the selected run/channel/date/source/batch, with no latest
+fallback. Missing/expired snapshots fail closed. Old snapshots retain their original
+ingestion timestamps after Bronze replay, while newly pinned snapshots change.
 
-Docker Desktop was initially off/not integrated, then enabled by the user. The
-existing core/catalog/master/workers were subsequently started through make up-batch.
-Runtime-dependent TODO checks remain pending until their logs confirm success.
+## Source key and monetary reconciliation
 
-## Baseline and input reader
+Both matrices passed all five channels × three dates and identical-pin replay.
+Each entity's distinct source keys are compared in both directions to Silver;
+monetary totals/refunds use DECIMAL and channel/currency grouping.
 
-After make up-batch: verify-runtime, verify-bronze (default Walmart JDBC day 1),
-and test-bronze-contract pass; source counts remain 15,600 JSONL / 3,000 JDBC orders.
-The first smoke-silver-input passes with all five tables: pin old references, replay
-small Bronze slice, create a new distinct pin, reconcile both against the same raw
-content, and reject a fabricated missing snapshot without latest fallback.
-Unit tests verify failed/legacy completion rejection, strict table inventory,
-selection/batch validation, invalid snapshot IDs, NULL evidence and pin tampering.
-The fixture-case file is a specification for upcoming transform tests, not evidence
-that normalization/quarantine have already been implemented.
+| Selected dataset run | orders | order_items | customers | products | returns |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| small: 186ae107d0793d2ee237 | 375 | 375 | 25 | 88 | 30 |
+| default: b1e64afaff0176de180a | 15,000 | 15,000 | 1,000 | 100 | 1,500 |
 
-The second real-cluster smoke also passed. All five old snapshot inputs retain their
-original _ingest_ts after Bronze replay, while the newly pinned snapshots have new
-ingestion timestamps. This distinguishes pinned reads from a silent latest fallback
-even when business payloads are identical. Both runs reject snapshot ID 1, which is
-not present, and leave the old content-addressed input file unchanged.
+Default orders = 3,000 per channel. The 15,600 raw JSONL rows include intentional
+duplicates; those remain in Bronze. Walmart JSONL is not a sixth authoritative source.
+Profile/return counts come from actual source keys, not the order count. Two datasets
+coexist on the same logical dates with disjoint run-prefixed business IDs.
 
-Current checks: make check = 58 tests pass, Spark SQL DDL lint pass; baseline runtime,
-Bronze verification and raw-contract checks pass after stack startup. P4B-01/02/03
-are complete. Next is P4B-04: Walmart entity normalization. No Silver publishing
-job, HMAC enforcement, quarantine writer or contribution ledger exists yet.
+Commands: make integration-silver, make integration-silver-reference and
+make reconcile-silver (set SILVER_RUN_ID for the default run). The real Spark
+optimizer required eager localCheckpoint before comparing complex aggregate plans
+with exceptAll; this preserves currency columns and bounds lineage without a runtime
+version change. These are small correctness datasets, not skew/million-row benchmarks.
 
-## P4B-04 Walmart normalization — 2026-11-13
+## DQ, privacy and accounting
 
-make check: lint + 77 tests pass. Strict parser handles missing/null fields, invalid
-syntax/scalar JSON, ID types, UTC timestamp offsets, enum/currency, positive INT and
-DECIMAL(18,2) overflow/scale/nonfinite values. JSON numbers are parsed as Decimal,
-not float. Discounts cannot exceed qty * unit price.
+make check: Python/SQL/YAML/shell lint and 98 unit tests pass, with no silent integration
+skip reported as success. Docker integration is run separately using explicit targets.
 
-Customer names/emails are HMAC-SHA256 hashed with NFKC normalization and channel/
-field domain separation. make env-silver generates a persistent random 32-byte key
-in ignored .env; tests confirm repeat initialization does not rotate it, including
-a blank setting at EOF. Missing key/version fails before Spark processing.
+make test-silver-dq passes on the latest image:
 
-make test-silver-normalize passes on real Spark executors: valid candidates 1/entity,
-rejected orders=2, customers=1, items=2 (5 total). Assertions cover Decimal 10.25, UTC
-order timestamp, inherited item updated_ts, slice-local customer first_order_ts and
-64-character hashed email. Rejections carry codes/references, not raw/name/email.
+- Duplicate records reduce to one winner per natural key; conflicting same-version
+  business rows select the same canonical hash winner after shuffle/repartition.
+- Two channels using identical source IDs retain two distinct orders.
+- Malformed/scalar root JSON produces rejected parents and no phantom children.
+- Missing products cascade explicit product/order/item/return rejections.
+- Excessive cumulative refund rejects rather than inflating monetary totals.
 
-make smoke-silver-normalize passes twice with strict expected-order/reject checks:
-25 orders, 5 customers, 25 items; rejected=0 each. input = valid + rejected by entity.
-These are in-memory candidate frames; no Silver entity/quarantine table or publishing
-completion is written. Pin references remain in /runtime/silver/inputs.
+Pure parser tests cover missing/null fields, booleans/containers as IDs, Unicode,
+nonfinite/overflow/extra-scale DECIMAL, invalid timestamps, Shopee +0700 crossing UTC
+dates, nullable brand, Amazon buyer/customer aliases and conflicting embedded IDs.
+Unknown fields stay in Bronze. Required item arrays, missing arrays and empty return
+arrays have distinct outcomes. Return timestamps after the logical run date survive.
+Return quantity checks are N/A: the source has no return quantity field.
 
-Commit 449d5ff records strict types/PII setup. Upcoming P4B-05 adds products/returns
-and full relational DQ. Quarantine persistence, global dedup/contributions/correction
-ledger and publish recovery remain P4B-06/07. Hosted results for these changes have
-not been checked; the user's earlier CI success applies to preceding work.
+HMAC uses required >=32-byte secret, channel/field domain separation and recorded key
+version. make env-silver generates a persistent random local key; repeat initialization
+does not rotate it. Missing/invalid key/version fails before Spark starts. Names/emails
+never enter Silver schemas, quarantine payloads or structured logs. Quarantine stores
+source references/fingerprints with sorted reason codes, one row per rejected physical
+occurrence. Input = valid + rejected and valid = local winners + duplicate losers,
+separately for every exploded entity. Global profile counts are a different metric.
 
-## Five-entity publication implementation checkpoint
+## Corrections and recovery
 
-Products/returns parsing, JSONL expansion and five-entity relational DQ are implemented.
-The first real Walmart publish/replay passed with 25 orders/items, 5 customers,
-9 products and 2 returns. Contributions, materialized entities and quarantine use
-separate Iceberg snapshots; the committed publication ledger is the visibility boundary.
-Unit suite currently passes 89 tests, including source snapshot ancestry and alias/
-embedded-parent validation. Extended matrix and correction/failure tests are ongoing;
-this checkpoint does not close Phase 4B.
+The latest real-JDBC recovery suite passes scoped corrections, shared profile
+retention, three partial-publish failure points and stricter schema/key/refund
+verification. A real unavailable REST catalog preserves the completed publication;
+natural-key ownership collision, writer conflict, NULL scope and mixed keys fail closed.
 
-## Matrix and source reconciliation — 2026-11-13
+Owned fixture IDs use a separate run and '-silver-fixture-' prefix. No default source
+row or published raw export is changed. Source changes are re-ingested/pinned through
+Bronze. Checks include newer-date profile followed by older-date replay; invalid order
+amount retracting only its own order/item/return; PII rejection references without
+clear customer values; restoration resolving quarantine; known superseded and previously
+unseen stale pins rejected by source snapshot ancestry; and explicit empty full slices.
 
-Small fixture: all 15 channel/date slices and an identical-pin replay passed. Source
-key comparisons for every entity yield orders/items/customers/products/returns =
-375/375/25/88/30. Default reference: all 15 slices passed, 3,000 orders per channel,
-15,000 total. Exact authoritative source keys and DECIMAL totals/refunds by currency
-match: 15,000/15,000/1,000/100/1,500. Walmart JSONL is excluded.
+Failure injection occurs after a contribution commit, during quarantine publication
+and immediately before completion. attempt.json becomes failed, completed ledger
+bytes remain unchanged, and its prior snapshots remain readable. Retry rebuilds from
+committed contributions, verifies all outputs and atomically publishes a new ledger.
+Tables already exactly matching the desired content can reuse their snapshots.
+Writer conflicts, mixed PII keys, NULL scope and natural-key ownership are fail-closed.
 
-Spark DQ fixture checks pass: duplicate occurrences reduce deterministically under
-reordering/repartition, identical IDs in two channels stay separate, malformed/scalar
-roots generate no phantom children, missing products cascade to dependent records,
-and excessive refunds reject explicitly. Original real JDBC correction/recovery
-checks pass all three failure boundaries. Extended privacy/catalog/ownership checks
-and final restart/regression are still being finalized.
+## Completion and persistence gates
 
-Current make check: 98 tests pass plus Python/SQL/YAML lint. New coverage includes
-Unicode/optional field validation, missing key/version, incomplete table inventory
-and stale snapshot ancestry. No new hosted CI result is claimed.
+Pending final evidence: final source reconciliation of both runs, read-only Silver
+verification immediately after catalog/Spark restart, and
+core/source/lakehouse/Bronze regression. These gates remain unchecked in TODO until
+successful logs are available.
+
+The completed ledger contains all 15 output snapshots, content row/hash summaries,
+file counts/bytes, per-input accounting, source snapshot references, policy/key version,
+revision and publication duration. Read-back verifies exact schema, key uniqueness,
+PII hash format, required keys, quarantine reasons, FK, order-line sum, refund cap and
+return timestamps before visibility. Latest table heads are not a multi-table transaction.
+Gold consumers must pin the completed ledger and read its snapshot IDs.
+
+## CI and practical limits
+
+.github/workflows/silver.yml adds manual Ubuntu 24.04 integration using the small fixture,
+90-minute timeout, read-only repository permissions, PII-filtered diagnostics and cleanup
+without volume deletion. ci_run.sh only emits allowlisted events/counts/numeric metrics;
+raw diagnostics stay in ignored runner-local files. Hosted CI success for preceding
+work was user-confirmed; no new hosted result is claimed for this Silver workflow.
+
+This implementation serializes a local writer and reduces/replaces bounded complete
+entity tables. It is not a distributed multi-writer design. Publication duration and
+file metrics diagnose this local run; no large-scale throughput/shuffle benchmark,
+compaction, snapshot expiry or orphan cleanup has been performed. Referenced snapshots
+must be retained. No Gold/feature/label/export, orchestration, query, streaming/CDC,
+governance or cloud deployment is included in this Phase 4B milestone.

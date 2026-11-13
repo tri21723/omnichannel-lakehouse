@@ -107,6 +107,8 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 - [x] Join luôn gồm channel; test cùng source ID xuất hiện ở hai kênh không bị join nhầm.
 - [x] Kiểm tra refund/return quantity theo dữ liệu hiện có; không tự suy ra field nguồn chưa cung cấp.
 
+Return quantity: **N/A** vì nguồn không cung cấp field; kiểm tra refund bằng giá trị đã trả.
+
 **Đạt khi:** Đủ 5 entity Walmart với DQ quan hệ và ngày hoàn trả được xử lý đúng.
 **Commit gợi ý:** `feat(silver): normalize Walmart products returns and relationships`.
 
@@ -158,7 +160,7 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 - [x] Expected counts của items/customers/products/returns tính theo source keys và scope, không mặc định bằng số orders.
 - [x] Kiểm tra tổng tiền/refund theo channel/currency bằng DECIMAL; không tổng hợp USD và VND vào cùng một số.
 - [x] Test malformed fixtures có expected reject/dedup/winner counts; mọi đầu vào được giải thích, kể cả parent-child rejection.
-- [ ] Test replay hai lần, source correction, late older batch, PII key thiếu, snapshot mất, input completion sai và catalog failure.
+- [x] Test replay hai lần, source correction, late older batch, PII key thiếu, snapshot mất, input completion sai và catalog failure.
 - [ ] Restart rồi verify trước mọi ghi lại; regression Bronze/core/source vẫn pass.
 - [ ] Ghi runtime, input/output rows, duration, staging/shuffle/file metrics phù hợp; không diễn giải fixture nhỏ thành benchmark lớn.
 
@@ -170,7 +172,7 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 - [x] Mở rộng make spark-submit JOB=dp2_silver; thêm smoke-silver, verify-silver và integration-silver, giữ target Bronze.
 - [x] Tách unit/local Spark tests khỏi Docker integration; không im lặng skip rồi báo pipeline pass.
 - [x] Workflow manual dùng fixture nhỏ, timeout, cleanup không xóa volumes local và failure logs đã lọc PII/secret.
-- [ ] Chạy make check và integration local; ghi hosted CI riêng, không tick hosted pass khi chưa có run.
+- [x] Chạy make check và integration local; ghi hosted CI riêng, không tick hosted pass khi chưa có run.
 - [ ] Hoàn tất docs/silver-validation.md, README, runbook, implementation-status, DDL và ADR bằng expected/actual evidence.
 - [x] Bàn giao Gold: grain, natural keys, currency, relationships, quarantine accounting, PII fields và snapshot input contract.
 - [ ] Rà soát TODO theo bằng chứng; commit mỗi task nhỏ, tag v0.4b-silver chỉ sau local DoD đạt. Chưa tag toàn Phase 4.
@@ -180,9 +182,9 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ## 4. Điều kiện đóng Phase 4B
 
-- [ ] 5 entity/5 kênh đúng schema, key uniqueness và source ownership.
-- [ ] Input pinned theo completion/snapshot; replay và correction có semantics được kiểm thử.
-- [ ] PII policy đạt; quarantine/accounting không mất dòng âm thầm.
+- [x] 5 entity/5 kênh đúng schema, key uniqueness và source ownership.
+- [x] Input pinned theo completion/snapshot; replay và correction có semantics được kiểm thử.
+- [x] PII policy đạt; quarantine/accounting không mất dòng âm thầm.
 - [ ] Partial failure/retry và restart pass; Bronze/source regression xanh.
 - [ ] Lint, unit/integration local đạt; CI hosted và giới hạn được ghi trung thực.
 - [ ] DDL/ADR/runbook/evidence/handoff cập nhật, commits và milestone hoàn tất.
