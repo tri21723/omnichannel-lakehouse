@@ -1,6 +1,6 @@
 # TODO — Phase 4B: Chuẩn hóa Bronze thành Silver
 
-Cập nhật: **2026-11-13**. Trạng thái: **Đã lập kế hoạch; chưa triển khai Phase 4B**.
+Cập nhật: **2026-11-13**. Trạng thái: **Đang triển khai contract và reader snapshot; chưa có Silver transforms**.
 
 Mục tiêu: triển khai phần Silver của `dp2_silver`, tạo dữ liệu chuẩn cho 5 kênh,
 không trùng natural key, bảo vệ PII, có quarantine và đối soát từng bước.
@@ -59,15 +59,15 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-02 — Chốt contract Silver và DDL
 
-- [ ] Viết ADR mới và cập nhật data-model/DDL cho 5 entity; quyết định sellers là deferred hoặc có nguồn đủ rõ.
-- [ ] Chốt natural keys: channel/order_id; channel/order_id/line_no; channel/customer_id; channel/product_id; channel/return_id/return_line_no.
-- [ ] Chốt kiểu STRING, UTC TIMESTAMP, DECIMAL(18,2), nullable/required và enum hợp lệ cho từng trường.
-- [ ] Chốt scope CLI --run-id, --run-date, --channel, --mode full|incremental và cách chọn completion cụ thể.
-- [ ] Định nghĩa full/incremental, source snapshot revision và hành vi khi bản sửa nguồn làm một dòng trước đây valid trở thành invalid hoặc biến mất.
-- [ ] Chốt dedup theo updated_ts và tie-break ổn định bằng canonical payload hash; không dùng ingest time hay thứ tự file.
-- [ ] Định nghĩa version cho items/returns thiếu updated_ts: kế thừa nguồn nào, xử lý snapshot mới/cũ và conflict ra sao.
-- [ ] Chọn partition và audit fields, policy schema evolution; cấm drop/recreate bảng khi mismatch.
-- [ ] Chốt ranh giới atomic từng bảng, completion toàn job và cơ chế khóa writer; không tuyên bố transaction nhiều bảng.
+- [x] Viết ADR mới và cập nhật data-model/DDL cho 5 entity; quyết định sellers là deferred hoặc có nguồn đủ rõ.
+- [x] Chốt natural keys: channel/order_id; channel/order_id/line_no; channel/customer_id; channel/product_id; channel/return_id/return_line_no.
+- [x] Chốt kiểu STRING, UTC TIMESTAMP, DECIMAL(18,2), nullable/required và enum hợp lệ cho từng trường.
+- [x] Chốt scope CLI --run-id, --run-date, --channel, --mode full|incremental và cách chọn completion cụ thể.
+- [x] Định nghĩa full/incremental, source snapshot revision và hành vi khi bản sửa nguồn làm một dòng trước đây valid trở thành invalid hoặc biến mất.
+- [x] Chốt dedup theo updated_ts và tie-break ổn định bằng canonical payload hash; không dùng ingest time hay thứ tự file.
+- [x] Định nghĩa version cho items/returns thiếu updated_ts: kế thừa nguồn nào, xử lý snapshot mới/cũ và conflict ra sao.
+- [x] Chọn partition và audit fields, policy schema evolution; cấm drop/recreate bảng khi mismatch.
+- [x] Chốt ranh giới atomic từng bảng, completion toàn job và cơ chế khóa writer; không tuyên bố transaction nhiều bảng.
 
 **Đạt khi:** Contract giải quyết rõ replay, sửa dữ liệu và phiên bản nguồn trước khi viết MERGE.
 **Commit gợi ý:** `docs(adr): define Silver schemas and merge semantics`.

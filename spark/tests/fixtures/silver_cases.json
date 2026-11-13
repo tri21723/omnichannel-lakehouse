@@ -1,0 +1,14 @@
+{
+  "contract": "silver-policy-v1",
+  "cases": [
+    {"name": "missing_key", "raw": {}, "expected_reason": "missing_required_field"},
+    {"name": "null_key", "raw": {"order_id": null}, "expected_reason": "null_required_field"},
+    {"name": "scalar_json", "raw": 42, "expected_reason": "expected_object"},
+    {"name": "money_overflow", "field": "total_amount", "value": "10000000000000000.00", "expected_reason": "decimal_overflow"},
+    {"name": "money_scale", "field": "total_amount", "value": "1.001", "expected_reason": "decimal_scale"},
+    {"name": "invalid_timestamp", "field": "order_ts", "value": "2026-02-30T00:00:00Z", "expected_reason": "invalid_timestamp"},
+    {"name": "exact_duplicate", "copies": 2, "expected_winners": 1, "expected_duplicate_losers": 1},
+    {"name": "timestamp_tie", "updated_ts": "2026-01-01T00:00:00Z", "payloads": [{"status": "paid"}, {"status": "cancelled"}], "expected_rule": "canonical_sha256_desc"},
+    {"name": "source_correction_invalid", "expected_action": "retract_only_selected_slice_contribution"}
+  ]
+}

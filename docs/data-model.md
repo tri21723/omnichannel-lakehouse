@@ -52,3 +52,6 @@ See [generator contracts](generators.md) and ADR-0005 for dataset boundaries.
 
 Phase 4A physical Bronze contract and source separation: see [Bronze contract](bronze-contract.md)
 and [ADR-0007](adr/0007-bronze-ingestion.md). Silver/Gold remain proposed.
+
+Silver physical draft and correction/PII semantics: ADR-0008 and
+`sql/iceberg/silver_contract.sql`. No Silver table has been applied yet.
