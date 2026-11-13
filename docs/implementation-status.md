@@ -49,14 +49,21 @@ See [Bronze validation](bronze-validation.md), [contract](bronze-contract.md) an
 [completed checklist](phase4a-checklist.md). Historical test counts above refer to earlier
 milestones; the final Phase 4A report records the current count.
 
-## Next: Phase 4B — Silver
+## Phase 4B — Silver available
 
-Detailed implementation plan: [TODO](../TODO.md); contract and pinned input reader are implemented; entity transforms are pending.
+- Five entities across Walmart JDBC and four authoritative JSONL channels.
+- Strict typed parsing, schema drift mappings, channel-scoped keys and relational DQ.
+- Required keyed HMAC PII, reference-only quarantine and per-entity occurrence accounting.
+- Immutable pinned Bronze inputs, ancestry-checked revisions, deterministic reduction,
+  shared profile retention and scoped corrections/empty-slice retraction.
+- Serialized MERGE publication with a completed snapshot ledger, read-only verifier,
+  failure recovery and source key/monetary reconciliation.
+- Small matrix: 375 orders; default matrix: 15,000 orders. Both datasets coexist.
+- Manual Silver CI workflow added; new hosted execution is not claimed.
 
-Use the [Silver handoff](silver-handoff.md): choose completed snapshot inputs, make
-Walmart JDBC authoritative, normalize JSONL schema drift, deduplicate deterministically,
-hash PII and account for quarantine. Start with Walmart, then expand to all channels.
-No Silver/Gold business transforms, features/labels or warehouse export exist yet.
+See [Silver validation](silver-validation.md), [TODO](../TODO.md) and
+[Gold handoff](gold-handoff.md). Next is Phase 4C: Gold dimensions/facts owned by dp2.
+Features/labels and PostgreSQL warehouse export are later phases.
 
 ## Later phases
 
@@ -71,13 +78,3 @@ The user confirmed that the billing issue is resolved and hosted CI succeeded.
 No workflow name, run URL/ID or commit was supplied, so this records user-reported
 success rather than independent verification of every integration workflow.
 Future Silver changes still require their own relevant checks.
-
-## Phase 4B current checkpoint
-
-ADR-0008 and draft Silver DDL are defined; no Silver entity tables have been applied.
-A strict Bronze completion reader captures content-addressed immutable input references,
-reads exact Iceberg snapshots and reconciles them without latest fallback.
-Unit coverage and real Spark replay tests are recorded in silver-validation.md.
-P4B-04 now normalizes Walmart orders/customers/items as validation-only typed frames
-with HMAC PII, lineage, rejection codes and accounting. Next is P4B-05: products,
-returns and relational DQ; no Silver publishing has been implemented.

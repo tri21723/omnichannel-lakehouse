@@ -217,8 +217,7 @@ snapshots and replays that Bronze slice. It preserves prior input manifests and
 checks missing snapshot rejection. For a fresh environment prepare the small source
 and Bronze fixture with the commands in the Bronze section first.
 Input pins live in /runtime/silver/inputs/<sha256>.json. They contain references and
-summaries only, not raw customer data or credentials. Silver transforms/publishing
-are not implemented by this checkpoint. See ADR-0008 and silver-validation.md.
+summaries only, not raw customer data or credentials. See ADR-0008 and silver-validation.md.
 
 ## Silver Walmart normalization (P4B-04)
 
@@ -231,10 +230,64 @@ make smoke-silver-normalize
 make spark-submit JOB=dp2_silver SILVER_ARGS='--run-id 186ae107d0793d2ee237 --run-date 2026-01-01 --channel walmart --mode full --validate-only'
 ```
 
-Validation requires --validate-only until publishing is implemented. Full/incremental
-select validation context; neither performs publish/skip semantics yet. --input-id
-can select an existing immutable input; otherwise current completion is pinned first.
-Missing/malformed SILVER_PII_KEY (hex, >=32 decoded bytes) or missing version fails
-early. Keep key/version stable across replays; rotation requires a later explicit
-backfill policy. Never print or commit the key. Normalization reports counts only.
-Candidate rejection frames are in memory with references, not persisted quarantine.
+Without --validate-only, dp2_silver publishes all five entities and quarantine.
+--input-id selects an immutable pin; otherwise the selected current Bronze completion
+is validated and pinned. Missing/malformed SILVER_PII_KEY (hex, >=32 decoded bytes)
+or missing version fails before Spark starts. Keep the key/version stable; rotation
+requires a complete reviewed backfill. Never print or commit the key.
+
+## Silver publication and recovery
+
+```sh
+make env-silver
+make build-generator build-batch
+make up-batch
+make prepare-silver-fixture
+make test-silver-dq
+make integration-silver
+make test-silver-recovery
+make reconcile-silver
+make restart-lakehouse
+make verify-silver
+```
+
+Run Spark targets sequentially: the fixed driver hostname allows one active submit.
+prepare-silver-fixture creates a separate 25-orders/day/channel run and only missing
+Bronze completions. It does not reset existing tables or regenerate expired snapshots.
+For the default dataset ingest all authoritative Bronze slices before
+make integration-silver-reference, then run
+make reconcile-silver SILVER_RUN_ID=b1e64afaff0176de180a.
+
+Full/incremental both verify and skip a completed identical pin; a new input replaces
+only its contribution slice. The job does not infer CDC deletes. Corrections must
+first be re-ingested into Bronze, then explicitly selected. Previously superseded or
+unrelated/older snapshots fail; --correction explicitly permits an intentional old
+revision, while key/policy migrations remain forbidden.
+
+Completion is /runtime/silver/publication/ledger.json on the shared config volume.
+Input pins and archived publication manifests are retained. attempt.json is progress,
+not a consumer completion. After failure read last completed ledger snapshots; latest
+table heads may contain partial work. Retry the same immutable input under the same
+key. Consumers must use the ledger's snapshot-id for every table, including after
+restart; verify-silver performs no writes. Do not expire referenced snapshots.
+
+Recovery tests own prefixed SQL rows and a separate run: corrections, missing/invalid
+rows, profile sharing, privacy, empty slices, writer conflict, source ancestry, NULL
+scope, key ownership and three partial-commit failure points. Cleanup removes only
+owned fixture rows and publishes their empty slices; volumes/buckets/DBs survive.
+
+Schema mismatch: stop and review DDL/migration; never DROP/recreate the table to pass.
+Changing column order alone is harmless: comparison is by name/type. Initial
+unpartitioned bootstrap is evolved by ADD PARTITION FIELD, preserving old snapshots.
+
+Spark 3.5 optimizer can drop grouping attributes when comparing complex aggregate
+plans with exceptAll. The monetary verifier uses eager localCheckpoint on both
+aggregate sides before comparison, bounding lineage and preserving currency columns.
+Local checkpoints are ephemeral; retry the entire job from immutable pins after
+executor loss. Full-table reduction/MERGE is intended for bounded local datasets;
+file counts/bytes and duration in the ledger are diagnostics, not a large benchmark.
+
+CI: .github/workflows/silver.yml is manual and uses the small fixture, timeout and
+make down without volume removal. ci_run.sh emits only allowlisted events/counts;
+raw diagnostics remain in ignored .local-data on the disposable runner. No new hosted
+Silver run is claimed until an actual run result is available.

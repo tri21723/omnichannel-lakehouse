@@ -167,12 +167,12 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-10 — Make/CI/tài liệu và bàn giao
 
-- [ ] Mở rộng make spark-submit JOB=dp2_silver; thêm smoke-silver, verify-silver và integration-silver, giữ target Bronze.
-- [ ] Tách unit/local Spark tests khỏi Docker integration; không im lặng skip rồi báo pipeline pass.
-- [ ] Workflow manual dùng fixture nhỏ, timeout, cleanup không xóa volumes local và failure logs đã lọc PII/secret.
+- [x] Mở rộng make spark-submit JOB=dp2_silver; thêm smoke-silver, verify-silver và integration-silver, giữ target Bronze.
+- [x] Tách unit/local Spark tests khỏi Docker integration; không im lặng skip rồi báo pipeline pass.
+- [x] Workflow manual dùng fixture nhỏ, timeout, cleanup không xóa volumes local và failure logs đã lọc PII/secret.
 - [ ] Chạy make check và integration local; ghi hosted CI riêng, không tick hosted pass khi chưa có run.
 - [ ] Hoàn tất docs/silver-validation.md, README, runbook, implementation-status, DDL và ADR bằng expected/actual evidence.
-- [ ] Bàn giao Gold: grain, natural keys, currency, relationships, quarantine accounting, PII fields và snapshot input contract.
+- [x] Bàn giao Gold: grain, natural keys, currency, relationships, quarantine accounting, PII fields và snapshot input contract.
 - [ ] Rà soát TODO theo bằng chứng; commit mỗi task nhỏ, tag v0.4b-silver chỉ sau local DoD đạt. Chưa tag toàn Phase 4.
 
 **Đạt khi:** Có cách tái lập Silver và contract đủ để lập kế hoạch Gold.

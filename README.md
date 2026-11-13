@@ -9,10 +9,10 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 
 Đã có core storage, generator batch/load và Iceberg + Lakekeeper chạy trên Spark cluster.
 Đã có `dp1_bronze` cho JSONL 5 kênh và JDBC Walmart, kèm replay/recovery và đối soát.
-Phase 4B đã có reader snapshot và validation chuẩn hóa Walmart orders/customers/items
-với HMAC PII. Publish Silver và Airflow chưa triển khai.
+Phase 4B đã triển khai Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
+Gold và Airflow là các giai đoạn tiếp theo.
 Chi tiết: [implementation status](docs/implementation-status.md).
-Kế hoạch Silver: [TODO — Phase 4B](TODO.md). Bàn giao tiếp theo: [Silver](docs/silver-handoff.md).
+Kế hoạch Silver: [TODO — Phase 4B](TODO.md). Bàn giao tiếp theo: [Gold](docs/gold-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -61,7 +61,7 @@ Dataset mặc định có 15.600 dòng JSONL trên MinIO (15.000 đơn duy nhấ
 Walmart trong PostgreSQL. Chạy lại cùng config không nhân đôi dữ liệu.
 
 [Hướng dẫn generator](docs/generators.md) · [Kết quả kiểm chứng](docs/generator-validation.md).
-Streaming và pipeline Spark/Airflow chưa triển khai.
+Streaming và Airflow chưa triển khai; Spark Bronze/Silver đã chạy local.
 
 ## Chạy Lakehouse (Phase 3)
 
@@ -79,6 +79,27 @@ Lakekeeper: http://localhost:8181/ui/ · Spark master UI: http://localhost:8080.
 `make down` dừng core + batch, giữ volume. Chạy các lệnh smoke/verify tuần tự.
 Chi tiết: [runbook](docs/runbook.md), [bằng chứng kiểm thử](docs/lakehouse-validation.md),
 [hợp đồng Bronze giai đoạn sau](docs/bronze-contract.md).
+
+## Chạy Silver (Phase 4B)
+
+```sh
+make env-silver
+make build-generator build-batch
+make up-batch
+make prepare-silver-fixture
+make integration-silver
+make test-silver-dq
+make test-silver-recovery
+make reconcile-silver
+make verify-silver
+```
+
+Chạy tuần tự trên fixture riêng (375 orders). Dataset mặc định 15.000 orders dùng
+`make integration-silver-reference`, sau khi đã ingest đủ Bronze như runbook.
+`make verify-silver` chỉ đọc snapshots trong completed ledger; không publish lại.
+Giữ nguyên HMAC key/version trong `.env` khi replay. Xem
+[validation](docs/silver-validation.md), [runbook](docs/runbook.md) và
+[Gold handoff](docs/gold-handoff.md).
 
 ## Kiến trúc và source
 
