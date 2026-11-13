@@ -37,3 +37,24 @@ Publish an ingestion completion record only after all selected target tables rec
 Per-table Iceberg commits do not imply a multi-table transaction; failed partial runs
 must remain incomplete and rerunnable. Quarantine is a Silver responsibility; malformed
 raw payloads must remain captured with an explicit raw parse-status contract.
+
+## Phase 4A implementation contract
+
+See ADR-0007. JSONL CLI now also accepts `--source jsonl`; JDBC support is pending.
+`full` replaces one run/channel/date/source slice. `incremental` verifies completion
+and current slice contents before skipping. It is not source CDC. `--verify` reads
+completion and target state without writing business rows.
+
+JSONL Walmart uses `bronze.walmart_orders_export_raw`; other JSONL channels use
+`bronze.<channel>_orders_raw`. JDBC reserves `bronze.walmart_<entity>_raw`.
+Additional columns: `_source_type` and `_parse_status` (valid/invalid/blank). `_raw`
+excludes line terminators but retains whitespace, unknown fields and duplicates.
+Invalid UTF-8/checksum/inventory fails before target writes. JSON syntax errors are
+retained, with business quarantine deferred to Silver.
+
+Every writer/verifier acquires /runtime/bronze/bronze.lock with nonblocking flock.
+Completion is /runtime/bronze/<batch-id>.json. New attempts mark running before any
+write; only read-back verified tables publish completed status. The fingerprint
+uses row count and two commutative sums of 60-bit SHA-256 segments over raw/provenance;
+write verification also uses exact multiset difference. This summary is reconciliation,
+not a cryptographic signature. Referenced snapshots must be retained by maintenance.

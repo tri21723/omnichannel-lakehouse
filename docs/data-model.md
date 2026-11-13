@@ -49,3 +49,6 @@ in this version. Walmart load splits these into the existing five OLTP tables.
 Amounts are strings with two decimal places in JSONL, NUMERIC(18,2) in PostgreSQL.
 Amazon drift, Shopee timestamps and Lazada optional fields differ by channel.
 See [generator contracts](generators.md) and ADR-0005 for dataset boundaries.
+
+Phase 4A physical Bronze contract and source separation: see [Bronze contract](bronze-contract.md)
+and [ADR-0007](adr/0007-bronze-ingestion.md). Silver/Gold remain proposed.

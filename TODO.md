@@ -69,25 +69,25 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-02 — Chốt contract trước khi viết pipeline
 
-- [ ] Viết ADR mới, cập nhật Bronze contract và draft DDL theo quyết định thực tế.
-- [ ] CLI bắt buộc `--run-id`, `--run-date`, `--channel`, `--mode`; thêm lựa chọn
+- [x] Viết ADR mới, cập nhật Bronze contract và draft DDL theo quyết định thực tế.
+- [x] CLI bắt buộc `--run-id`, `--run-date`, `--channel`, `--mode`; thêm lựa chọn
   `--source jsonl|jdbc`, JDBC chỉ nhận Walmart. Validate allowlist trước mọi IO ghi.
-- [ ] Định nghĩa `full` là thay toàn bộ slice đã chọn; `incremental` xử lý slice chưa
+- [x] Định nghĩa `full` là thay toàn bộ slice đã chọn; `incremental` xử lý slice chưa
   hoàn tất, chỉ skip khi completion và snapshot đích vẫn hợp lệ. Cả hai không append mù.
-- [ ] Tách bảng JSONL Walmart và JDBC: dự kiến `walmart_orders_export_raw` cho JSONL,
+- [x] Tách bảng JSONL Walmart và JDBC: dự kiến `walmart_orders_export_raw` cho JSONL,
   `walmart_orders_raw` cho JDBC; 4 kênh còn lại `<channel>_orders_raw`.
-- [ ] Chốt audit: `_raw`, `_ingest_ts`, `_source_file`, `_source_table`, `_channel`,
+- [x] Chốt audit: `_raw`, `_ingest_ts`, `_source_file`, `_source_table`, `_channel`,
   `_dataset_run_id`, `_batch_id`, `_run_date`, `_source_type`; provenance không dùng là NULL.
-- [ ] Chốt `_batch_id` ổn định theo run/channel/date/source và contract version;
+- [x] Chốt `_batch_id` ổn định theo run/channel/date/source và contract version;
   attempt ID riêng cho từng lần thực thi, không dùng timestamp làm batch identity.
-- [ ] Chốt `_parse_status`/lỗi parse và cách giữ nguyên dòng UTF-8 malformed, blank line;
+- [x] Chốt `_parse_status`/lỗi parse và cách giữ nguyên dòng UTF-8 malformed, blank line;
   lỗi encoding/checksum fail rõ trước commit, không drop âm thầm.
-- [ ] JDBC `_raw` là serialization của row typed, không phải byte payload JSONL;
+- [x] JDBC `_raw` là serialization của row typed, không phải byte payload JSONL;
   bảo toàn DECIMAL, timestamp UTC, NULL và tên cột nguồn.
-- [ ] Chốt scope theo orders của ngày UTC/run: items/returns theo order ID, customers/products
+- [x] Chốt scope theo orders của ngày UTC/run: items/returns theo order ID, customers/products
   theo quan hệ được tham chiếu; returns không lọc nhầm theo ngày hoàn trả.
-- [ ] Ghi rõ customers/products có thể lặp giữa các slice ngày; Silver sẽ xử lý sau.
-- [ ] Chốt completion schema, location/quyền ghi và cơ chế chống hai writer cùng batch;
+- [x] Ghi rõ customers/products có thể lặp giữa các slice ngày; Silver sẽ xử lý sau.
+- [x] Chốt completion schema, location/quyền ghi và cơ chế chống hai writer cùng batch;
   driver name cố định hiện tại chỉ là giới hạn local, không thay thế thiết kế concurrency.
 
 **Đạt khi:** không còn nhập nhằng nguồn Walmart, mode, ngày nghiệp vụ và đơn vị replace.
