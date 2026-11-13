@@ -1,6 +1,6 @@
 # TODO — Phase 3: Iceberg + Lakekeeper
 
-Cập nhật: **2026-11-13**. Trạng thái: **kế hoạch, chưa bắt đầu triển khai Phase 3**.
+Cập nhật: **2026-11-13**. Trạng thái: **đang triển khai Phase 3; P3-01 đã kiểm chứng**.
 
 Mục tiêu: từ core PostgreSQL/MinIO hiện có, dựng Iceberg REST catalog bằng Lakekeeper,
 cho Spark tạo/ghi/đọc/MERGE/time travel một bảng kiểm thử và chứng minh dữ liệu tồn tại
@@ -55,13 +55,13 @@ Mốc C: P3-09…10 — có hướng dẫn tái lập và đầu vào rõ cho Ph
 
 ### P3-01 — Kiểm tra lại baseline sau thời gian tạm dừng
 
-- [ ] Đọc `AGENTS.md`, ADR và trạng thái Git; giữ nguyên thay đổi ngoài task.
-- [ ] Kiểm tra Docker/Compose, RAM/CPU/đĩa khả dụng và port 8181, 7077, 8080.
-- [ ] Kiểm tra tên biến trong `.env` so với `.env.example`, không in giá trị credential.
-- [ ] Khi bắt đầu triển khai, chạy `make up-core`, `make smoke-core`, `make verify-sources`.
-- [ ] Nếu thiếu dataset: xác định đúng config/run_id trước khi chạy generator; không
+- [x] Đọc `AGENTS.md`, ADR và trạng thái Git; giữ nguyên thay đổi ngoài task.
+- [x] Kiểm tra Docker/Compose, RAM/CPU/đĩa khả dụng và port 8181, 7077, 8080.
+- [x] Kiểm tra tên biến trong `.env` so với `.env.example`, không in giá trị credential.
+- [x] Khi bắt đầu triển khai, chạy `make up-core`, `make smoke-core`, `make verify-sources`.
+- [x] Nếu thiếu dataset: xác định đúng config/run_id trước khi chạy generator; không
   mặc định sinh dataset khác hay xóa volume để sửa lỗi.
-- [ ] Ghi lại baseline row count/manifest và kết quả `make check`.
+- [x] Ghi lại baseline row count/manifest và kết quả `make check`.
 
 **Đạt khi:** nguồn cũ vẫn đối soát được; có đủ tài nguyên và không xung đột port.
 **File:** cập nhật `docs/runbook.md` nếu phát sinh lỗi môi trường mới.
