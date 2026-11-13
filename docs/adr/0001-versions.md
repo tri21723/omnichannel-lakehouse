@@ -56,3 +56,11 @@ Python image: `python:3.11.11-slim-bookworm`. Direct Python dependencies are pin
 batch-v1 identity/replay compatibility. This is a direct-dependency pin set, not a
 fully hashed transitive lockfile. Python 3.12 host unit tests and Python 3.11 container
 integration are both exercised. No existing service image version was changed.
+
+## Phase 3 selected pins
+
+See ADR-0006: Spark 3.5.5, Scala 2.12, Java 17, Python 3.11.11,
+Iceberg runtime and AWS bundle 1.9.2, JDBC 42.7.5, Lakekeeper v0.9.3.
+These are new pins; core versions remain unchanged. Actual runtime evidence is
+recorded separately in lakehouse-validation.md. Maven Iceberg JARs verify SHA-512
+against Maven Central at build time; OS packages remain distribution-managed.
