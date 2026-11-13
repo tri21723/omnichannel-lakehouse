@@ -22,7 +22,9 @@ hiện chưa có đủ seller profile. Bắt đầu Walmart trước, rồi mở
 
 Ngoài phạm vi: Gold dim/fact, features/labels, warehouse export, Airflow/Trino,
 streaming/CDC, DataHub, AWS và benchmark skew lớn. Không đổi runtime/port đã pin.
-Hosted CI chưa được kiểm chứng; local DoD và trạng thái hosted phải ghi riêng.
+Người dùng xác nhận đã xử lý billing và CI hosted chạy thành công (2026-11-13).
+Chưa có URL/run ID trong phiên này; không suy ra mọi workflow đều đã pass.
+Khi triển khai Silver, vẫn kiểm chứng các workflow tương ứng với thay đổi mới.
 
 ## 2. Thứ tự và mốc bàn giao
 

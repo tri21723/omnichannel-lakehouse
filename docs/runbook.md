@@ -174,7 +174,8 @@ make test-bronze-recovery BRONZE_RUN_ID=186ae107d0793d2ee237
 ```
 
 The current make check test count is recorded in bronze-validation.md. The manual .github/workflows/bronze.yml mirrors
-small-fixture setup and recovery; hosted success is pending account billing recovery.
+small-fixture setup and recovery. The user confirmed billing recovery and hosted CI
+success on 2026-11-13; the workflow/run URL was not supplied.
 
 Additional Phase 4A checks (run sequentially after build-batch/up-batch):
 
@@ -196,4 +197,5 @@ recover. CLI failure reason codes distinguish missing source, fingerprint mismat
 staging limit and invalid encoding, without outputting payload/credentials.
 CI uses ci_run.sh/ci_events.py to print allowlisted structured summaries only; raw
 logs remain on the disposable runner and are not uploaded. Local raw logs must stay
-out of Git. Hosted Actions remains unverified until account billing is resolved.
+out of Git. Hosted CI success is user-confirmed; validate new workflow changes
+against their own runs.

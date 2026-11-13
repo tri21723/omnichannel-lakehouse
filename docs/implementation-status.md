@@ -29,7 +29,7 @@ for local use. `make down` stops them while retaining data.
 - Non-root S3 permissions and object inspection; core/source regression checks pass.
 - Manual integration CI, SQL dialect config, runbook and Phase 4 handoff contract.
 
-Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not been run.
+Evidence: [lakehouse validation](lakehouse-validation.md). Hosted status: see the user confirmation below.
 
 ## Phase 4A — Bronze available
 
@@ -43,7 +43,7 @@ Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not bee
 - Completion records selected source, snapshots, attempt status/timestamps and metrics.
   Accepted staging/write failures become failed; partial runs cannot be consumed.
 - CLI safe reason codes, read-only verifier and manual integration workflow with
-  allowlisted CI diagnostics. Hosted execution remains unverified.
+  allowlisted CI diagnostics. Hosted CI success is user-confirmed; workflow/run scope is not recorded.
 
 See [Bronze validation](bronze-validation.md), [contract](bronze-contract.md) and
 [completed checklist](phase4a-checklist.md). Historical test counts above refer to earlier
@@ -64,3 +64,10 @@ Airflow, Trino, streaming, CDC capture, governance and AWS are not implemented.
 Their placeholder Make targets fail explicitly. Later components need compatibility
 verification. No cloud resources were provisioned. Million-row benchmarks, parallel
 JDBC partitions, snapshot expiry, compaction and orphan cleanup remain deferred.
+
+## Hosted CI update — 2026-11-13
+
+The user confirmed that the billing issue is resolved and hosted CI succeeded.
+No workflow name, run URL/ID or commit was supplied, so this records user-reported
+success rather than independent verification of every integration workflow.
+Future Silver changes still require their own relevant checks.

@@ -1,5 +1,10 @@
 # Bronze validation — Phase 4A
 
+Current hosted status (2026-11-13): the user confirmed billing is resolved and CI
+hosted succeeded. Workflow/run URL and commit were not supplied; success is recorded
+as user-confirmed. References to unverified hosted execution below describe the
+historical local-validation checkpoints, not an ongoing billing blocker.
+
 ## Baseline checked 2026-11-13
 
 - make check: 27 tests pass; lint pass.
