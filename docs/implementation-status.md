@@ -33,6 +33,9 @@ Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not bee
 
 ## Next: Phase 4 — business Bronze pipeline
 
+Detailed upcoming work: [Phase 4A checklist](../TODO.md). Phase 3 checklist is
+[archived](phase3-checklist.md); Phase 4A implementation has not started.
+
 Implement dp1_bronze against [the ingestion/replay contract](bronze-contract.md), then
 Walmart Silver/Gold vertical slice. Multi-table JDBC snapshot coordination needs
 explicit implementation/testing before claiming consistent parallel source ingestion.

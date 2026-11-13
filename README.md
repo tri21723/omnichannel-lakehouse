@@ -10,7 +10,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 Đã có core storage, generator batch/load và Iceberg + Lakekeeper chạy trên Spark cluster.
 Job Bronze nghiệp vụ và Airflow chưa triển khai.
 Chi tiết: [implementation status](docs/implementation-status.md).
-Kế hoạch giai đoạn tiếp theo: [TODO — Phase 3](TODO.md).
+Kế hoạch giai đoạn tiếp theo: [TODO — Phase 4A: Bronze](TODO.md).
 
 ## Bắt đầu phát triển
 
