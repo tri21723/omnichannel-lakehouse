@@ -6,3 +6,6 @@ rules:
   truthy:
     allowed-values: ['true', 'false']
     check-keys: false
+  indentation:
+    spaces: 2
+    indent-sequences: consistent

@@ -1,0 +1,173 @@
+services:
+  lakekeeper-migrate:
+    image: ${LAKEKEEPER_IMAGE}
+    profiles:
+    - batch
+    environment: &id001
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://lakekeeper:${LAKEKEEPER_DB_PASSWORD}@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://lakekeeper:${LAKEKEEPER_DB_PASSWORD}@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER_ENCRYPTION_KEY:?Run make env-batch}
+      LAKEKEEPER__BASE_URI: ${LAKEKEEPER_URI}
+      RUST_LOG: warn
+    command:
+    - migrate
+    mem_limit: 256m
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+  lakekeeper:
+    image: ${LAKEKEEPER_IMAGE}
+    profiles:
+    - batch
+    environment: *id001
+    command:
+    - serve
+    mem_limit: 384m
+    ports:
+    - 127.0.0.1:8181:8181
+    healthcheck:
+      test:
+      - CMD
+      - /home/nonroot/lakekeeper
+      - healthcheck
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      lakekeeper-migrate:
+        condition: service_completed_successfully
+  lakehouse-init:
+    image: python:3.11.11-slim-bookworm
+    profiles:
+    - batch
+    environment:
+      LAKEKEEPER_URI: ${LAKEKEEPER_URI}
+      LAKEHOUSE_WAREHOUSE: ${LAKEHOUSE_WAREHOUSE}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_LAKEHOUSE_BUCKET: ${S3_LAKEHOUSE_BUCKET}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      LAKEKEEPER_S3_ACCESS_KEY: ${LAKEKEEPER_S3_ACCESS_KEY}
+      LAKEKEEPER_S3_SECRET_KEY: ${LAKEKEEPER_S3_SECRET_KEY}
+    volumes:
+    - ./batch:/bootstrap:ro
+    - lakehouse-config:/runtime
+    command:
+    - python
+    - /bootstrap/bootstrap.py
+    mem_limit: 128m
+    restart: 'no'
+  spark-master:
+    image: omnichannel/spark:3.5.5-iceberg1.9.2
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.spark
+    profiles:
+    - batch
+    environment: &id002
+      LAKEKEEPER_URI: ${LAKEKEEPER_URI}
+      SPARK_S3_ACCESS_KEY: ${SPARK_S3_ACCESS_KEY}
+      SPARK_S3_SECRET_KEY: ${SPARK_S3_SECRET_KEY}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      SPARK_SHUFFLE_PARTITIONS: ${SPARK_SHUFFLE_PARTITIONS}
+      SPARK_MASTER_URL: spark://spark-master:7077
+    mem_limit: 512m
+    volumes:
+    - lakehouse-config:/runtime
+    command:
+    - /opt/spark/bin/spark-class
+    - org.apache.spark.deploy.master.Master
+    - --host
+    - spark-master
+    ports:
+    - 127.0.0.1:7077:7077
+    - 127.0.0.1:8080:8080
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8080',timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  spark-worker1:
+    image: omnichannel/spark:3.5.5-iceberg1.9.2
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.spark
+    profiles:
+    - batch
+    environment: *id002
+    mem_limit: 2560m
+    volumes:
+    - lakehouse-config:/runtime
+    command:
+    - /opt/spark/bin/spark-class
+    - org.apache.spark.deploy.worker.Worker
+    - --cores
+    - '2'
+    - --memory
+    - 2g
+    - spark://spark-master:7077
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8081',timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  spark-worker2:
+    image: omnichannel/spark:3.5.5-iceberg1.9.2
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.spark
+    profiles:
+    - batch
+    environment: *id002
+    mem_limit: 2560m
+    volumes:
+    - lakehouse-config:/runtime
+    command:
+    - /opt/spark/bin/spark-class
+    - org.apache.spark.deploy.worker.Worker
+    - --cores
+    - '2'
+    - --memory
+    - 2g
+    - spark://spark-master:7077
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8081',timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  spark-submit:
+    image: omnichannel/spark:3.5.5-iceberg1.9.2
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.spark
+    profiles:
+    - batch
+    environment: *id002
+    mem_limit: 1536m
+    volumes:
+    - lakehouse-config:/runtime
+    command:
+    - sleep
+    - infinity
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import pyspark
+      interval: 30s
+volumes:
+  lakehouse-config: {}

@@ -14,7 +14,9 @@ def main() -> None:
     for line in Path(".env.example").read_text().splitlines():
         if "=" in line and not line.startswith("#"):
             key, value = line.split("=", 1)
-            if not value and ("PASSWORD" in key or "SECRET_KEY" in key):
+            if not value and (
+                "PASSWORD" in key or "SECRET_KEY" in key or key.endswith("_ENCRYPTION_KEY")
+            ):
                 line = f"{key}={secrets.token_hex(24)}"
         lines.append(line)
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

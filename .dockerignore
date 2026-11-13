@@ -6,3 +6,7 @@ generators/**/*.pyc
 !docker/
 !docker/images/
 !docker/images/Dockerfile.generator
+!spark/
+!spark/**
+spark/**/__pycache__/
+!docker/images/Dockerfile.spark

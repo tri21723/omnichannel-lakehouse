@@ -19,20 +19,20 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml
 	for script in docker/core/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 
 format: ## Format Python source
-	$(BIN)/ruff check --fix .
 	$(BIN)/black .
+	$(BIN)/ruff check --fix .
 
 test: ## Run unit tests; use smoke-core for runtime integration
 	$(BIN)/python -m pytest
 
 check: lint test ## Run lint and unit tests
 
-up-batch up-orch up-query up-stream up-cdc up-gov gen-stream spark-submit e2e:
+up-orch up-query up-stream up-cdc up-gov gen-stream e2e:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -63,7 +63,7 @@ status-core: ## Show core service status
 	$(COMPOSE) ps -a
 
 down: ## Stop core services without deleting volumes
-	$(COMPOSE) down
+	$(BATCH) down
 
 logs: ## Follow core logs; optionally SVC=postgres or minio
 	$(COMPOSE) logs --tail=100 -f $(SVC)
@@ -101,3 +101,31 @@ gen-sources: ## One command for S3 batch + Walmart relational load
 
 verify-sources: ## Reconcile local/S3 bytes and SQL rows without rewriting data
 	$(GEN) verify --output /data --remote --database $(GEN_ARGS)
+
+BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml --profile core --profile batch
+.PHONY: env-batch config-batch build-batch init-lakehouse smoke-lakehouse verify-lakehouse restart-lakehouse
+env-batch: env ## Add missing Phase 3 settings without rotating credentials
+	$(PYTHON) docker/batch/env.py
+config-batch: ## Validate merged core+batch configuration silently
+	$(BATCH) config --quiet
+build-batch: ## Build Spark with pinned Iceberg dependencies
+	$(BATCH) build spark-master
+up-batch: env-batch ## Start core, migrate catalog, bootstrap and start Spark
+	$(MAKE) up-core
+	$(BATCH) up -d --wait lakekeeper
+	$(MAKE) init-lakehouse
+	$(BATCH) up -d --wait spark-master spark-worker1 spark-worker2
+init-lakehouse: ## Reconcile warehouse and save its UUID
+	$(BATCH) run --rm --no-deps lakehouse-init
+smoke-lakehouse: ## Exercise Iceberg writes and snapshots
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/smoke.py
+verify-lakehouse: ## Read existing fixture without rewriting it
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/smoke.py --verify
+restart-lakehouse: ## Restart catalog and Spark; preserve data
+	$(BATCH) restart lakekeeper spark-master spark-worker1 spark-worker2
+	$(BATCH) up -d --wait lakekeeper spark-master spark-worker1 spark-worker2
+
+.PHONY: spark-submit
+spark-submit: ## Submit the supported smoke fixture (JOB=smoke)
+	@test "$(JOB)" = "smoke" || (echo 'Supported JOB=smoke; business jobs are not implemented'; exit 2)
+	$(MAKE) smoke-lakehouse
