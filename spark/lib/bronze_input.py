@@ -124,7 +124,12 @@ def stage(client: Any, bucket: str, entries: list[dict], root: Path, limit: int)
             output.with_suffix(".tmp").open("w", encoding="utf-8") as target,
         ):
             for line in source:
-                raw = line.decode("utf-8").removesuffix("\n").removesuffix("\r")
+                payload = line
+                if payload.endswith(b"\n"):
+                    payload = payload[:-1]
+                    if payload.endswith(b"\r"):
+                        payload = payload[:-1]
+                raw = payload.decode("utf-8")
                 target.write(
                     canonical(
                         {

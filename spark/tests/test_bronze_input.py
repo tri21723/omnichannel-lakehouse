@@ -136,3 +136,19 @@ def test_cli_failure_exit_and_safe_reason(message, reason, caplog):
     output = json.loads(caplog.records[-1].message)
     assert output["reason"] == reason
     assert "private-payload-do-not-log" not in caplog.text
+
+
+def test_raw_preserves_bare_cr_without_lf(tmp_path):
+    import hashlib
+
+    payload = b'{"a":1}\r\n{"b":2}\r'
+    (tmp_path / "lines.jsonl").write_bytes(payload)
+    entry = {
+        "path": "lines.jsonl",
+        "bytes": len(payload),
+        "rows": 2,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    paths = stage(Client(tmp_path), "raw", [entry], tmp_path, 1000)
+    rows = [json.loads(line)["_raw"] for line in paths[0].read_text().splitlines()]
+    assert rows == ['{"a":1}', '{"b":2}\r']
