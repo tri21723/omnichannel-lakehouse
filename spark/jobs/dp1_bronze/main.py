@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -111,6 +112,7 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
                         ).json(str(file))
                 state = {
                     "status": "running",
+                    "started_at": datetime.now(UTC).isoformat(),
                     "batch_id": batch,
                     "attempt": attempt,
                     "input_hash": fingerprint,
@@ -124,6 +126,7 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
                         spark, table, audit(df, args, batch), args
                     )
                 state["status"] = "completed"
+                state["completed_at"] = datetime.now(UTC).isoformat()
                 save_state(path, state)
                 event("bronze_completed", batch_id=batch, attempt=attempt, tables=state["tables"])
         finally:

@@ -107,7 +107,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
   file dở hoặc xóa staging đang được job khác dùng.
 - [x] Lưu mapping staging path → S3 URI gốc; `_source_file` phải là nguồn S3,
   không phải đường dẫn container do `input_file_name()` trả về.
-- [ ] Chứng minh executor ở cả hai worker đọc được staging bằng kiểm thử phân phối có evidence.
+- [x] Chứng minh executor ở cả hai worker đọc được staging bằng kiểm thử phân phối có evidence.
 - [x] Cleanup đúng thư mục attempt trong finally sau khi Spark actions xong; crash leftovers
   có hướng dẫn dọn giới hạn, không xóa toàn bộ volume.
 
@@ -134,16 +134,16 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 - [x] Ghi replace theo run/channel/date/source bằng MERGE atomic có kiểm chứng;
   không overwrite cả ngày vì ngày đó có thể chứa nhiều run/source.
-- [ ] Kiểm tra mọi row đầu ra thuộc filter; xử lý slice 0 row được khai báo hợp lệ,
+- [x] Kiểm tra mọi row đầu ra thuộc filter; xử lý slice 0 row được khai báo hợp lệ,
   phân biệt với source bị thiếu. Không để dữ liệu cũ còn sót vì dynamic overwrite rỗng.
 - [x] Chạy cùng batch hai lần: row count và raw multiset không đổi; timestamp/snapshot
   có thể thay đổi. Dữ liệu slice khác phải nguyên vẹn.
 - [x] Completion chứa batch/attempt, manifest fingerprint, bảng/snapshot, count, thời gian
   và source snapshot evidence; chỉ đánh dấu completed sau read-back reconciliation.
-- [ ] Failed/partial attempt không được mang completion của attempt cũ như kết quả mới;
+- [x] Failed/partial attempt không được mang completion của attempt cũ như kết quả mới;
   consumer kiểm tra snapshot references, không chỉ sự tồn tại của marker.
-- [ ] Kiểm thử lỗi sau commit bảng nhưng trước completion; retry phải khôi phục được.
-- [ ] Giới hạn writer đồng thời, kiểm thử conflict và retry hữu hạn; không blind retry append.
+- [x] Kiểm thử lỗi sau commit bảng nhưng trước completion; retry phải khôi phục được.
+- [x] Giới hạn writer đồng thời, kiểm thử conflict và retry hữu hạn; không blind retry append.
 - [x] Không tuyên bố atomic nhiều bảng: consumer dùng bộ snapshot đã được completion xác nhận.
 
 **Đạt khi:** replay không thêm bản sao, failure không tạo trạng thái thành công giả.
@@ -151,12 +151,12 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-06 — Mở rộng JSONL đủ 5 kênh
 
-- [ ] Chạy toàn bộ ngày/kênh từ manifest theo thứ tự xác định, giữ writer resource budget.
+- [x] Chạy toàn bộ ngày/kênh từ manifest theo thứ tự xác định, giữ writer resource budget.
 - [ ] Assert Amazon rename/add field được giữ, Shopee timestamp string nguyên trạng,
   Lazada optional field thiếu và currency/amount nguyên trạng.
-- [ ] Assert mỗi kênh default có 3.120 physical rows, 3.000 unique orders, 120 extra copies;
+- [x] Assert mỗi kênh default có 3.120 physical rows, 3.000 unique orders, 120 extra copies;
   toàn JSONL 15.600. Khi dùng fixture khác, kỳ vọng lấy từ manifest, không hard-code default.
-- [ ] Kiểm thử hai run cùng ngày vào cùng bảng không ghi đè nhau.
+- [x] Kiểm thử hai run cùng ngày vào cùng bảng không ghi đè nhau.
 - [ ] Dữ liệu malformed dùng fixture riêng có manifest/checksum hợp lệ; raw vẫn được giữ,
   parse status rõ, chưa tạo Silver quarantine trong phase này.
 
@@ -168,14 +168,14 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [x] Truyền credential `spark_reader` vào runtime qua env; không dùng superuser,
   không log JDBC password/URL chứa secret; xác minh read-only permission.
 - [x] Lọc đúng run prefix và UTC order date, parameter hóa hoặc validate chặt giá trị SQL.
-- [ ] Kiểm chứng hành vi JDBC đọc với phiên bản đã pin: transaction, autocommit,
+- [x] Kiểm chứng hành vi JDBC đọc với phiên bản đã pin: transaction, autocommit,
   isolation, session init và fetch size; không giả định option write áp dụng cho read.
 - [ ] Bắt đầu một partition/connection REPEATABLE READ; xác minh isolation thực tế và
   test nguồn thay đổi giữa lúc đọc bằng fixture riêng.
-- [ ] Bảo đảm Spark lazy evaluation/recomputation không âm thầm đọc snapshot mới;
+- [x] Bảo đảm Spark lazy evaluation/recomputation không âm thầm đọc snapshot mới;
   materialize dữ liệu đọc một lần hoặc giữ lifecycle snapshot đến hết action liên quan.
 - [x] Serialize typed rows vào `_raw`, ghi bảng JDBC riêng và đối soát full-row fingerprint.
-- [ ] Chạy hai lần; default toàn run là 3.000 orders JDBC, không so bằng 3.120 JSONL.
+- [x] Chạy hai lần; default toàn run là 3.000 orders JDBC, không so bằng 3.120 JSONL.
 
 **Đạt khi:** JDBC orders chính xác, nhất quán và replay-safe.
 **Commit:** `feat(bronze): ingest Walmart orders through consistent JDBC reads`.
@@ -184,10 +184,10 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 - [x] Thiết kế coordinator giữ transaction export snapshot đến khi tất cả readers kết thúc;
   reader import snapshot trước query, cùng database và isolation phù hợp.
-- [ ] Kiểm thử tích hợp JDBC import snapshot thực tế trên pinned runtime trước khi mở rộng;
+- [x] Kiểm thử tích hợp JDBC import snapshot thực tế trên pinned runtime trước khi mở rộng;
   nếu không khả thi, ghi ADR thay thế rõ và chưa tick hoàn tất consistency.
 - [x] Nạp orders, order_items, customers, products, returns theo scope P4A-02.
-- [ ] Đối soát count/hash của từng bảng từ cùng snapshot; không dùng count nguồn live
+- [x] Đối soát count/hash của từng bảng từ cùng snapshot; không dùng count nguồn live
   sau transaction để kết luận snapshot ingestion sai.
 - [ ] Test update/insert đồng thời trên fixture: không trộn thế hệ dữ liệu giữa bảng.
 - [ ] Test reader failure/coordinator mất kết nối, rollback/close tài nguyên đúng;
@@ -201,13 +201,13 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-09 — Bộ kiểm chứng và phục hồi
 
-- [ ] Tạo verifier read-only cho count, payload fingerprint, provenance, snapshot/completion.
+- [x] Tạo verifier read-only cho count, payload fingerprint, provenance, snapshot/completion.
 - [ ] Test thiếu manifest/file, checksum sai, channel/date sai, staging vượt giới hạn:
   nonzero exit, thông báo rõ và không có commit đích mới.
 - [ ] Test malformed JSON hợp lệ về inventory; giữ dòng và parse status theo contract.
 - [ ] Test catalog lỗi và write failure giữa pipeline; dữ liệu đã commit vẫn đọc được,
   attempt thất bại chưa completed, retry đạt kết quả chuẩn.
-- [ ] Test rerun, hai run cùng ngày, empty slice và nhiều attempt theo ma trận riêng.
+- [x] Test rerun, hai run cùng ngày, empty slice và nhiều attempt theo ma trận riêng.
 - [ ] Restart catalog/Spark rồi verify read-only trước mọi thao tác ghi lại.
 - [ ] Chạy regression `make smoke-core`, `make verify-sources`, `make verify-lakehouse`.
 - [ ] Ghi duration, rows/s, staging bytes, data file count/size và tài nguyên fixture;

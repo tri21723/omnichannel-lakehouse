@@ -128,4 +128,9 @@ def stage_jdbc(spark: Any, args: Any, root: Path, limit: int) -> tuple[dict, dic
         coordinator.rollback()
         coordinator.close()
     # Do not return/log the snapshot token. This proves import/isolation for each reader.
-    return outputs, {"isolation": "repeatable read", "read_only": True, "tables": evidence}
+    return outputs, {
+        "isolation": "repeatable read",
+        "read_only": True,
+        "tables": evidence,
+        "snapshot_fingerprint": hashlib.sha256(token.encode()).hexdigest(),
+    }

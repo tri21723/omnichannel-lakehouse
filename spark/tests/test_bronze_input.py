@@ -103,3 +103,14 @@ def test_reject_manifest_paths_before_io(tmp_path, path):
     entries[0]["path"] = path
     with pytest.raises(ValueError):
         select_files(manifest, cfg.run_id, "2026-01-01", "amazon")
+
+
+@pytest.mark.parametrize("extra", [["--channel", "unknown"], ["--source", "wrong"], []])
+def test_cli_rejects_missing_or_invalid_selection(monkeypatch, extra):
+    import sys
+
+    from spark.jobs.dp1_bronze.main import arguments
+
+    monkeypatch.setattr(sys, "argv", ["dp1_bronze", *extra])
+    with pytest.raises(SystemExit):
+        arguments()
