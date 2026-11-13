@@ -95,20 +95,20 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-03 — Đọc manifest và staging cho Spark distributed
 
-- [ ] Tái sử dụng contract manifest hiện có; xác minh version, run ID, channel/date,
+- [x] Tái sử dụng contract manifest hiện có; xác minh version, run ID, channel/date,
   key prefix, duplicate keys, row count, byte size và SHA-256.
-- [ ] Chỉ đọc object trong manifest hoàn tất; từ chối path traversal, URI/bucket ngoài
+- [x] Chỉ đọc object trong manifest hoàn tất; từ chối path traversal, URI/bucket ngoài
   allowlist, file thiếu/sai checksum. Không wildcard toàn bộ bucket hoặc mọi run.
-- [ ] Đọc bằng credential Spark; timeout/retry hữu hạn, streaming download có giới hạn
+- [x] Đọc bằng credential Spark; timeout/retry hữu hạn, streaming download có giới hạn
   dung lượng từng object và tổng slice, kiểm tra dung lượng đĩa trước download.
-- [ ] Mount staging volume cùng đường dẫn vào driver và cả hai worker; worker đọc-only.
+- [x] Mount staging volume cùng đường dẫn vào driver và cả hai worker; worker đọc-only.
   Driver-local `/tmp` đơn lẻ không đủ cho `spark.read` trên executor.
-- [ ] Tách staging theo attempt, publish file bằng rename sau khi verify; không tái sử dụng
+- [x] Tách staging theo attempt, publish file bằng rename sau khi verify; không tái sử dụng
   file dở hoặc xóa staging đang được job khác dùng.
-- [ ] Lưu mapping staging path → S3 URI gốc; `_source_file` phải là nguồn S3,
+- [x] Lưu mapping staging path → S3 URI gốc; `_source_file` phải là nguồn S3,
   không phải đường dẫn container do `input_file_name()` trả về.
 - [ ] Chứng minh executor ở cả hai worker đọc được staging bằng kiểm thử phân phối có evidence.
-- [ ] Cleanup đúng thư mục attempt trong finally sau khi Spark actions xong; crash leftovers
+- [x] Cleanup đúng thư mục attempt trong finally sau khi Spark actions xong; crash leftovers
   có hướng dẫn dọn giới hạn, không xóa toàn bộ volume.
 
 **Đạt khi:** đọc được exact manifest trên cluster, lỗi input không gây ghi Bronze.

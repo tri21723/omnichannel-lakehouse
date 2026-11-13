@@ -1,0 +1,74 @@
+import io
+import json
+from pathlib import Path
+
+import pytest
+
+from generators.batch.dataset import generate
+from generators.common.config import GeneratorConfig
+from spark.lib.bronze import writer_lock
+from spark.lib.bronze_input import identity, parse_status, select_files, stage
+
+
+class Body(io.BytesIO):
+    pass
+
+
+class Client:
+    def __init__(self, root: Path):
+        self.root = root
+
+    def get_object(self, Bucket, Key):
+        return {"Body": Body((self.root / Key).read_bytes())}
+
+
+def fixture(tmp_path):
+    cfg = GeneratorConfig(orders_per_day_per_channel=25, rows_per_file=10)
+    root = generate(cfg, tmp_path)
+    manifest = json.loads((root / "stream_manifest.json").read_text())
+    entries = select_files(manifest, cfg.run_id, "2026-01-01", "amazon")
+    return root, cfg, manifest, entries
+
+
+def test_manifest_and_staging_preserve_duplicates(tmp_path):
+    root, cfg, _, entries = fixture(tmp_path)
+    output = tmp_path / "stage"
+    output.mkdir()
+    paths = stage(Client(root), "raw", entries, output, 100000)
+    rows = [json.loads(line) for p in paths for line in p.read_text().splitlines()]
+    assert len(rows) == 26
+    assert len({r["_raw"] for r in rows}) == 25
+    assert all(r["_source_file"].startswith("s3://raw/amazon/") for r in rows)
+    assert all(r["_parse_status"] == "valid" for r in rows)
+    assert identity(cfg.run_id, "2026-01-01", "amazon", "jsonl") != identity(
+        cfg.run_id, "2026-01-02", "amazon", "jsonl"
+    )
+
+
+def test_invalid_inventory_and_limits(tmp_path):
+    root, cfg, manifest, entries = fixture(tmp_path)
+    with pytest.raises(ValueError):
+        select_files(manifest, cfg.run_id, "2026-01-04", "amazon")
+    manifest["channels"]["amazon"]["files"].append(entries[0])
+    with pytest.raises(ValueError):
+        select_files(manifest, cfg.run_id, "2026-01-01", "amazon")
+    with pytest.raises(ValueError):
+        stage(Client(root), "raw", entries, tmp_path, 1)
+    entries[0]["sha256"] = "0" * 64
+    with pytest.raises(ValueError):
+        stage(Client(root), "raw", entries, tmp_path, 100000)
+
+
+@pytest.mark.parametrize(
+    "raw,status", [("{}", "valid"), ("broken", "invalid"), ("  ", "blank"), ("NaN", "invalid")]
+)
+def test_parse_status(raw, status):
+    assert parse_status(raw) == status
+
+
+def test_lock_released_and_conflict(tmp_path):
+    with writer_lock(tmp_path):
+        with pytest.raises(RuntimeError), writer_lock(tmp_path):
+            pass
+    with writer_lock(tmp_path):
+        pass
