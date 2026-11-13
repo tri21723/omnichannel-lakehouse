@@ -156,3 +156,14 @@ verify-bronze: ## Verify a completed slice; pass selection in BRONZE_ARGS
 .PHONY: test-bronze-recovery
 test-bronze-recovery: ## Test both-worker staging, empty slice, isolation and partial recovery
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/recovery.py --run-id $(BRONZE_RUN_ID)
+
+BRONZE_TEST := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.bronze-test.yml --profile core --profile batch
+.PHONY: test-bronze-snapshot
+test-bronze-snapshot: ## Test concurrent source mutations and broken JDBC connections on owned fixtures
+	$(BRONZE_TEST) config --quiet
+	$(BRONZE_TEST) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/snapshot_test.py
+
+.PHONY: test-bronze-input
+test-bronze-input: ## Test malformed MinIO fixtures and failure paths without changing original sources
+	$(BRONZE_TEST) config --quiet
+	$(BRONZE_TEST) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/input_test.py

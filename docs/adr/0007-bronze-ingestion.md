@@ -23,7 +23,8 @@ Status: accepted for implementation; runtime validation tracked in bronze-valida
 - Audit includes run/date/source/batch plus file OR source-table provenance. Parse
   status is valid/invalid/blank; Silver owns business validation and quarantine.
 - JDBC uses read-only repeatable-read transactions and explicit snapshot coordination;
-  no concurrent/parallel ingestion consistency claim until integration evidence exists.
+  five sequential eager readers import one snapshot; concurrent mutation and broken
+  reader/coordinator tests pass. Parallel partitioned ingestion remains deferred.
 - Stage and completion are local infrastructure. Snapshot retention must preserve
   snapshots referenced by completion; no expiry/cleanup is introduced in this phase.
 
@@ -31,7 +32,7 @@ Sources reviewed 2026-11-13:
 - https://iceberg.apache.org/docs/1.9.2/spark-writes/
 - https://www.postgresql.org/docs/16/functions-admin.html#FUNCTIONS-SNAPSHOT-SYNCHRONIZATION
 
-JDBC scope (implementation pending): run prefix plus UTC order date selects orders.
+JDBC scope (implemented and snapshot-tested): run prefix plus UTC order date selects orders.
 Items and returns join those order IDs, regardless of return date. Customers/products
 are distinct referenced rows within the slice; a shared entity may appear in several
 logical dates. JDBC raw is typed row JSON (DECIMAL retained without float conversion,
@@ -44,3 +45,9 @@ Use one atomic MERGE with a single delete marker matched to the target slice and
 unmatched insert rows. This preserves intentional duplicate input rows and supports
 empty slices without depending on file metric bounds. Local flock prevents concurrent
 Bronze commits; other tools must not write these tables while Bronze is running.
+
+Snapshot fault tests receive the generator credential only through the separate
+compose.bronze-test.yml override. Normal Spark services retain reader-only DB access.
+Only snapshot-probe-v1 fixture IDs are inserted/updated/deleted by the test.
+All reads are eager on the driver with fetch size 1000 and bounded staging; no
+parallel Spark JDBC partitions are enabled or claimed.

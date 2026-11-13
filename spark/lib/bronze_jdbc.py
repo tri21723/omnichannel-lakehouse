@@ -24,10 +24,23 @@ def connection(spark: Any):
     props.setProperty("connectTimeout", "10")
     props.setProperty("socketTimeout", "60")
     conn = jvm.java.sql.DriverManager.getConnection(os.environ["BRONZE_JDBC_URL"], props)
-    conn.setAutoCommit(False)
-    conn.setTransactionIsolation(4)  # java.sql.Connection.TRANSACTION_REPEATABLE_READ
-    conn.setReadOnly(True)
-    return conn
+    try:
+        conn.setAutoCommit(False)
+        conn.setTransactionIsolation(4)  # TRANSACTION_REPEATABLE_READ
+        conn.setReadOnly(True)
+        return conn
+    except Exception:
+        conn.close()
+        raise
+
+
+def rollback_close(conn: Any) -> None:
+    """Release a connection even when rollback fails after a network failure."""
+    try:
+        if not conn.isClosed():
+            conn.rollback()
+    finally:
+        conn.close()
 
 
 def scalar(conn: Any, sql: str) -> str:
@@ -122,11 +135,9 @@ def stage_jdbc(spark: Any, args: Any, root: Path, limit: int) -> tuple[dict, dic
                 finally:
                     statement.close()
             finally:
-                reader.rollback()
-                reader.close()
+                rollback_close(reader)
     finally:
-        coordinator.rollback()
-        coordinator.close()
+        rollback_close(coordinator)
     # Do not return/log the snapshot token. This proves import/isolation for each reader.
     return outputs, {
         "isolation": "repeatable read",

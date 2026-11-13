@@ -1,0 +1,7 @@
+# Only test commands load this override; normal Spark never receives writer credentials.
+services:
+  spark-submit:
+    environment:
+      GENERATOR_DB_PASSWORD: ${GENERATOR_DB_PASSWORD}
+      GENERATOR_S3_ACCESS_KEY: ${GENERATOR_S3_ACCESS_KEY}
+      GENERATOR_S3_SECRET_KEY: ${GENERATOR_S3_SECRET_KEY}

@@ -73,3 +73,17 @@ Small-fixture make smoke-bronze also passed (JSONL 26 rows and JDBC 25 orders/it
 for its first day). Afterward, read-only verify of the original default run still
 passes with its 1,000 JDBC orders and original completion references. Both dataset
 runs coexist on the same logical date without replacing one another.
+
+## Snapshot mutation and broken connections — 2026-11-13
+
+make test-bronze-snapshot: pass. Dedicated snapshot-probe-v1 rows across all five
+Walmart tables are updated after snapshot export and between readers; an order/item
+is inserted concurrently. The exported snapshot sees only the original order and
+original fields in every related table. A subsequent snapshot sees both orders.
+Nullable product brand and exact JSON text monetary serialization are preserved.
+
+Closing either a reader or the snapshot coordinator causes bounded failure; every
+opened connection closes and a new attempt stages successfully with a fresh snapshot.
+Fixture rows are cleaned by their exclusive non-generator prefix. No dataset rows
+are changed. Cleanup also closes the connection if rollback itself fails (unit test).
+make check: 43 tests pass.

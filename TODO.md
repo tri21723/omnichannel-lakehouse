@@ -170,7 +170,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [x] Lọc đúng run prefix và UTC order date, parameter hóa hoặc validate chặt giá trị SQL.
 - [x] Kiểm chứng hành vi JDBC đọc với phiên bản đã pin: transaction, autocommit,
   isolation, session init và fetch size; không giả định option write áp dụng cho read.
-- [ ] Bắt đầu một partition/connection REPEATABLE READ; xác minh isolation thực tế và
+- [x] Bắt đầu một partition/connection REPEATABLE READ; xác minh isolation thực tế và
   test nguồn thay đổi giữa lúc đọc bằng fixture riêng.
 - [x] Bảo đảm Spark lazy evaluation/recomputation không âm thầm đọc snapshot mới;
   materialize dữ liệu đọc một lần hoặc giữ lifecycle snapshot đến hết action liên quan.
@@ -189,10 +189,10 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [x] Nạp orders, order_items, customers, products, returns theo scope P4A-02.
 - [x] Đối soát count/hash của từng bảng từ cùng snapshot; không dùng count nguồn live
   sau transaction để kết luận snapshot ingestion sai.
-- [ ] Test update/insert đồng thời trên fixture: không trộn thế hệ dữ liệu giữa bảng.
-- [ ] Test reader failure/coordinator mất kết nối, rollback/close tài nguyên đúng;
+- [x] Test update/insert đồng thời trên fixture: không trộn thế hệ dữ liệu giữa bảng.
+- [x] Test reader failure/coordinator mất kết nối, rollback/close tài nguyên đúng;
   attempt incomplete và không reuse snapshot token hết hạn.
-- [ ] Chỉ bật partitioned JDBC sau test import cùng snapshot ở mọi connection; nếu giữ
+- [x] Chỉ bật partitioned JDBC sau test import cùng snapshot ở mọi connection; nếu giữ
   một partition mỗi bảng thì ghi rõ giới hạn và để tối ưu song song sang đợt sau.
 - [x] Publish completion tập bảng sau khi toàn bộ reconcile; partial retry không nhân đôi.
 
