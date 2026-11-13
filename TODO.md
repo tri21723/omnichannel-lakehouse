@@ -54,13 +54,13 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ### P4A-01 — Kiểm tra baseline và chuẩn bị fixture
 
-- [ ] Đọc AGENTS, ADR, Git status; giữ nguyên thay đổi ngoài task.
-- [ ] Kiểm tra RAM/đĩa và trạng thái core/batch; chỉ khởi động profile cần thiết.
-- [ ] Chạy `make check`, `make up-batch`, `make verify-runtime`, `make smoke-core`.
-- [ ] Chạy `make verify-lakehouse` và `make verify-sources`; nếu thiếu fixture, ghi rõ
+- [x] Đọc AGENTS, ADR, Git status; giữ nguyên thay đổi ngoài task.
+- [x] Kiểm tra RAM/đĩa và trạng thái core/batch; chỉ khởi động profile cần thiết.
+- [x] Chạy `make check`, `make up-batch`, `make verify-runtime`, `make smoke-core`.
+- [x] Chạy `make verify-lakehouse` và `make verify-sources`; nếu thiếu fixture, ghi rõ
   rồi dùng target tạo fixture thích hợp, không dùng ghi lại để che lỗi persistence.
-- [ ] Xác minh manifest/run ID và số liệu nguồn; không in credential/payload PII.
-- [ ] Chuẩn bị config fixture nhỏ riêng: đủ 5 kênh, 3 ngày, duplicate và Amazon drift;
+- [x] Xác minh manifest/run ID và số liệu nguồn; không in credential/payload PII.
+- [x] Chuẩn bị config fixture nhỏ riêng: đủ 5 kênh, 3 ngày, duplicate và Amazon drift;
   không thay config/dataset mặc định. Ghi lại ID để tái lập.
 
 **Đạt khi:** baseline có evidence và fixture không ảnh hưởng dataset hiện hữu.
