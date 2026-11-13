@@ -66,7 +66,7 @@ down: ## Stop core services without deleting volumes
 	$(BATCH) down
 
 logs: ## Follow core logs; optionally SVC=postgres or minio
-	$(COMPOSE) logs --tail=100 -f $(SVC)
+	$(BATCH) logs --tail=100 -f $(SVC)
 
 .PHONY: format-sql
 format-sql: ## Format PostgreSQL DDL and smoke assertions
@@ -129,3 +129,7 @@ restart-lakehouse: ## Restart catalog and Spark; preserve data
 spark-submit: ## Submit the supported smoke fixture (JOB=smoke)
 	@test "$(JOB)" = "smoke" || (echo 'Supported JOB=smoke; business jobs are not implemented'; exit 2)
 	$(MAKE) smoke-lakehouse
+
+.PHONY: verify-objects-lakehouse
+verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
+	$(BATCH) run --rm --no-deps --entrypoint /bin/sh minio-init /bootstrap/lakehouse-smoke.sh

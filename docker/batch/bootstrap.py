@@ -2,8 +2,9 @@
 
 import json
 import os
+import time
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -12,16 +13,26 @@ def request(base, method, path, payload=None):
     req = Request(
         base + path, data=data, method=method, headers={"Content-Type": "application/json"}
     )
-    try:
-        with urlopen(req, timeout=30) as response:
-            body = response.read()
-            return json.loads(body) if body else {}
-    except HTTPError as error:
-        # API response bodies can include storage credentials; never log them.
-        raise RuntimeError(f"Catalog {method} {path} returned HTTP {error.code}") from None
+    for attempt in range(3):
+        try:
+            with urlopen(req, timeout=10) as response:
+                body = response.read()
+                return json.loads(body) if body else {}
+        except HTTPError as error:
+            raise CatalogError(error.code) from None
+        except (URLError, TimeoutError):
+            if method != "GET" or attempt == 2:
+                raise RuntimeError("Catalog connection unavailable; retry task") from None
+            time.sleep(1)
 
 
-def main(runtime=Path("/runtime")):
+class CatalogError(RuntimeError):
+    def __init__(self, status):
+        self.status = status
+        super().__init__(f"Catalog returned HTTP {status}; response body redacted")
+
+
+def reconcile(runtime):
     base = os.environ["LAKEKEEPER_URI"]
     info = request(base, "GET", "/management/v1/info")
     if not info["bootstrapped"]:
@@ -32,7 +43,7 @@ def main(runtime=Path("/runtime")):
         "type": "s3",
         "bucket": os.environ["S3_LAKEHOUSE_BUCKET"],
         "key-prefix": "warehouse",
-        "endpoint": os.environ["S3_ENDPOINT"],
+        "endpoint": os.environ["S3_ENDPOINT"].rstrip("/"),
         "region": os.environ["AWS_DEFAULT_REGION"],
         "path-style-access": True,
         "flavor": "s3-compat",
@@ -78,6 +89,16 @@ def main(runtime=Path("/runtime")):
     temp.write_text(json.dumps(config))
     temp.replace(target)
     print(json.dumps({"event": "catalog_ready", **config}))
+
+
+def main(runtime=Path("/runtime")):
+    for attempt in range(2):
+        try:
+            return reconcile(runtime)
+        except CatalogError as error:
+            if error.status != 409 or attempt == 1:
+                raise
+            # A concurrent bootstrap/create may have completed. Re-read before writing.
 
 
 if __name__ == "__main__":

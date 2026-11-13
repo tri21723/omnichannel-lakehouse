@@ -54,3 +54,39 @@ def test_existing_profile_is_verified_before_runtime_config(tmp_path, monkeypatc
         bootstrap.main(tmp_path)
         assert json.loads((tmp_path / "catalog.json").read_text())["warehouse_id"] == "warehouse"
     assert set(calls) == {"GET"}
+
+
+def test_unavailable_catalog_retries_are_bounded(monkeypatch):
+    from urllib.error import URLError
+
+    calls = []
+
+    def unavailable(*args, **kwargs):
+        calls.append(1)
+        raise URLError("unavailable")
+
+    monkeypatch.setattr(bootstrap, "urlopen", unavailable)
+    monkeypatch.setattr(bootstrap.time, "sleep", lambda seconds: None)
+    with pytest.raises(RuntimeError, match="unavailable"):
+        bootstrap.request("http://catalog", "GET", "/management/v1/info")
+    assert len(calls) == 3
+
+
+def test_conflict_rechecks_once_but_forbidden_fails_immediately(tmp_path, monkeypatch):
+    calls = []
+
+    def conflict(runtime):
+        calls.append(1)
+        raise bootstrap.CatalogError(409)
+
+    monkeypatch.setattr(bootstrap, "reconcile", conflict)
+    with pytest.raises(bootstrap.CatalogError):
+        bootstrap.main(tmp_path)
+    assert len(calls) == 2
+
+    def forbidden(runtime):
+        raise bootstrap.CatalogError(403)
+
+    monkeypatch.setattr(bootstrap, "reconcile", forbidden)
+    with pytest.raises(bootstrap.CatalogError, match="403"):
+        bootstrap.main(tmp_path)
