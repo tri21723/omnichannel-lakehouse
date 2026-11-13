@@ -118,7 +118,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 ### P4A-04 — Vertical slice JSONL một kênh/một ngày
 
 - [x] Tạo entrypoint `spark/jobs/dp1_bronze/`, tái sử dụng session và structured logging.
-- [x] Bắt đầu Walmart JSONL export hoặc một kênh đơn giản trên fixture nhỏ.
+- [x] Bắt đầu Walmart JSONL export hoặc một kênh đơn giản trên dataset mặc định đã đối soát.
 - [x] Đọc từng dòng thành `_raw` không reserialize; giữ unknown fields và intentional duplicates.
 - [x] Thêm audit/parse status theo schema explicit; không tự cast/clean trường nghiệp vụ.
 - [x] Tạo bảng Iceberg v2, Parquet/ZSTD; kiểm tra schema bảng hiện hữu, không tự drop/recreate.
@@ -208,8 +208,8 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [ ] Test catalog lỗi và write failure giữa pipeline; dữ liệu đã commit vẫn đọc được,
   attempt thất bại chưa completed, retry đạt kết quả chuẩn.
 - [x] Test rerun, hai run cùng ngày, empty slice và nhiều attempt theo ma trận riêng.
-- [ ] Restart catalog/Spark rồi verify read-only trước mọi thao tác ghi lại.
-- [ ] Chạy regression `make smoke-core`, `make verify-sources`, `make verify-lakehouse`.
+- [x] Restart catalog/Spark rồi verify read-only trước mọi thao tác ghi lại.
+- [x] Chạy regression `make smoke-core`, `make verify-sources`, `make verify-lakehouse`.
 - [ ] Ghi duration, rows/s, staging bytes, data file count/size và tài nguyên fixture;
   không suy diễn thành benchmark scale lớn hoặc tự chạy compaction/cleanup.
 
@@ -226,9 +226,9 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
   không im lặng skip rồi báo end-to-end thành công.
 - [ ] Cập nhật workflow integration dùng fixture nhỏ, timeout, failure logs đã redaction,
   cleanup container không xóa volume dữ liệu local.
-- [ ] Chạy lint/test/config và integration local; ghi hosted CI là blocked/not run
+- [x] Chạy lint/test/config và integration local; ghi hosted CI là blocked/not run
   nếu billing chưa được giải quyết, không đánh dấu hosted pass khi chưa có run.
-- [ ] Cập nhật README, runbook, implementation-status, data model, DDL và Bronze contract.
+- [x] Cập nhật README, runbook, implementation-status, data model, DDL và Bronze contract.
 - [ ] Hoàn tất `docs/bronze-validation.md`: commit/runtime, dataset, lệnh, expected/actual,
   snapshot, replay, lỗi được thử và giới hạn chưa test.
 - [ ] Ghi bàn giao Silver: authoritative Walmart JDBC, schema mappings, parse failures,
@@ -245,7 +245,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [ ] JDBC 5 bảng Walmart có kiểm chứng snapshot consistency và raw serialization.
 - [ ] Rerun không nhân đôi; run/source khác cùng ngày không bị ghi đè.
 - [ ] Không báo completion khi pipeline mới hoàn tất một phần.
-- [ ] Restart vẫn đọc được Bronze; malformed input và failure có hành vi được kiểm thử.
+- [x] Restart vẫn đọc được Bronze; malformed input và failure có hành vi được kiểm thử.
 - [ ] Lint/unit/integration local pass, evidence không chứa secret/PII payload.
 - [ ] Tài liệu, Make và checklist phản ánh đúng phần đã làm và các giới hạn.
 

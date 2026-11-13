@@ -52,3 +52,24 @@ See ADR-0007. Expanded matrix and failure evidence will be added when completed.
 Remaining: concurrent source mutation/connection-failure tests, dedicated end-to-end
 malformed fixtures, larger-scale measurements and hosted workflow execution.
 These remain unchecked in TODO; no Phase 4A milestone tag has been created.
+
+## Restart and source regression
+
+make restart-lakehouse followed by verify-bronze (read-only JDBC slice) passes
+without regenerating business data. Referenced snapshots remain present.
+make smoke-core, verify-sources and verify-lakehouse pass after Bronze: original
+source run still reconciles with changed=0; Phase 3 smoke remains 3 rows with
+original snapshot 9213428472453640956.
+
+## CI fixture and workflow
+
+Small config moved to generators/fixtures/bronze.yaml so the existing generator
+image can use it. Published run 186ae107d0793d2ee237: 390 JSONL rows (78/channel);
+Walmart has 75 orders/items, 5 customers, 16 referenced products and 6 returns.
+The workflow bronze.yml is manual and uses this small config, bounded runtime,
+recovery checks and restart verification. Hosted execution remains unverified.
+
+Small-fixture make smoke-bronze also passed (JSONL 26 rows and JDBC 25 orders/items
+for its first day). Afterward, read-only verify of the original default run still
+passes with its 1,000 JDBC orders and original completion references. Both dataset
+runs coexist on the same logical date without replacing one another.

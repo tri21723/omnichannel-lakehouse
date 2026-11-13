@@ -141,8 +141,8 @@ make verify-bronze BRONZE_ARGS='--run-id b1e64afaff0176de180a --run-date 2026-01
 
 `make integration-bronze` runs the extended 5-channel/3-day matrix against the
 existing default source dataset; it writes Bronze slices and takes longer. The
-small config in spark/tests/fixtures is for future fixture setup, not automatically
-published by this command. Do not point the fixed-date matrix at arbitrary date ranges.
+small config in generators/fixtures is used by the manual Bronze CI workflow,
+not automatically published by this command. Do not point the fixed-date matrix at arbitrary date ranges.
 Run jobs sequentially: the fixed driver name rejects simultaneous submits and Bronze
 also holds a POSIX lock for the full pipeline. A crash releases the lock; a remaining
 state JSON with status running is incomplete and must be replayed, not manually
@@ -163,3 +163,15 @@ all 5 read-only repeatable-read connections import it before querying. Spark rea
 staged raw rows after DB connections close. JDBC incremental refreshes rather than
 skipping from the JSON manifest alone. Concurrent mutation/fault tests are still pending;
 see TODO and bronze-validation before claiming full Phase 4A completion.
+
+To prepare the small fixture locally:
+
+```sh
+make build-generator
+make gen-sources GEN_ARGS='--config generators/fixtures/bronze.yaml'
+make smoke-bronze BRONZE_RUN_ID=186ae107d0793d2ee237
+make test-bronze-recovery BRONZE_RUN_ID=186ae107d0793d2ee237
+```
+
+make check includes 41 unit tests. The manual .github/workflows/bronze.yml mirrors
+small-fixture setup and recovery; hosted success is pending account billing recovery.
