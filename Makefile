@@ -19,8 +19,8 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml
-	for script in docker/core/*.sh; do sh -n "$$script" || exit; done
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml
+	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 
 format: ## Format Python source
@@ -167,3 +167,7 @@ test-bronze-snapshot: ## Test concurrent source mutations and broken JDBC connec
 test-bronze-input: ## Test malformed MinIO fixtures and failure paths without changing original sources
 	$(BRONZE_TEST) config --quiet
 	$(BRONZE_TEST) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/input_test.py
+
+.PHONY: test-bronze-contract
+test-bronze-contract: ## Read-only raw drift/duplicate assertions on the default reference dataset
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/contract_test.py --run-id $(BRONZE_RUN_ID)

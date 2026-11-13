@@ -152,7 +152,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 ### P4A-06 — Mở rộng JSONL đủ 5 kênh
 
 - [x] Chạy toàn bộ ngày/kênh từ manifest theo thứ tự xác định, giữ writer resource budget.
-- [ ] Assert Amazon rename/add field được giữ, Shopee timestamp string nguyên trạng,
+- [x] Assert Amazon rename/add field được giữ, Shopee timestamp string nguyên trạng,
   Lazada optional field thiếu và currency/amount nguyên trạng.
 - [x] Assert mỗi kênh default có 3.120 physical rows, 3.000 unique orders, 120 extra copies;
   toàn JSONL 15.600. Khi dùng fixture khác, kỳ vọng lấy từ manifest, không hard-code default.
@@ -224,7 +224,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
   integration riêng; ghi rõ các target này hiện mới là kế hoạch.
 - [x] Unit tests nhẹ nằm trong `make check`; Spark/Docker integration chạy riêng,
   không im lặng skip rồi báo end-to-end thành công.
-- [ ] Cập nhật workflow integration dùng fixture nhỏ, timeout, failure logs đã redaction,
+- [x] Cập nhật workflow integration dùng fixture nhỏ, timeout, failure logs đã redaction,
   cleanup container không xóa volume dữ liệu local.
 - [x] Chạy lint/test/config và integration local; ghi hosted CI là blocked/not run
   nếu billing chưa được giải quyết, không đánh dấu hosted pass khi chưa có run.

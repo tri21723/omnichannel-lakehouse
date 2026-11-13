@@ -25,8 +25,10 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
               stream.write(f"run_id={run_id}\n")
           PYCODE
-      - run: make smoke-bronze BRONZE_RUN_ID=${{ steps.fixture.outputs.run_id }}
-      - run: make test-bronze-recovery BRONZE_RUN_ID=${{ steps.fixture.outputs.run_id }}
+      - run: sh docker/batch/ci_run.sh make smoke-bronze BRONZE_RUN_ID=${{ steps.fixture.outputs.run_id }}
+      - run: sh docker/batch/ci_run.sh make test-bronze-recovery BRONZE_RUN_ID=${{ steps.fixture.outputs.run_id }}
+      - run: sh docker/batch/ci_run.sh make test-bronze-snapshot
+      - run: sh docker/batch/ci_run.sh make test-bronze-input
       - run: make restart-lakehouse
       - env:
           RUN_ID: ${{ steps.fixture.outputs.run_id }}

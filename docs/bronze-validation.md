@@ -109,3 +109,16 @@ No compaction, expiry or orphan cleanup ran.
 Recovery tests also cover an initially empty table and reject NULL slice identity
 without changing its target snapshot. Snapshot lookup now uses the main ref, avoiding
 ambiguity in history entries with equal timestamps. make check: 47 tests pass.
+
+## Raw drift and CI diagnostics
+
+make test-bronze-contract passes read-only on the default reference dataset. Each
+channel has 3,120 physical / 3,000 unique order IDs. Amazon first-day buyer_id and
+third-day customer_id/fulfillment_type survive; Shopee +0700 string format survives;
+Lazada VND and missing brand survive. JDBC orders remain 3,000 unique rows.
+
+The manual Bronze workflow now runs snapshot and real-input fault tests in addition
+to replay/recovery/restart. ci_run.sh preserves the child exit code and prints only
+allowlisted structured events via ci_events.py. Unit redaction and a local wrapper
+probe confirm raw synthetic private output is suppressed while exit 7 is retained.
+Raw logs are not uploaded; hosted workflow execution is still unverified.
