@@ -1,6 +1,6 @@
 # Phase 4 handoff: manifest ingestion and replay
 
-Status: initial JSONL/JDBC vertical slice implemented; expanded validation pending.
+Status: implemented; local validation and limits are recorded in bronze-validation.md.
 
 CLI: dp1_bronze --run-id ID --run-date YYYY-MM-DD --channel CHANNEL --mode full|incremental.
 run-id is mandatory; it selects s3://raw/manifests/ID/stream_manifest.json. Run date
@@ -59,3 +59,18 @@ write; only read-back verified tables publish completed status. The fingerprint
 uses row count and two commutative sums of 60-bit SHA-256 segments over raw/provenance;
 write verification also uses exact multiset difference. This summary is reconciliation,
 not a cryptographic signature. Referenced snapshots must be retained by maintenance.
+
+Completion now records explicit selection and contract version. Accepted attempts
+are marked running before staging; staging/write failures record failed plus a safe
+error class. They cannot retain a previous completed flag. CLI returns exit 1 with
+allowlisted reason codes, excluding raw exception details/payloads.
+
+Metrics record elapsed seconds (including verification), rows, rows/s and staged
+wrapper bytes. table_files counts/bytes cover each table's entire current snapshot,
+including other runs, and are not slice-only storage or scale benchmarks. Snapshot
+lookup uses the main ref directly. Initially empty tables may have a NULL snapshot
+with zero row summary. The writer rejects rows with NULL/out-of-slice audit identity.
+
+Read [Silver handoff](silver-handoff.md) for snapshot consumption and mappings.
+Metadata API reference checked 2026-11-13:
+https://iceberg.apache.org/docs/1.9.2/spark-queries/

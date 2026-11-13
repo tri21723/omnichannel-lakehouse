@@ -1,6 +1,6 @@
 # TODO — Phase 4A: Batch ingestion vào Bronze
 
-Cập nhật: **2026-11-13**. Trạng thái: **Đang triển khai; vertical slice Walmart JSONL/JDBC đã pass local**.
+Cập nhật: **2026-11-13**. Trạng thái: **Phase 4A hoàn tất kiểm chứng local; bàn giao Phase 4B Silver**.
 
 Mục tiêu: triển khai `dp1_bronze` đọc JSONL theo manifest và Walmart PostgreSQL
 qua JDBC, ghi Iceberg có provenance, đối soát được và chạy lại không nhân đôi dữ liệu.
@@ -221,7 +221,7 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [x] Mở rộng `make spark-submit JOB=dp1_bronze` với tham số job được validate;
   giữ `JOB=smoke`, không làm hỏng các target hiện có.
 - [x] Thêm `make smoke-bronze` cho fixture nhỏ, `make verify-bronze` read-only và target
-  integration riêng; ghi rõ các target này hiện mới là kế hoạch.
+  integration riêng; ghi rõ các target này đã có implementation.
 - [x] Unit tests nhẹ nằm trong `make check`; Spark/Docker integration chạy riêng,
   không im lặng skip rồi báo end-to-end thành công.
 - [x] Cập nhật workflow integration dùng fixture nhỏ, timeout, failure logs đã redaction,
@@ -229,11 +229,11 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 - [x] Chạy lint/test/config và integration local; ghi hosted CI là blocked/not run
   nếu billing chưa được giải quyết, không đánh dấu hosted pass khi chưa có run.
 - [x] Cập nhật README, runbook, implementation-status, data model, DDL và Bronze contract.
-- [ ] Hoàn tất `docs/bronze-validation.md`: commit/runtime, dataset, lệnh, expected/actual,
+- [x] Hoàn tất `docs/bronze-validation.md`: commit/runtime, dataset, lệnh, expected/actual,
   snapshot, replay, lỗi được thử và giới hạn chưa test.
-- [ ] Ghi bàn giao Silver: authoritative Walmart JDBC, schema mappings, parse failures,
+- [x] Ghi bàn giao Silver: authoritative Walmart JDBC, schema mappings, parse failures,
   duplicate policy cần xử lý, completion/snapshot đầu vào và PII boundaries.
-- [ ] Rà soát checklist; commit từng task, tag `v0.4a-bronze` chỉ sau DoD local đạt.
+- [x] Rà soát checklist; commit từng task, tag `v0.4a-bronze` chỉ sau DoD local đạt.
   Chưa tạo tag tuyên bố toàn Phase 4 hoàn tất.
 
 **Đạt khi:** người khác tái lập Bronze và xác minh kết quả theo Make/runbook.
@@ -241,13 +241,13 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 
 ## 4. Điều kiện đóng Phase 4A
 
-- [ ] JSONL đủ 5 kênh đối soát với manifest, duplicate/unknown fields còn nguyên.
-- [ ] JDBC 5 bảng Walmart có kiểm chứng snapshot consistency và raw serialization.
-- [ ] Rerun không nhân đôi; run/source khác cùng ngày không bị ghi đè.
-- [ ] Không báo completion khi pipeline mới hoàn tất một phần.
+- [x] JSONL đủ 5 kênh đối soát với manifest, duplicate/unknown fields còn nguyên.
+- [x] JDBC 5 bảng Walmart có kiểm chứng snapshot consistency và raw serialization.
+- [x] Rerun không nhân đôi; run/source khác cùng ngày không bị ghi đè.
+- [x] Không báo completion khi pipeline mới hoàn tất một phần.
 - [x] Restart vẫn đọc được Bronze; malformed input và failure có hành vi được kiểm thử.
-- [ ] Lint/unit/integration local pass, evidence không chứa secret/PII payload.
-- [ ] Tài liệu, Make và checklist phản ánh đúng phần đã làm và các giới hạn.
+- [x] Lint/unit/integration local pass, evidence không chứa secret/PII payload.
+- [x] Tài liệu, Make và checklist phản ánh đúng phần đã làm và các giới hạn.
 
 ## 5. Các đợt sau — chưa thuộc DoD của Phase 4A
 
@@ -268,3 +268,19 @@ Mốc C: 09–10, có bằng chứng vận hành và bàn giao Silver.
 4. Mục không áp dụng phải ghi `N/A` và lý do; mục bị chặn giữ unchecked, ghi blocker.
 5. Không commit `.env`, payload, file staging, runtime snapshot token hoặc credentials.
 6. Không thay version/port hoặc mở rộng phase chỉ để né một lỗi chưa giải quyết.
+
+## Kết quả đóng Phase 4A — 2026-11-13
+
+Local DoD đạt: make check (49 tests), snapshot mutation/connection faults, MinIO
+input failure matrix, raw contract, partial recovery và full integration pass.
+Full reference run gồm 18 batch, 39 lần ghi thành công qua replay; sau restart
+verifier read-only vẫn pass. Regression core/source/Phase 3 snapshot còn nguyên.
+
+Các mục điều kiện parallel JDBC được đóng theo quyết định phạm vi: dùng 5 reader
+tuần tự với exported snapshot và bounded staging; chưa bật partitioned Spark JDBC.
+CI được tạo và kiểm tra local, có allowlisted failure logs; hosted run chưa được
+kiểm chứng. Không diễn giải checkbox CI là hosted đã pass. Không chạy benchmark
+triệu dòng, compaction, snapshot expiry hoặc orphan cleanup.
+
+Xem docs/bronze-validation.md và docs/silver-handoff.md. Milestone local được
+đánh dấu v0.4a-bronze sau commit đóng giai đoạn; toàn Phase 4 vẫn chưa hoàn tất.

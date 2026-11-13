@@ -49,9 +49,9 @@ See ADR-0007. Expanded matrix and failure evidence will be added when completed.
 - make check: 41 tests pass, including malformed/blank retention, UTF-8 rejection,
   traversal/foreign URI rejection, bounded staging, checksum and lock conflict.
 
-Remaining: concurrent source mutation/connection-failure tests, dedicated end-to-end
-malformed fixtures, larger-scale measurements and hosted workflow execution.
-These remain unchecked in TODO; no Phase 4A milestone tag has been created.
+At this initial checkpoint mutation/fault and malformed end-to-end tests were pending.
+They are covered by the later results below. Large-scale measurements and hosted
+workflow execution remain outside the local milestone.
 
 ## Restart and source regression
 
@@ -122,3 +122,32 @@ to replay/recovery/restart. ci_run.sh preserves the child exit code and prints o
 allowlisted structured events via ci_events.py. Unit redaction and a local wrapper
 probe confirm raw synthetic private output is suppressed while exit 7 is retained.
 Raw logs are not uploaded; hosted workflow execution is still unverified.
+
+## Final local acceptance — 2026-11-13
+
+All Phase 4A local checks passed. Runtime pins remain Spark 3.5.5 / Iceberg 1.9.2 /
+Lakekeeper v0.9.3 / PostgreSQL JDBC 42.7.5 / Python 3.11.11 / Java 17 (ADR-0006).
+Code checkpoints: 2245e2a (snapshot), 765cca1 (failure state/input), 5ff4a80 and
+bc0929a (CI diagnostics), 45c5018 (raw line ending preservation).
+
+| Check | Actual result |
+| --- | --- |
+| make check | Lint and 49 unit tests pass |
+| test-bronze-snapshot | 5-table concurrent update/insert consistency; closed reader/coordinator recover |
+| test-bronze-input | Malformed/blank retained; 7 invalid input/catalog scenarios leave target unchanged |
+| test-bronze-recovery | Both workers read staging; initially empty/NULL identity/isolation/partial recovery pass |
+| integration-bronze | 18 distinct batches, 39 completed write attempts; replay and verify pass |
+| test-bronze-contract | 15,600 JSONL / 3,000 Walmart JDBC orders; explicit drift/duplicate assertions pass |
+| restart + verify-bronze | Existing JDBC snapshot set reads without rewriting |
+| smoke-core + verify-sources | Permissions pass; original manifest/source rows reconcile, changed=0 |
+| verify-lakehouse | 3 rows and original Phase 3 snapshot 9213428472453640956 retained |
+
+The raw line-ending regression test confirms CRLF is removed while an actual final
+CR without LF remains part of _raw. Image rebuilt after this bounded parser fix;
+normal LF reference data is unchanged. CI wrapper redaction/exit behavior is tested
+locally; no hosted GitHub success is claimed.
+
+Remaining limits: one host and serialized writers, sequential driver JDBC reads,
+64MiB raw staging default, synthetic data/small local measurements, no cloud/auth
+production hardening or snapshot maintenance. Silver/Gold/jobs after Bronze remain
+future work. Handoff: silver-handoff.md. Milestone tag: v0.4a-bronze.

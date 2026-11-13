@@ -8,9 +8,10 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 ## Trạng thái
 
 Đã có core storage, generator batch/load và Iceberg + Lakekeeper chạy trên Spark cluster.
-Job Bronze nghiệp vụ và Airflow chưa triển khai.
+Đã có `dp1_bronze` cho JSONL 5 kênh và JDBC Walmart, kèm replay/recovery và đối soát.
+Giai đoạn tiếp theo là Silver (Phase 4B); Airflow chưa triển khai.
 Chi tiết: [implementation status](docs/implementation-status.md).
-Kế hoạch giai đoạn tiếp theo: [TODO — Phase 4A: Bronze](TODO.md).
+Checklist Bronze: [TODO — Phase 4A](TODO.md). Bàn giao tiếp theo: [Silver](docs/silver-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -96,6 +97,6 @@ Chi tiết: [runbook](docs/runbook.md), [bằng chứng kiểm thử](docs/lakeh
 Streaming, CDC, governance và AWS triển khai sau MVP batch.
 Các điểm làm rõ so với plan được ghi riêng trong ADR; plan gốc được giữ nguyên.
 
-Bronze Phase 4A initial slice: `make smoke-bronze` exercises Walmart JSONL and all
+Bronze Phase 4A: `make smoke-bronze` exercises Walmart JSONL and all
 5 JDBC tables with replay and verification. See [Bronze validation](docs/bronze-validation.md)
-and [runbook](docs/runbook.md); extended validation is tracked in TODO.
+and [runbook](docs/runbook.md); kết quả kiểm chứng chi tiết được lưu trong báo cáo validation.

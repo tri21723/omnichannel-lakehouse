@@ -31,30 +31,34 @@ for local use. `make down` stops them while retaining data.
 
 Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not been run.
 
-## Next: Phase 4 — business Bronze pipeline
+## Phase 4A — Bronze available
 
-Detailed upcoming work: [Phase 4A checklist](../TODO.md). Phase 3 checklist is
-[archived](phase3-checklist.md); Initial Walmart JSONL/JDBC slice now runs locally; Phase 4A validation is in progress.
+- Manifest-selected five-channel JSONL ingestion with SHA/size/count validation.
+- Bounded shared staging accessible to both Spark workers; raw/unknown fields,
+  duplicates and malformed/blank lines preserved with parse status/provenance.
+- Eager JVM JDBC readers import one exported PostgreSQL snapshot across five Walmart
+  tables. Concurrent inserts/updates and broken reader/coordinator recovery are tested.
+- Atomic MERGE replaces one run/channel/date/source slice; full replay, two runs on
+  the same date, initially empty slices and NULL identity rejection are verified.
+- Completion records selected source, snapshots, attempt status/timestamps and metrics.
+  Accepted staging/write failures become failed; partial runs cannot be consumed.
+- CLI safe reason codes, read-only verifier and manual integration workflow with
+  allowlisted CI diagnostics. Hosted execution remains unverified.
 
-Continue dp1_bronze validation against [the ingestion/replay contract](bronze-contract.md), then
-Walmart Silver/Gold vertical slice. Multi-table JDBC snapshot coordination needs
-explicit implementation/testing before claiming consistent parallel source ingestion.
-Streaming generator and million-row benchmarks remain deferred.
+See [Bronze validation](bronze-validation.md), [contract](bronze-contract.md) and
+[completed checklist](../TODO.md). Historical test counts above refer to earlier
+milestones; the final Phase 4A report records the current count.
+
+## Next: Phase 4B — Silver
+
+Use the [Silver handoff](silver-handoff.md): choose completed snapshot inputs, make
+Walmart JDBC authoritative, normalize JSONL schema drift, deduplicate deterministically,
+hash PII and account for quarantine. Start with Walmart, then expand to all channels.
+No Silver/Gold business transforms, features/labels or warehouse export exist yet.
 
 ## Later phases
 
-Business Spark jobs, Airflow, Trino, streaming, CDC capture, governance and AWS
-are not implemented. Their placeholder Make targets fail explicitly. Later components
-still need compatibility verification. No cloud resources exist
-as a result of this implementation.
-
-## Phase 4A initial vertical slice
-
-- Manifest-selected bounded JSONL staging shared by driver and workers.
-- Raw payload/provenance/parse status preserved, including intentional duplicates.
-- Atomic MERGE replacement and persistent completion state with replay/verify.
-- Eager JVM JDBC export under one PostgreSQL snapshot across all 5 Walmart tables.
-- Walmart one-day JSONL/JDBC full replay, incremental and read-only verification pass.
-- Extended multi-channel, mutation, failure and persistence coverage is tracked in TODO.
-
-No Silver/Gold business transforms or full Phase 4A completion is claimed.
+Airflow, Trino, streaming, CDC capture, governance and AWS are not implemented.
+Their placeholder Make targets fail explicitly. Later components need compatibility
+verification. No cloud resources were provisioned. Million-row benchmarks, parallel
+JDBC partitions, snapshot expiry, compaction and orphan cleanup remain deferred.

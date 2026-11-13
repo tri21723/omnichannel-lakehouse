@@ -161,8 +161,8 @@ No table reset or data purge is needed for recovery.
 JDBC is materialized eagerly through JVM JDBC under an exported PostgreSQL snapshot;
 all 5 read-only repeatable-read connections import it before querying. Spark reads
 staged raw rows after DB connections close. JDBC incremental refreshes rather than
-skipping from the JSON manifest alone. Concurrent mutation/fault tests are still pending;
-see TODO and bronze-validation before claiming full Phase 4A completion.
+skipping from the JSON manifest alone. Concurrent mutation and broken-connection tests use dedicated fixture IDs; see
+bronze-validation for results and the sequential JDBC reader limitation.
 
 To prepare the small fixture locally:
 
@@ -173,5 +173,27 @@ make smoke-bronze BRONZE_RUN_ID=186ae107d0793d2ee237
 make test-bronze-recovery BRONZE_RUN_ID=186ae107d0793d2ee237
 ```
 
-make check includes 41 unit tests. The manual .github/workflows/bronze.yml mirrors
+The current make check test count is recorded in bronze-validation.md. The manual .github/workflows/bronze.yml mirrors
 small-fixture setup and recovery; hosted success is pending account billing recovery.
+
+Additional Phase 4A checks (run sequentially after build-batch/up-batch):
+
+```sh
+make test-bronze-snapshot
+make test-bronze-input
+make test-bronze-contract  # read-only, requires the default full reference dataset
+```
+
+The first two use compose.bronze-test.yml: only the test driver receives generator
+credentials. Snapshot tests clean only snapshot-probe-v1 fixture rows. Input tests
+leave small immutable raw fixtures (including intentional malformed/missing-file
+inventories); these run IDs are excluded from business ingestion unless selected.
+No dataset or bucket reset is needed. The contract test validates Amazon drift,
+Shopee timezone strings, Lazada optional brand/currency and default duplicate counts.
+
+Accepted attempts persist failed status after staging/write failure; re-run full to
+recover. CLI failure reason codes distinguish missing source, fingerprint mismatch,
+staging limit and invalid encoding, without outputting payload/credentials.
+CI uses ci_run.sh/ci_events.py to print allowlisted structured summaries only; raw
+logs remain on the disposable runner and are not uploaded. Local raw logs must stay
+out of Git. Hosted Actions remains unverified until account billing is resolved.
