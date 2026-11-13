@@ -1,41 +1,47 @@
-"""Validate typed Walmart candidates from a pinned input; publishing comes later."""
+"""Normalize and publish five Silver entities from immutable Bronze inputs."""
 
 import argparse
+import hashlib
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from spark.lib.bronze import event
-from spark.lib.bronze_input import identity
+from spark.lib.bronze_input import CHANNELS, identity
 from spark.lib.session import get_spark
 from spark.lib.silver_input import load_pin, pin_completion, read_pinned
-from spark.lib.silver_transform import walmart_candidates
+from spark.lib.silver_pipeline import candidates
+from spark.lib.silver_publish import publish, verify
+
+ROOT = Path("/runtime/silver/publication")
 
 
-def run():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--run-date", required=True)
-    parser.add_argument("--channel", choices=["walmart"], required=True)
-    parser.add_argument("--mode", choices=["full", "incremental"], required=True)
-    parser.add_argument("--input-id")
-    parser.add_argument("--expect-orders", type=int)
-    parser.add_argument("--fail-on-reject", action="store_true")
-    parser.add_argument("--validate-only", action="store_true", required=True)
-    args = parser.parse_args()
+def key_settings():
     key = bytes.fromhex(os.environ["SILVER_PII_KEY"])
     version = os.environ["SILVER_PII_KEY_VERSION"]
-    if len(key) < 32 or not version:
+    if len(key) < 32 or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", version):
         raise ValueError("PII key/version required before normalization")
+    return key, version
+
+
+def run_job(spark, args):
+    key, version = key_settings()
+    if getattr(args, "verify", False):
+        ledger = json.loads((ROOT / "ledger.json").read_text())
+        verify(spark, ledger)
+        event("silver_verified", tables=len(ledger["tables"]), slices=len(ledger["slices"]))
+        return ledger
     selection = dict(
-        run_id=args.run_id, run_date=args.run_date, channel=args.channel, source="jdbc"
+        run_id=args.run_id,
+        run_date=args.run_date,
+        channel=args.channel,
+        source="jdbc" if args.channel == "walmart" else "jsonl",
     )
     batch = identity(**selection)
     directory = Path("/runtime/silver/inputs")
     if args.input_id:
-        import re
-
         if not re.fullmatch(r"[0-9a-f]{64}", args.input_id):
             raise ValueError("Invalid pinned input ID")
         pin = directory / f"{args.input_id}.json"
@@ -44,24 +50,53 @@ def run():
     state = load_pin(pin)
     if state["selection"] != selection:
         raise ValueError("Input does not match selection")
+    frames = read_pinned(spark, pin)
+    result = candidates(spark, frames, state, pin.stem, key, version)
+    report = {entity: value["counts"] for entity, value in result.items()}
+    if args.expect_orders is not None and report["orders"]["valid"] != args.expect_orders:
+        raise ValueError("Unexpected valid order count")
+    if args.fail_on_reject and any(value["rejected"] for value in report.values()):
+        raise ValueError("Unexpected rejected fixture rows")
+    if args.validate_only:
+        event("silver_candidates_validated", input_id=pin.stem, entities=report)
+        return report
+    ledger, skipped = publish(
+        spark,
+        result,
+        pin.stem,
+        state,
+        version,
+        ROOT,
+        correction=getattr(args, "correction", False),
+        key_id=hashlib.sha256(key).hexdigest(),
+    )
+    event(
+        "silver_published",
+        input_id=pin.stem,
+        entities=report,
+        skipped=skipped,
+        slices=len(ledger["slices"]),
+    )
+    return ledger
+
+
+def run():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--run-date", required=True)
+    parser.add_argument("--channel", choices=CHANNELS, required=True)
+    parser.add_argument("--mode", choices=["full", "incremental"], required=True)
+    parser.add_argument("--input-id")
+    parser.add_argument("--expect-orders", type=int)
+    parser.add_argument("--fail-on-reject", action="store_true")
+    parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--correction", action="store_true")
+    parser.add_argument("--verify", action="store_true")
+    args = parser.parse_args()
+    key_settings()
     spark = get_spark()
     try:
-        frames = read_pinned(spark, pin)
-        result = walmart_candidates(spark, frames, state, pin.stem, key, version)
-        report = {}
-        for entity, value in result.items():
-            valid = value["valid"].count()
-            rejected = value["rejected"].count()
-            if valid + rejected != value["input_rows"]:
-                raise ValueError("Entity accounting mismatch")
-            report[entity] = dict(input=value["input_rows"], valid=valid, rejected=rejected)
-        if any(name in result["customers"]["valid"].columns for name in ("full_name", "email")):
-            raise ValueError("Clear PII in candidate schema")
-        if args.expect_orders is not None and report["orders"]["valid"] != args.expect_orders:
-            raise ValueError("Unexpected valid order count")
-        if args.fail_on_reject and any(value["rejected"] for value in report.values()):
-            raise ValueError("Unexpected rejected fixture rows")
-        event("silver_candidates_validated", input_id=pin.stem, entities=report)
+        run_job(spark, args)
     finally:
         spark.stop()
 
@@ -71,7 +106,6 @@ if __name__ == "__main__":
     try:
         run()
     except Exception as exc:
-        # Never emit payloads, secret values or exception messages from worker input.
         logging.error(
             json.dumps({"event": "silver_normalization_failed", "error_type": type(exc).__name__})
         )

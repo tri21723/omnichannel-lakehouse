@@ -68,3 +68,13 @@ Commit 449d5ff records strict types/PII setup. Upcoming P4B-05 adds products/ret
 and full relational DQ. Quarantine persistence, global dedup/contributions/correction
 ledger and publish recovery remain P4B-06/07. Hosted results for these changes have
 not been checked; the user's earlier CI success applies to preceding work.
+
+## Five-entity publication implementation checkpoint
+
+Products/returns parsing, JSONL expansion and five-entity relational DQ are implemented.
+The first real Walmart publish/replay passed with 25 orders/items, 5 customers,
+9 products and 2 returns. Contributions, materialized entities and quarantine use
+separate Iceberg snapshots; the committed publication ledger is the visibility boundary.
+Unit suite currently passes 89 tests, including source snapshot ancestry and alias/
+embedded-parent validation. Extended matrix and correction/failure tests are ongoing;
+this checkpoint does not close Phase 4B.

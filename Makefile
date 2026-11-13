@@ -189,3 +189,34 @@ smoke-silver-normalize: ## Validate typed Walmart candidates twice without publi
 .PHONY: test-silver-normalize
 test-silver-normalize: ## Verify typed values, total mismatch, parent rejection and accounting in Spark
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/normalization_cases.py
+
+.PHONY: smoke-silver verify-silver
+SILVER_RUN_ID ?= 186ae107d0793d2ee237
+smoke-silver: ## Publish Walmart first day and replay the same pinned input
+	$(MAKE) spark-submit JOB=dp2_silver SILVER_ARGS='--run-id $(SILVER_RUN_ID) --run-date 2026-01-01 --channel walmart --mode full --fail-on-reject'
+	$(MAKE) spark-submit JOB=dp2_silver SILVER_ARGS='--run-id $(SILVER_RUN_ID) --run-date 2026-01-01 --channel walmart --mode incremental --fail-on-reject'
+verify-silver: ## Verify committed Silver snapshots without publishing
+	$(MAKE) spark-submit JOB=dp2_silver SILVER_ARGS='--run-id $(SILVER_RUN_ID) --run-date 2026-01-01 --channel walmart --mode full --verify'
+
+.PHONY: integration-silver integration-silver-reference
+integration-silver: ## Five channels x three dates using the small generator fixture
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/integration.py --run-id $(SILVER_RUN_ID) --orders-per-day 25
+integration-silver-reference: ## Full default reference dataset: 15000 unique orders
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/integration.py --run-id b1e64afaff0176de180a --orders-per-day 1000
+
+.PHONY: prepare-silver-fixture
+prepare-silver-fixture: ## Prepare the small raw/SQL dataset and missing authoritative Bronze completions
+	$(MAKE) gen-sources GEN_ARGS='--config generators/fixtures/bronze.yaml'
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/prepare.py --run-id $(SILVER_RUN_ID)
+
+.PHONY: test-silver-recovery
+test-silver-recovery: ## Test real source corrections, shared entity retention and failed publication recovery
+	$(BRONZE_TEST) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/fixture_test.py
+
+.PHONY: test-silver-dq
+test-silver-dq: ## Five-entity DQ, deterministic ties, cross-channel keys and malformed root accounting
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/dq_test.py
+
+.PHONY: reconcile-silver
+reconcile-silver: ## Read-only keys and currency/refund reconciliation against pinned authoritative Bronze
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/reference_verify.py --run-id $(SILVER_RUN_ID)

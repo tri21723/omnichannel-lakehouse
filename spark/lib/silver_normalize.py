@@ -14,8 +14,9 @@ STATUSES = {"paid", "pending", "shipped", "delivered", "cancelled", "refunded"}
 
 
 class Fields:
-    def __init__(self, value: dict):
+    def __init__(self, value: dict, channel: str = "walmart"):
         self.value = value
+        self.channel = channel
         self.errors: list[str] = []
 
     def required(self, name: str) -> Any:
@@ -30,6 +31,12 @@ class Fields:
         if value is not None and (not isinstance(value, str) or not value.strip()):
             self.errors.append(name + ":invalid_string")
             return None
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeError:
+                self.errors.append(name + ":invalid_unicode")
+                return None
         return value
 
     def timestamp(self, name: str) -> datetime | None:
@@ -37,6 +44,10 @@ class Fields:
         if value is None:
             return None
         try:
+            if self.channel == "shopee" and re.fullmatch(
+                r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}[+-]\d{4}", value
+            ):
+                return datetime.strptime(value, "%Y/%m/%d %H:%M:%S%z").astimezone(UTC)
             if not re.fullmatch(
                 r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", value
             ):
@@ -97,7 +108,13 @@ def pii_hash(value: str | None, field: str, channel: str, key: bytes) -> str | N
 def normalize(
     raw: str, entity: str, channel: str, key: bytes, key_version: str
 ) -> tuple[dict, list[str]]:
-    if entity not in {"orders", "customers", "order_items"} or channel != "walmart":
+    if entity not in {
+        "orders",
+        "customers",
+        "order_items",
+        "products",
+        "returns",
+    } or channel not in {"walmart", "amazon", "shopee", "lazada", "tiktok_shop"}:
         raise ValueError("Unsupported normalization entity/source")
     if len(key) < 32 or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", key_version):
         raise ValueError("Valid PII key and version required")
@@ -105,12 +122,18 @@ def normalize(
         value = json.loads(
             raw, parse_float=Decimal, parse_constant=lambda _: (_ for _ in ()).throw(ValueError())
         )
-    except (ValueError, RecursionError):
+    except (ValueError, TypeError, RecursionError):
         return {}, ["_raw:invalid_json"]
     if not isinstance(value, dict):
         return {}, ["_raw:expected_object"]
-    fields = Fields(value)
+    fields = Fields(value, channel)
     row = {"channel": channel}
+    if value.get("_parent_error"):
+        fields.errors.append("order_id:conflicting_parent")
+    if value.get("_product_error"):
+        fields.errors.append("product_id:conflicting_embedded_product")
+    if value.get("_customer_error"):
+        fields.errors.append("customer_id:conflicting_embedded_customer")
     if entity == "orders":
         for name in ("order_id", "customer_id", "status", "currency", "shipping_country"):
             row[name] = fields.text(name)
@@ -118,6 +141,13 @@ def normalize(
             row[name] = fields.timestamp(name)
         row["total_amount"] = fields.money("total_amount")
         row["is_deleted"] = False
+        row["fulfillment_type"] = value.get("fulfillment_type")
+        if row["fulfillment_type"] is not None and not isinstance(row["fulfillment_type"], str):
+            fields.errors.append("fulfillment_type:invalid_string")
+        if value.get("_mapping_error"):
+            fields.errors.append("customer_id:conflicting_alias")
+        for error in value.get("_array_errors", []):
+            fields.errors.append(error)
         if row["status"] is not None and row["status"] not in STATUSES:
             fields.errors.append("status:invalid_enum")
         if row["currency"] is not None and not re.fullmatch(r"[A-Z]{3}", row["currency"]):
@@ -129,6 +159,20 @@ def normalize(
         row["name_hash"] = pii_hash(fields.text("full_name"), "name", channel, key)
         row["email_hash"] = pii_hash(fields.text("email"), "email", channel, key)
         row["_pii_key_version"] = key_version
+    elif entity == "products":
+        for name in ("product_id", "seller_id", "title", "category"):
+            row[name] = fields.text(name)
+        row["updated_ts"] = fields.timestamp("updated_ts")
+        row["brand"] = value.get("brand")
+        if row["brand"] is not None and not isinstance(row["brand"], str):
+            fields.errors.append("brand:invalid_string")
+    elif entity == "returns":
+        for name in ("return_id", "order_id", "reason"):
+            row[name] = fields.text(name)
+        for name in ("return_line_no", "line_no"):
+            row[name] = fields.integer(name)
+        row["return_ts"] = fields.timestamp("return_ts")
+        row["refund_amount"] = fields.money("refund_amount")
     else:
         for name in ("order_id", "product_id", "seller_id"):
             row[name] = fields.text(name)

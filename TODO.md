@@ -1,6 +1,6 @@
 # TODO — Phase 4B: Chuẩn hóa Bronze thành Silver
 
-Cập nhật: **2026-11-13**. Trạng thái: **Đang triển khai contract và reader snapshot; chưa có Silver transforms**.
+Cập nhật: **2026-11-13**. Trạng thái: **Đang kiểm chứng publish 5 entity/5 kênh và recovery**.
 
 Mục tiêu: triển khai phần Silver của `dp2_silver`, tạo dữ liệu chuẩn cho 5 kênh,
 không trùng natural key, bảo vệ PII, có quarantine và đối soát từng bước.
@@ -100,8 +100,8 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 
 ### P4B-05 — Products/returns và quan hệ
 
-- [ ] Mở rộng parser cho products và returns; giữ brand nullable và return line key đầy đủ.
-- [ ] Returns chọn theo membership của orders; không loại vì return_ts sau run_date.
+- [x] Mở rộng parser cho products và returns; giữ brand nullable và return line key đầy đủ.
+- [x] Returns chọn theo membership của orders; không loại vì return_ts sau run_date.
 - [ ] Dedup customers/products lặp giữa date slices theo version contract, không tăng entity count mỗi ngày.
 - [ ] Chốt và test orphan order/item/product/return: quarantine hay deferred lookup phải rõ.
 - [ ] Join luôn gồm channel; test cùng source ID xuất hiện ở hai kênh không bị join nhầm.
@@ -115,17 +115,17 @@ Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh 
 - [x] Chốt normalization/hash policy trong ADR: tên/email, giá trị null, key/version, scope liên kết giữa kênh; tránh tự tạo cross-channel identity.
 - [x] Nếu dùng keyed hash/HMAC: secret qua env, không có default key; cùng key cho kết quả ổn định, ghi key version và quy trình rotation.
 - [ ] Test không còn full_name/email rõ trong Silver schema, data mẫu, logs và exception; raw/quarantine có policy hạn chế truy cập.
-- [ ] Tạo silver.quarantine_<entity> với error code ổn định, provenance và record fingerprint; quyết định rõ có lưu raw hay chỉ tham chiếu Bronze.
+- [x] Tạo silver.quarantine_<entity> với error code ổn định, provenance và record fingerprint; quyết định rõ có lưu raw hay chỉ tham chiếu Bronze.
 - [ ] Quarantine idempotent; retry không tăng bản sao, sửa lỗi nguồn giải quyết hoặc thay trạng thái quarantine cũ theo contract.
-- [ ] Định nghĩa thứ tự kiểm tra lỗi và reason list; một record nhiều lỗi không bị đếm thành nhiều record.
-- [ ] Ghi accounting: input occurrences = rejected + valid candidates; candidates = winners + duplicate losers. Tách accounting cha/con khi explode.
+- [x] Định nghĩa thứ tự kiểm tra lỗi và reason list; một record nhiều lỗi không bị đếm thành nhiều record.
+- [x] Ghi accounting: input occurrences = rejected + valid candidates; candidates = winners + duplicate losers. Tách accounting cha/con khi explode.
 
 **Đạt khi:** PII được xử lý nhất quán và mọi dòng bị loại khỏi Silver có lý do đối soát được.
 **Commit gợi ý:** `feat(silver): protect PII and reconcile quarantined records`.
 
 ### P4B-07 — Dedup, MERGE và phục hồi
 
-- [ ] Dedup trước MERGE để mỗi target key chỉ có một source winner; giữ conflict/duplicate metrics.
+- [x] Dedup trước MERGE để mỗi target key chỉ có một source winner; giữ conflict/duplicate metrics.
 - [ ] Test đổi thứ tự input/repartition vẫn chọn cùng winner, kể cả bằng updated_ts nhưng payload khác.
 - [ ] MERGE không để batch cũ ghi đè phiên bản mới; kiểm thử late replay của date cũ sau date mới.
 - [ ] Full replacement có scope chính xác; không xóa customer/product dùng chung bởi ngày khác. Chốt xử lý record biến mất/invalid trước khi coi full là hoàn chỉnh.
