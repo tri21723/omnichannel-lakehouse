@@ -111,3 +111,19 @@ Maintenance is deferred: define retention > required replay/time-travel horizon 
 expire_snapshots; only remove orphan files after a safe age exceeding running writes.
 Do not run either operation on project data as part of a smoke test. Compaction can
 be trialed on the dedicated fixture after taking snapshot evidence.
+
+
+## GitHub Actions: billing lock and runner notices
+
+If GitHub says the job was not started because the account is locked due to billing,
+no workflow step has run. The account or organization billing owner must review
+Settings → Billing and licensing, resolve the reported payment issue, then re-run
+the job. If no balance, subscription or payment problem is visible, ask GitHub Support
+to review the billing lock. Changing runner labels does not unlock the account.
+
+Workflows pin ubuntu-24.04 to avoid automatic OS migrations via ubuntu-latest.
+This fixes the runner-selection notice independently of the billing lock; it does
+not pin every preinstalled tool version. Local checks remain available via make check.
+
+Reference: https://docs.github.com/en/billing/how-tos/troubleshooting/locked-account
+Runner policy: https://github.com/actions/runner-images
