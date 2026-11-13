@@ -7,8 +7,8 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 
 ## Trạng thái
 
-Đã có core storage Phase 1 và generator batch/load Phase 2 chạy end-to-end.
-Pipeline Spark/Airflow chưa triển khai.
+Đã có core storage, generator batch/load và Iceberg + Lakekeeper chạy trên Spark cluster.
+Job Bronze nghiệp vụ và Airflow chưa triển khai.
 Chi tiết: [implementation status](docs/implementation-status.md).
 Kế hoạch giai đoạn tiếp theo: [TODO — Phase 3](TODO.md).
 
@@ -60,6 +60,23 @@ Walmart trong PostgreSQL. Chạy lại cùng config không nhân đôi dữ li�
 
 [Hướng dẫn generator](docs/generators.md) · [Kết quả kiểm chứng](docs/generator-validation.md).
 Streaming và pipeline Spark/Airflow chưa triển khai.
+
+## Chạy Lakehouse (Phase 3)
+
+```sh
+make env-batch
+make build-batch
+make up-batch
+make smoke-lakehouse
+make restart-lakehouse
+make verify-lakehouse
+make verify-objects-lakehouse
+```
+
+Lakekeeper: http://localhost:8181/ui/ · Spark master UI: http://localhost:8080.
+`make down` dừng core + batch, giữ volume. Chạy các lệnh smoke/verify tuần tự.
+Chi tiết: [runbook](docs/runbook.md), [bằng chứng kiểm thử](docs/lakehouse-validation.md),
+[hợp đồng Bronze giai đoạn sau](docs/bronze-contract.md).
 
 ## Kiến trúc và source
 

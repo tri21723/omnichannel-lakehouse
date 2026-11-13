@@ -65,3 +65,49 @@ After core storage is healthy, run `make build-generator`, then `make gen-source
 and `make verify-sources`. On a core installation created before the generator,
 run `make init-core` to grant TEMPORARY to the generator role. See
 [generator usage and contracts](generators.md) for config overrides and retry behavior.
+
+## Lakehouse Phase 3
+
+```sh
+make env-batch          # append missing settings; existing credentials remain
+make build-batch
+make up-batch
+make smoke-lakehouse
+make smoke-lakehouse   # read/verify existing fixture on replay
+make restart-lakehouse
+make verify-lakehouse  # read only; does not regenerate missing fixture
+make down              # merged core+batch; no volume deletion
+```
+
+Use DOCKER_CONFIG temporary config described above if the Windows credential helper
+fails. Run it for the entire make command, including recursive make/build calls.
+Lakekeeper health/UI: localhost:8181; Spark UI: localhost:8080.
+Two workers advertise 2GiB each; container overhead has a separate allowance.
+The driver is a one-shot container named omnichannel-spark-driver, so smoke commands
+must run sequentially. This image currently targets Linux amd64 (Java home layout).
+
+REST v0.9.3 resolves the configured warehouse **name**, then supplies the catalog
+prefix. Management uses UUID. A UUID in the REST warehouse setting causes NotFound.
+Storage profile endpoints are normalized with trailing slash by the API; bootstrap
+compares the normalized value and refuses bucket/prefix changes. Authentication is
+disabled only for this loopback-bound local deployment, not a production setup.
+
+Migration failure: inspect lakekeeper-migrate logs; fix configuration, rerun migration;
+never remove the database to retry. Preserve LAKEKEEPER_ENCRYPTION_KEY in .env.
+The PostgreSQL DSN uses the generated hex password; URL-encode a manually changed
+password before using reserved URI characters in this configuration.
+
+If classpath fails: compare runtime suffix 3.5_2.12 and both Iceberg 1.9.2 JARs.
+If S3 fails: check endpoint inside the Docker network, path-style and service policy;
+S3FileIO is not Spark's raw filesystem. If executors cannot reach driver: inspect
+service DNS/driver host; host localhost does not identify the driver container.
+If a container is killed: inspect memory usage/limits before increasing executor heap.
+
+Partial smoke fixture: the job refuses to reset an existing table without evidence.
+Inspect its snapshots and rows, then recover the evidence explicitly; do not drop/purge
+business tables. Fixture evidence is /runtime/fixture.json in lakehouse-config volume.
+
+Maintenance is deferred: define retention > required replay/time-travel horizon before
+expire_snapshots; only remove orphan files after a safe age exceeding running writes.
+Do not run either operation on project data as part of a smoke test. Compaction can
+be trialed on the dedicated fixture after taking snapshot evidence.

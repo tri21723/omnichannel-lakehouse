@@ -19,19 +19,28 @@ See [validation evidence](core-validation.md). DBeaver UI remains unverified.
 Boto3 access is now exercised by [generator integration](generator-validation.md). Service containers are left running
 for local use. `make down` stops them while retaining data.
 
-## Next: Phase 3 — Iceberg + Lakekeeper
+## Phase 3 available
 
-- Verify/pin Spark, Iceberg, Java/Scala and S3/JDBC compatibility.
-- Deploy Lakekeeper backed by the existing PostgreSQL database and MinIO bucket.
-- Bootstrap REST catalog and namespaces; test create/read/MERGE/time travel.
-- Begin Walmart batch vertical slice, selecting one dataset manifest explicitly.
+- Lakekeeper v0.9.3 migration/server using the existing PostgreSQL role and database.
+- Idempotent project/warehouse reconciliation and persistent runtime configuration.
+- Spark 3.5.5 master + two workers, Iceberg 1.9.2, Java 17 and Python 3.11.11.
+- Distributed CREATE/INSERT/MERGE, schema evolution, time travel, replay and restart
+  validation. Full down/up preserves catalog and snapshot data.
+- Non-root S3 permissions and object inspection; core/source regression checks pass.
+- Manual integration CI, SQL dialect config, runbook and Phase 4 handoff contract.
 
-Batch/load parts of Phase 2 are implemented. Streaming generator and its late/burst
-controls remain reserved for Phase 7. Million-row benchmarks have not been run.
+Evidence: [lakehouse validation](lakehouse-validation.md). Hosted CI has not been run.
+
+## Next: Phase 4 — business Bronze pipeline
+
+Implement dp1_bronze against [the ingestion/replay contract](bronze-contract.md), then
+Walmart Silver/Gold vertical slice. Multi-table JDBC snapshot coordination needs
+explicit implementation/testing before claiming consistent parallel source ingestion.
+Streaming generator and million-row benchmarks remain deferred.
 
 ## Later phases
 
-Lakekeeper/Spark/Iceberg, Airflow, Trino, streaming, CDC capture, governance and AWS
-are not implemented. Their Make targets fail explicitly. Runtime version compatibility
-for these components remains pending ADR-0001 verification. No cloud resources exist
+Business Spark jobs, Airflow, Trino, streaming, CDC capture, governance and AWS
+are not implemented. Their placeholder Make targets fail explicitly. Later components
+still need compatibility verification. No cloud resources exist
 as a result of this implementation.

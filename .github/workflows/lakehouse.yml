@@ -1,0 +1,20 @@
+name: Lakehouse integration
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  iceberg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make env-batch config-batch build-batch up-batch
+      - run: make smoke-lakehouse
+      - run: make smoke-lakehouse
+      - run: make restart-lakehouse verify-lakehouse
+      - if: always()
+        run: make down

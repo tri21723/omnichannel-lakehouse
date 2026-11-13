@@ -1,6 +1,6 @@
 # ADR-0006: Local REST catalog and Iceberg runtime
 
-Status: selected; runtime verification tracked in lakehouse-validation.md.
+Status: locally validated; runtime evidence in lakehouse-validation.md.
 
 - Spark 3.5.5 / Scala 2.12 / Java 17 / Python 3.11.11.
 - Iceberg runtime spark-3.5_2.12 and aws-bundle both 1.9.2; PostgreSQL JDBC 42.7.5.
@@ -14,8 +14,9 @@ Status: selected; runtime verification tracked in lakehouse-validation.md.
 - Spark driver runs in a dedicated submit container with stable service DNS; workers
   can reach it inside the Compose network. Two workers advertise 2 cores/2GiB each,
   with extra container memory for JVM overhead. Jobs cap total cores at two.
-- Bootstrap preserves the default project from Lakekeeper and stores warehouse UUID
-  in a shared runtime volume; do not assume project/name is a warehouse identifier.
+- Bootstrap preserves the default project from Lakekeeper and stores warehouse UUID/name
+  in a shared runtime volume. REST config handshake v0.9.3 resolves warehouse name;
+  UUID is retained for management API lookup and bootstrap identity assertions.
 - Encryption key persists in .env. Missing variables can be added without rotating
   existing credentials. Migration runs explicitly before serve.
 
