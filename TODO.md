@@ -1,159 +1,212 @@
-# TODO — Phase 4D: Xây dựng Feature Store và Return Labels
+# TODO — Phase 4D: Xây dựng Feature Store và Return Labels (`dp3_features`, `dp3_return_labels`)
 
-Cập nhật: **2026-11-15**. Trạng thái: **Đã lập kế hoạch; chưa bắt đầu triển khai (0/48 checklist)**.
+Cập nhật: **2026-11-15**. Trạng thái: **Đã rà soát và chốt kế hoạch chi tiết; chưa bắt đầu triển khai (0/68 checklist)**.
 
-Mục tiêu: Triển khai luồng feature engineering và label generation thuộc phạm vi `dp3_features` và `dp3_return_labels` (theo [ADR-0003](docs/adr/0003-data-contracts.md)), tiêu thụ dữ liệu bất biến từ Gold star schema (`lh.gold.*`) thông qua pinned publication ledger `/runtime/gold/publication/ledger.json`. Đảm bảo tính đúng đắn point-in-time (tránh data leakage), xử lý maturity flag cho return labels, và công bố bảng features/labels có kiểm soát trong namespace `lh.features`.
+Mục tiêu: triển khai hai job độc lập `dp3_features` và `dp3_return_labels` thuộc phạm vi `dp3`
+(theo [ADR-0003](docs/adr/0003-data-contracts.md), [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)),
+tiêu thụ bất biến một completed Gold star-schema publication (`/runtime/gold/publication/ledger.json`)
+theo `snapshot-id`, xuất bản các bảng `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`
+và `lh.gold.lbl_order_return` trên Iceberg v2, đảm bảo point-in-time correctness tuyệt đối
+(`order_ts < as_of_ts` và `return_ts < as_of_ts`), xử lý đúng cửa sổ quan sát hoàn trả
+(maturity censoring: immature labels = `NULL`, không gán âm giả `0`), và kiểm chứng trên cả
+hai ma trận dữ liệu (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`).
 
-Tham chiếu:
-- [plan master](docs/plan.md)
-- [data model](docs/data-model.md)
-- [Gold validation](docs/gold-validation.md)
-- [Handoff 4D/4E](docs/features-warehouse-handoff.md)
-- [ADR-0003: Source ownership & keys](docs/adr/0003-data-contracts.md)
-- [ADR-0009: Gold star schema](docs/adr/0009-gold-star-schema.md)
-Lịch sử: [checklist Phase 4C](docs/phase4c-checklist.md), tag `v0.4c-gold`.
+Tham chiếu: [plan](docs/plan.md), [data model](docs/data-model.md),
+[bàn giao Phase 4D/4E](docs/features-warehouse-handoff.md), [Gold contract](sql/iceberg/gold_contract.sql),
+[ADR-0003](docs/adr/0003-data-contracts.md), [ADR-0009](docs/adr/0009-gold-star-schema.md).
+Lịch sử: [checklist Phase 4C](docs/phase4c-checklist.md),
+[bằng chứng Gold](docs/gold-validation.md), tag `v0.4c-gold`.
 
----
+## 1. Baseline và các điểm rà soát kiến trúc quan trọng
 
-## 1. Baseline và phạm vi
+Gold star schema đã hoàn tất kiểm chứng local (`v0.4c-gold`): 8 bảng trong `lh.gold`
+(`dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`, `fact_orders`,
+`fact_order_items`, `fact_returns`), 110 unit tests pass. Hai dataset độc lập cùng tồn tại:
+- Small fixture (`186ae107d0793d2ee237`): `fact_orders=375`, `fact_order_items=375`, `dim_customer=25`, `dim_product=88`, `fact_returns=30`.
+- Default reference (`b1e64afaff0176de180a`): `fact_orders=15,000`, `fact_order_items=15,000`, `dim_customer=1,000`, `dim_product=100`, `fact_returns=1,500`.
+- Đặc điểm thời gian của dữ liệu nguồn (`generators/common/orders.py`):
+  - Đơn hàng (`order_ts`) phân bố trong 3 ngày UTC: `2026-01-01`, `2026-01-02`, `2026-01-03`.
+  - Hoàn trả (`return_ts`) sinh theo `order_ts + 1..14 days` (kéo dài từ `2026-01-02` đến `2026-01-17`).
 
-Gold đã hoàn tất kiểm chứng local (`v0.4c-gold`):
-- 8 bảng Gold trong `lh.gold`: `dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`, `fact_orders`, `fact_order_items`, `fact_returns`.
-- Cả 2 ma trận dữ liệu cùng tồn tại: Small fixture (`186ae107d0793d2ee237`, 375 đơn) và Default reference (`b1e64afaff0176de180a`, 15.000 đơn).
-- 110 unit tests pass; đối soát tiền tệ `DECIMAL(18,2)` và referential integrity 100%.
+Các điểm chuẩn hóa kiến trúc sau khi review `TODO.md`:
+1. **Đúng quy ước namespace và tên bảng (`AGENTS.md` §6, `docs/plan.md` §5.2 & §6.2, `docs/data-model.md`):**
+   - Không tạo namespace `lh.features` ngoài chuẩn. Toàn bộ bảng phục vụ аналиtinh/ML ở tầng Gold nằm trong namespace `lh.gold` với tiền tố `feat_*` và `lbl_*`:
+     - `lh.gold.feat_customer_daily`
+     - `lh.gold.feat_product_daily`
+     - `lh.gold.lbl_order_return`
+2. **Tách biệt ranh giới sở hữu giữa `dp2` và `dp3` (`ADR-0003`):**
+   - `dp2` sở hữu 8 bảng `dim_*`/`fact_*` và `/runtime/gold/publication/ledger.json`.
+   - `dp3` chỉ đọc (read-only) 8 bảng `dim_*`/`fact_*` từ snapshot trong `/runtime/gold/publication/ledger.json` và quản lý publication ledger riêng của `dp3` tại `/runtime/dp3/publication/ledger.json` (hoặc tách theo job), tuyệt đối không ghi đè ledger của `dp2`.
+3. **Đúng cấu trúc thư mục job (`AGENTS.md` §2 & Airflow DAG `docs/plan.md` §8):**
+   - Triển khai đúng 2 package đã scaffold sẵn:
+     - `spark/jobs/dp3_features/main.py` (`make spark-submit JOB=dp3_features`)
+     - `spark/jobs/dp3_return_labels/main.py` (`make spark-submit JOB=dp3_return_labels`)
+   - Dùng chung thư viện tại `spark/lib/dp3_*.py`.
+4. **Chống rò rỉ dữ liệu kép (Dual-Timestamp Point-in-Time Leakage Guard):**
+   - Không chỉ lọc `order_ts < as_of_ts`, mà mọi feature liên quan đến hoàn trả (`return_count_30d`, `refund_amount_30d`, `return_rate_30d`) bắt buộc phải lọc thêm **`return_ts < as_of_ts`**. Nếu chỉ lọc theo `order_ts`, một đơn hàng ngày `2026-01-01` nhưng đến `2026-01-10` mới hoàn trả sẽ làm lộ thông tin tương lai vào feature snapshot của ngày `2026-01-02`/`2026-01-03`.
+5. **Không suy diễn `return_qty` (`ADR-0009`):**
+   - Bảng `fact_returns` không có cột số lượng hoàn trả (`return_qty` là N/A từ nguồn). Do đó `feat_product_daily` chỉ tính số dòng/lần hoàn trả (`return_count_7d`, `return_count_30d`), giá trị tiền hoàn trả (`refund_amount_7d`, `refund_amount_30d`) và tỷ lệ hoàn trả theo dòng/tiền, tuyệt đối không bịa cột `return_qty_30d`.
+6. **Bảo toàn tiền tệ (`currency`) và `DECIMAL(18,2)` (`ADR-0003`):**
+   - Giữ nguyên `currency` gốc theo kênh (`VND` cho Lazada, `USD` cho 4 kênh còn lại); không cộng gộp tiền khác loại tiền tệ.
+7. **Quy tắc Maturity & Right-Censoring cho `lbl_order_return` (`ADR-0003`):**
+   - Với cửa sổ quan sát `horizon_days` (mặc định 14 ngày): `is_mature = (order_ts + interval horizon_days days <= as_of_ts)`.
+   - Khi `is_mature = false`: bắt buộc đặt `is_returned = NULL`, `days_to_return = NULL`, `refund_amount = NULL`, `refund_ratio = NULL` (right-censored theo đúng `ADR-0003`: *"immature labels are NULL, not negative"* và tránh positive-only bias).
+   - Khi `is_mature = true`: chỉ xét các hoàn trả hợp lệ thỏa mãn `return_ts <= order_ts + interval horizon_days days` và `return_ts < as_of_ts` để gán `is_returned` (`0` hoặc `1`).
 
-Phạm vi Phase 4D:
-- Thiết kế ADR-0010 cho Feature Store & Return Label semantics và DDL `sql/iceberg/features_contract.sql`.
-- Xây dựng reader pin Gold publication `/runtime/gold/publication/ledger.json` theo snapshot ID, cô lập `_dataset_run_id`.
-- Triển khai job `dp3_features`:
-  - `lh.features.customer_features_daily`: Tính RFM (Recency, Frequency 7d/30d, Monetary/AOV 7d/30d, Return rate 30d).
-  - `lh.features.product_features_daily`: Tính velocity bán hàng 7d/30d, doanh thu 7d/30d, tỷ lệ hoàn trả 30d.
-  - Tuân thủ nghiêm ngặt point-in-time cutoff: Chỉ dùng dữ liệu có `order_ts < as_of_ts`.
-- Triển khai job `dp3_return_labels`:
-  - `lh.features.order_return_labels`: Tính nhãn nhị phân `is_returned`, `days_to_return`, `refund_ratio`.
-  - Xử lý maturity flag: Chỉ gán nhãn huấn luyện khi đơn hàng đã qua cửa sổ quan sát hoàn trả (`order_ts + return_window <= observation_end_ts`); các đơn non-mature phải được gắn `is_mature = false` để tránh false negative leakage.
-- Quản lý publication ledger `/runtime/features/publication/ledger.json`, atomic merge và kiểm thử recovery.
-- Makefile targets, test suites, đối soát dữ liệu và tài liệu bàn giao Phase 4E.
-
-Ngoài phạm vi: `dp4_warehouse` export sang PostgreSQL (Phase 4E), benchmark skew lớn (Phase 4F), Airflow (Phase 5), Trino (Phase 6), Model Training/MLflow.
-
----
+Ngoài phạm vi Phase 4D: `dp4_warehouse` export sang PostgreSQL `warehouse` (Phase 4E),
+benchmark skew triệu dòng (Phase 4F), Airflow (Phase 5), Trino (Phase 6), huấn luyện model MLflow.
 
 ## 2. Thứ tự và mốc bàn giao
 
-| Task | Phụ thuộc | Đầu ra | Ước lượng |
+| Task | Phụ thuộc | Đầu ra | Công sức dự kiến |
 | --- | --- | --- | --- |
-| P4D-01 | — | ADR-0010, contract DDL `sql/iceberg/features_contract.sql` và fixtures kiểm thử | 2–3 giờ |
-| P4D-02 | 01 | Reader Gold publication snapshot-pinned và pipeline scoping | 2–3 giờ |
-| P4D-03 | 02 | Job `dp3_features`: Customer & Product daily features (point-in-time window 7d/30d) | 4–6 giờ |
-| P4D-04 | 02 | Job `dp3_return_labels`: Label generation, observation horizons và maturity guard | 3–5 giờ |
-| P4D-05 | 03, 04 | Features publication ledger, atomic table publication và failure recovery | 3–4 giờ |
-| P4D-06 | 05 | Data Quality tests (leakage prevention, maturity check), multi-dataset verification | 3–4 giờ |
-| P4D-07 | 06 | Makefile, CI update, tài liệu `docs/features-validation.md` và bàn giao Phase 4E | 2–3 giờ |
+| P4D-01 | — | Baseline Gold, ADR-0010, physical DDL và bộ test fixtures | 2–3 giờ |
+| P4D-02 | 01 | Reader Gold publication cố định theo snapshot-id và run/time scoping | 2–3 giờ |
+| P4D-03 | 02 | Job `dp3_features`: `feat_customer_daily` & `feat_product_daily` (point-in-time 7d/30d) | 4–6 giờ |
+| P4D-04 | 02 | Job `dp3_return_labels`: `lbl_order_return`, horizon & maturity censoring | 3–5 giờ |
+| P4D-05 | 03, 04 | Publication ledger `/runtime/dp3/publication`, MERGE idempotent & recovery | 3–4 giờ |
+| P4D-06 | 05 | Kiểm thử DQ, chống data leakage, đối soát đa dataset và restart regression | 3–4 giờ |
+| P4D-07 | 06 | Makefile, CI allowlist/workflow, runbook, validation docs và bàn giao Phase 4E | 2–3 giờ |
 
----
+Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không phải deadline.
 
 ## 3. Checklist triển khai chi tiết
 
-### P4D-01 — ADR-0010, contract DDL và fixtures kiểm thử
+### P4D-01 — Baseline Gold, ADR-0010, physical DDL và bộ test fixtures
 
-- [ ] Soạn thảo `docs/adr/0010-features-and-labels.md` quy định rõ ràng:
-  - Định nghĩa window 7 ngày và 30 ngày (UTC calendar-based vs rolling hour-based).
-  - Quy tắc point-in-time cutoff: $T_{\text{event}} < T_{\text{as\_of}}$.
-  - Quy tắc return observation window (mặc định 14 ngày hoặc 30 ngày) và maturity condition: $T_{\text{order}} + W_{\text{return}} \le T_{\text{as\_of}}$.
-  - Xử lý đơn hàng non-mature: gắn `is_mature = false` và `is_returned = NULL` để ngăn ngừa label leakage.
-  - Xử lý multi-currency trong feature aggregation: giữ currency hoặc tổng hợp theo `(channel, currency)`.
-- [ ] Soạn thảo physical Iceberg DDL trong `sql/iceberg/features_contract.sql` cho 3 bảng:
-  - `lh.features.customer_features_daily`
-  - `lh.features.product_features_daily`
-  - `lh.features.order_return_labels`
-- [ ] Chuẩn bị bộ test fixtures độc lập và unit tests xác minh công thức RFM, rolling window và non-mature handling.
+- [ ] Chạy kiểm tra baseline: `make check`, `make verify-gold`, `make reconcile-gold` trên cả 2 run (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`).
+- [ ] Soạn thảo `docs/adr/0010-features-and-return-labels.md` chốt các quyết định thiết kế:
+  - Quy ước quy chiếu thời gian: với một ngày `as_of_date` (`DATE` UTC), mốc cắt `as_of_ts` được định nghĩa thống nhất (ví dụ đầu ngày kế tiếp `as_of_date + 1 day 00:00:00 UTC` cho báo cáo cuối ngày `as_of_date`, hoặc đầu ngày `as_of_date 00:00:00 UTC`), kèm quy tắc join an toàn giữa `lbl_order_return` và `feat_*_daily` sao cho mọi feature gắn với đơn hàng đều có timestamp `< order_ts`.
+  - Định nghĩa chính xác cửa sổ trượt 7 ngày (`[as_of_ts - INTERVAL 7 DAYS, as_of_ts)`) và 30 ngày (`[as_of_ts - INTERVAL 30 DAYS, as_of_ts)`).
+  - Dual-timestamp cutoff: `order_ts < as_of_ts` cho sự kiện đặt hàng và `return_ts < as_of_ts` cho sự kiện hoàn trả.
+  - Định nghĩa grain, surrogate keys (`customer_feature_key`, `product_feature_key`, `order_label_key`), `horizon_days` (mặc định `14`), và quy tắc right-censoring (`is_mature = false` → nhãn `NULL`).
+  - Ranh giới publication ledger của `dp3` tách biệt với `/runtime/gold/publication/ledger.json` của `dp2`.
+- [ ] Cập nhật `sql/iceberg/gold_contract.sql` (và `docs/data-model.md`) bổ sung DDL cho 3 bảng Iceberg v2 (Parquet, ZSTD):
+  - `lh.gold.feat_customer_daily` (`PARTITIONED BY (as_of_date)`)
+  - `lh.gold.feat_product_daily` (`PARTITIONED BY (as_of_date)`)
+  - `lh.gold.lbl_order_return` (`PARTITIONED BY (as_of_date)`)
+- [ ] Tạo `spark/tests/fixtures/dp3_cases.json` chứa các kịch bản biên: đơn hàng đặt đúng biên `as_of_ts`, hoàn trả xảy ra sau `as_of_ts` (phải bị loại khỏi feature), hoàn trả xảy ra sau `order_ts + horizon_days`, đơn hàng có nhiều dòng hoàn trả, khách hàng/sản phẩm chưa có đơn trong 7d/30d, và đơn hàng `is_deleted = true`.
 
-**Đạt khi:** Contract, DDL và quy tắc chống rò rỉ dữ liệu (data leakage) được chốt trước khi viết transform.
-**Commit gợi ý:** `docs(adr): define feature store and return labels contract`.
+**Đạt khi:** ADR-0010, DDL và bộ fixture kiểm thử chống leakage/censoring được chốt rõ ràng trước khi viết code transform.
+**Commit gợi ý:** `docs(adr): define Phase 4D feature store and return label contracts`.
 
-### P4D-02 — Reader Gold publication snapshot-pinned
+### P4D-02 — Reader Gold publication cố định theo snapshot-id và cô lập dataset run
 
-- [ ] Tạo module `spark/lib/features_input.py` đọc `/runtime/gold/publication/ledger.json`.
-- [ ] Kiểm tra `status == "completed"`, xác thực SHA-256 fingerprint và file lưu trữ bất biến `publication-<id>.json`.
-- [ ] Đọc các bảng `lh.gold.{fact_orders, fact_order_items, fact_returns, dim_customer, dim_product}` bằng `option("snapshot-id", ...)`.
-- [ ] Lọc nghiêm ngặt theo `_dataset_run_id == args.run_id`; từ chối nếu dataset run không tồn tại trong Gold ledger.
-- [ ] Viết unit tests kiểm chứng pinning mechanics và run isolation.
+- [ ] Tạo `spark/lib/dp3_input.py` đọc `/runtime/gold/publication/ledger.json`, yêu cầu `status == "completed"`, kiểm tra đủ 8 bảng Gold star schema và xác thực `publication_id` (`SHA-256` canonical JSON) khớp với file bất biến `publication-<id>.json`.
+- [ ] Từ chối đọc từ `attempt.json` hoặc fallback sang `latest`; báo lỗi rõ nếu snapshot bị thiếu hoặc hết hạn.
+- [ ] Đọc các bảng `lh.gold.{dim_customer,dim_product,dim_channel,dim_date,fact_orders,fact_order_items,fact_returns}` bằng `option("snapshot-id", ...)`, đối soát summary (`rows`, `h1`, `h2`) khớp với ledger trước khi lọc.
+- [ ] Lọc chặt chẽ theo `_dataset_run_id == args.run_id` và loại bỏ các đơn hàng `is_deleted == True`; báo lỗi nếu `args.run_id` không có mặt trong `ledger["runs"]`.
+- [ ] Hỗ trợ tham số `--as-of-date` (một ngày cụ thể `YYYY-MM-DD` hoặc danh sách/phạm vi ngày của run khi chạy batch backfill).
+- [ ] Viết unit tests (`spark/tests/test_dp3_input.py`) cho các trường hợp: ledger chưa completed, sai digest, thiếu run_id, và cô lập tuyệt đối giữa 2 dataset run.
 
-**Đạt khi:** Đầu vào của `dp3` được pin cố định theo snapshot Gold đã publish, không đọc dữ liệu unpinned.
-**Commit gợi ý:** `feat(features): implement pinned Gold publication reader`.
+**Đạt khi:** `dp3` chỉ đọc dữ liệu từ một Gold publication đã hoàn tất theo snapshot ID cố định và cô lập từng `_dataset_run_id`.
+**Commit gợi ý:** `feat(dp3): read pinned Gold publication snapshots by dataset run`.
 
-### P4D-03 — Job `dp3_features`: Customer & Product daily features
+### P4D-03 — Job `dp3_features`: `feat_customer_daily` và `feat_product_daily`
 
-- [ ] Tạo `spark/jobs/dp3_features/` và thư viện tính toán `spark/lib/features_customer.py`, `spark/lib/features_product.py`.
-- [ ] Triển khai `customer_features_daily` với các trường:
-  - Khóa: `customer_key`, `channel`, `as_of_date`, `_dataset_run_id`.
-  - Recency: `days_since_last_order = datediff(as_of_date, max(order_date))`.
-  - Frequency: `order_count_7d`, `order_count_30d`.
-  - Monetary: `total_spend_7d`, `total_spend_30d`, `avg_order_value_30d` (sử dụng `DECIMAL(18,2)`).
-  - Return rate: `return_count_30d`, `return_rate_30d = return_count_30d / nullif(order_count_30d, 0)`.
-- [ ] Triển khai `product_features_daily` với các trường:
-  - Khóa: `product_key`, `channel`, `as_of_date`, `_dataset_run_id`.
-  - Velocity & Doanh thu: `qty_sold_7d`, `qty_sold_30d`, `revenue_7d`, `revenue_30d`.
-  - Hoàn trả: `return_qty_30d`, `return_amount_30d`, `return_rate_30d`.
-- [ ] Kiểm chứng tính toán độc lập theo từng ngày `as_of_date` trong phạm vi ngày của run, tuân thủ `order_ts < as_of_ts`.
+- [ ] Tạo `spark/lib/dp3_features.py` và entrypoint `spark/jobs/dp3_features/main.py` hỗ trợ CLI: `--run-id`, `--as-of-date` (hoặc `--all-dates`), `--publication-id`, `--mode full|incremental`, `--verify`.
+- [ ] Xây dựng `lh.gold.feat_customer_daily` ở grain `(_dataset_run_id, channel, customer_id, as_of_date)`:
+  - Keys & context: `customer_feature_key` (`sha256(_dataset_run_id:channel:customer_id:as_of_date)`), `customer_key`, `channel_key`, `as_of_date_key`, `channel`, `customer_id`, `as_of_date`, `as_of_ts`, `currency`.
+  - Hanya xét các đơn hàng của khách hàng có `order_ts < as_of_ts` và `not is_deleted`.
+  - Recency: `last_order_ts` (`< as_of_ts`), `days_since_last_order` (`DATEDIFF(as_of_date, DATE(last_order_ts))`, `NULL` nếu chưa có đơn trước `as_of_ts`).
+  - Frequency: `lifetime_order_count`, `orders_7d`, `orders_30d`.
+  - Monetary (`DECIMAL(18,2)`): `lifetime_net_amount`, `spend_7d`, `spend_30d`, `aov_30d` (`spend_30d / NULLIF(orders_30d, 0)` làm tròn `DECIMAL(18,2)`).
+  - Return behavior (chỉ tính các hoàn trả có **`order_ts < as_of_ts` VÀ `return_ts < as_of_ts`**): `returned_orders_30d`, `refund_amount_30d`, `return_rate_30d` (`CAST(returned_orders_30d / NULLIF(orders_30d, 0) AS DECIMAL(18,4))`, `0.0000` hoặc `NULL` khi `orders_30d == 0`).
+- [ ] Xây dựng `lh.gold.feat_product_daily` ở grain `(_dataset_run_id, channel, product_id, as_of_date)`:
+  - Keys & context: `product_feature_key` (`sha256(_dataset_run_id:channel:product_id:as_of_date)`), `product_key`, `seller_key`, `channel_key`, `as_of_date_key`, `channel`, `product_id`, `seller_id`, `as_of_date`, `as_of_ts`, `currency`.
+  - Velocity & Revenue (từ `fact_order_items` có `order_ts < as_of_ts`): `orders_7d`, `orders_30d`, `units_sold_7d`, `units_sold_30d`, `gross_revenue_7d`, `gross_revenue_30d`, `net_revenue_7d`, `net_revenue_30d`, `discount_amount_30d` (`DECIMAL(18,2)`).
+  - Return metrics (từ `fact_returns` có **`order_ts < as_of_ts` VÀ `return_ts < as_of_ts`**): `return_count_7d`, `return_count_30d`, `refund_amount_7d`, `refund_amount_30d`, `return_rate_30d` (`CAST(return_count_30d / NULLIF(orders_30d, 0) AS DECIMAL(18,4))`).
+- [ ] Gắn đầy đủ cột audit: `_dataset_run_id`, `_gold_publication_id`, `_record_hash`, `_policy_version`.
+- [ ] Viết unit tests (`spark/tests/test_dp3_features.py`) kiểm chứng công thức RFM, cửa sổ 7d/30d, chống rò rỉ `order_ts >= as_of_ts` và `return_ts >= as_of_ts`, và bảo toàn `DECIMAL(18,2)`.
 
-**Đạt khi:** Features được tính toán chính xác, không tính trước tương lai và giữ đúng kiểu `DECIMAL(18,2)`.
-**Commit gợi ý:** `feat(features): calculate customer and product daily features`.
+**Đạt khi:** Hai bảng `feat_customer_daily` và `feat_product_daily` tính đúng RFM/velocity theo point-in-time mà không lộ dữ liệu tương lai hay trộn tiền tệ.
+**Commit gợi ý:** `feat(dp3): build point-in-time customer and product daily features`.
 
-### P4D-04 — Job `dp3_return_labels`: Label generation & maturity guard
+### P4D-04 — Job `dp3_return_labels`: `lbl_order_return`, horizon và maturity guard
 
-- [ ] Tạo `spark/jobs/dp3_features/labels_main.py` và thư viện `spark/lib/features_labels.py`.
-- [ ] Liên kết `fact_orders` với `fact_returns` theo `(_dataset_run_id, channel, order_id)`.
-- [ ] Xác định cửa sổ quan sát hoàn trả `return_window_days` (mặc định 14 ngày hoặc 30 ngày cấu hình được).
-- [ ] Tính các trường nhãn:
-  - `is_mature`: `order_ts + interval return_window_days days <= as_of_ts`.
-  - `is_returned`: Nếu `is_mature == true`, gán `1` nếu có bản ghi trong `fact_returns`, ngược lại `0`. Nếu `is_mature == false`, gán `NULL` (hoặc cờ `is_mature = false`).
-  - `days_to_return`: `datediff(return_ts, order_ts)` cho các đơn có hoàn trả.
-  - `refund_ratio`: `refund_amount / net_amount`.
-- [ ] Viết unit tests kiểm chứng phân tách rõ ràng giữa non-mature vs mature orders.
+- [ ] Tạo `spark/lib/dp3_labels.py` và entrypoint `spark/jobs/dp3_return_labels/main.py` hỗ trợ CLI: `--run-id`, `--as-of-date`, `--horizon-days` (mặc định `14`), `--publication-id`, `--mode full|incremental`, `--verify`.
+- [ ] Chỉ chọn các đơn hàng trong `fact_orders` có `order_ts < as_of_ts` và `not is_deleted`.
+- [ ] Lọc `fact_returns` theo điều kiện quan sát hợp lệ:
+  - Cùng `(_dataset_run_id, channel, order_id)` (hoặc `order_key`).
+  - `return_ts >= order_ts`
+  - `return_ts < as_of_ts` (đã xảy ra trước thời điểm cắt quan sát).
+  - `return_ts <= order_ts + INTERVAL horizon_days DAYS` (nằm trong cửa sổ quan sát hoàn trả).
+- [ ] Tổng hợp `fact_returns` hợp lệ về grain đơn hàng `(_dataset_run_id, order_key)` trước khi join với `fact_orders` (tránh nhân bản dòng khi 1 đơn có nhiều dòng hoàn trả):
+  - `first_return_ts = MIN(return_ts)`
+  - `return_line_count = COUNT(*)`
+  - ` horizon_refund_amount = CAST(SUM(refund_amount) AS DECIMAL(18,2))`
+- [ ] Tính toán các cột của `lh.gold.lbl_order_return` ở grain `(_dataset_run_id, order_key, horizon_days, as_of_date)`:
+  - Keys: `order_label_key` (`sha256(_dataset_run_id:channel:order_id:horizon_days:as_of_date)`), `order_key`, `customer_key`, `channel_key`, `order_date_key`, `as_of_date_key`, `channel`, `order_id`, `order_ts`, `as_of_date`, `as_of_ts`, `horizon_days`, `currency`, `net_amount`.
+  - Maturity flag: `is_mature = (order_ts + INTERVAL horizon_days DAYS <= as_of_ts)`.
+  - Censored labels khi `is_mature == False`: `is_returned = NULL` (`INT`), `first_return_ts = NULL`, `days_to_return = NULL` (`INT`), `return_line_count = NULL`, `refund_amount = NULL` (`DECIMAL(18,2)`), `refund_ratio = NULL` (`DECIMAL(18,4)`).
+  - Resolved labels khi `is_mature == True`:
+    - `is_returned = 1` nếu có hoàn trả trong horizon, ngược lại `0`.
+    - `days_to_return = DATEDIFF(DATE(first_return_ts), DATE(order_ts))` nếu `is_returned == 1`, ngược lại `NULL`.
+    - `refund_amount = COALESCE(horizon_refund_amount, CAST(0.00 AS DECIMAL(18,2)))`.
+    - `refund_ratio = CAST(refund_amount / NULLIF(net_amount, 0) AS DECIMAL(18,4))`.
+- [ ] Viết unit tests (`spark/tests/test_dp3_labels.py`) kiểm chứng: đơn chưa đủ tuổi (`is_mature = false` → `is_returned IS NULL`), đơn đủ tuổi không hoàn trả (`is_returned = 0`), đơn đủ tuổi có hoàn trả trong horizon (`is_returned = 1`), hoàn trả xảy ra sau horizon (`is_returned = 0`), và đơn có nhiều dòng hoàn trả không bị nhân bản.
 
-**Đạt khi:** Nhãn hoàn trả được sinh chuẩn xác, không gán nhãn giả (false negative) cho các đơn hàng chưa hết hạn đổi trả.
-**Commit gợi ý:** `feat(features): generate return labels with observation window and maturity guard`.
+**Đạt khi:** `lbl_order_return` tuân thủ tuyệt đối quy tắc maturity censoring của ADR-0003 và không nhân bản đơn hàng.
+**Commit gợi ý:** `feat(dp3): build order return labels with horizon and maturity censoring`.
 
-### P4D-05 — Publication ledger và atomic merge
+### P4D-05 — Publication ledger `/runtime/dp3/publication`, MERGE idempotent và phục hồi lỗi
 
-- [ ] Tạo module `spark/lib/features_publish.py` quản lý `/runtime/features/publication/ledger.json`.
-- [ ] Sử dụng `writer_lock`, ghi `attempt.json`, kiểm tra read-back và atomic commit sang ledger.
-- [ ] Xuất bản 3 bảng trong `lh.features.*` bằng `MERGE INTO` theo phạm vi `_dataset_run_id` và `as_of_date`.
-- [ ] Hỗ trợ tiêm lỗi và kiểm thử phục hồi lỗi atomic recovery.
+- [ ] Tạo `spark/lib/dp3_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/dp3/publication` (tách biệt hoàn toàn với `/runtime/gold/publication` của `dp2`), quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `publication-<sha256>.json`.
+- [ ] Ghi idempotent từng bảng (`lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return`) bằng `MERGE INTO` theo phạm vi `(_dataset_run_id, as_of_date)` (hoặc toàn bộ `_dataset_run_id` khi chạy `mode="full"` / khi `_gold_publication_id` thay đổi), bảo toàn dữ liệu của các `_dataset_run_id` khác cùng tồn tại trong bảng.
+- [ ] Nếu gặp đúng tổ hợp `(_dataset_run_id, _gold_publication_id, as_of_dates, horizon_days)` đã completed và read-back khớp summary, cho phép skip an toàn.
+- [ ] Khi Gold có publication mới (do Silver/Gold hiệu chỉnh hoặc retract đơn hàng), `dp3` recompute lại `_dataset_run_id` từ snapshot Gold mới và xóa sạch các dòng feature/label mồ côi của run đó.
+- [ ] Kiểm tra read-back trước khi ghi `ledger.json`: khớp schema, không trùng khóa chính, không lộ PII rõ, không có `is_returned` khác `NULL` khi `is_mature = false`, và `0 <= refund_ratio <= 1`.
+- [ ] Hỗ trợ tiêm lỗi (`fail_after="features" | "labels" | "completion"`) để kiểm thử partial publish: `attempt.json` ghi `failed`, `ledger.json` cũ giữ nguyên từng byte, và chạy lại phục hồi thành công.
 
-**Đạt khi:** Features & Labels được công bố an toàn, idempotent và có ledger theo dõi.
-**Commit gợi ý:** `feat(features): publish features and labels with ledger and recovery`.
+**Đạt khi:** Việc xuất bản features và labels có tính nguyên tử (atomic) theo ledger riêng của `dp3`, idempotent và tự phục hồi sau lỗi.
+**Commit gợi ý:** `feat(dp3): publish replay-safe features and labels with ledger and recovery`.
 
-### P4D-06 — Data Quality, chống data leakage và multi-dataset verification
+### P4D-06 — Verifier read-only, kiểm thử DQ/leakage, đối soát đa dataset và regression
 
-- [ ] Viết test suite `spark/jobs/dp3_features/features_dq_test.py`:
-  - Leakage guard: Xác minh không có đơn hàng nào sau `as_of_date` xuất hiện trong tính toán feature của ngày đó.
-  - Maturity guard: Xác minh 100% đơn hàng non-mature có `is_mature == false`.
-  - Bound checks: Tỷ lệ hoàn trả $0 \le \text{return\_rate} \le 1$, số ngày hoàn trả $\ge 0$.
-- [ ] Kiểm chứng trên cả 2 dataset (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`) cùng tồn tại trong `lh.features.*`.
+- [ ] Tích hợp chế độ `--verify` read-only cho `dp3_features` và `dp3_return_labels` đọc trực tiếp từ `/runtime/dp3/publication/ledger.json` mà không ghi lại dữ liệu.
+- [ ] Viết `spark/jobs/dp3_features/dq_test.py` kiểm chứng trên Spark:
+  - **Point-in-time leakage test:** tiêm đơn hàng và hoàn trả ở tương lai (`>= as_of_ts`), chứng minh chúng không làm thay đổi bất kỳ giá trị nào của `feat_customer_daily`, `feat_product_daily` và `lbl_order_return` tại `as_of_date`.
+  - **Maturity censoring test:** tại `as_of_date = 2026-01-03` (với `horizon_days = 14`), 100% đơn hàng (`2026-01-01..2026-01-03`) có `is_mature = false` và `is_returned IS NULL`; tại `as_of_date = 2026-01-18`, 100% đơn hàng có `is_mature = true`, `is_returned IN (0, 1)`, và tổng số đơn `is_returned = 1` khớp chính xác số đơn có hoàn trả trong Gold (`30` cho small fixture, `1,500` cho default reference).
+  - **Point-in-time training join test:** join `lbl_order_return` với `feat_customer_daily` và `feat_product_daily` theo đúng quy tắc point-in-time trong ADR-0010, chứng minh không có dòng nào lấy feature được tính từ sự kiện tại hoặc sau `order_ts`.
+- [ ] Viết `spark/jobs/dp3_features/recovery_test.py` kiểm chứng 3 điểm tiêm lỗi (`fail_after="features" | "labels" | "completion"`), bảo toàn ledger và phục hồi atomic.
+- [ ] Chạy và đối soát toàn diện trên cả 2 dataset:
+  - Small fixture (`186ae107d0793d2ee237`): `375` orders, `25` customers, `88` products, `30` mature returns.
+  - Default reference (`b1e64afaff0176de180a`): `15,000` orders, `1,000` customers, `100` products, `1,500` mature returns.
+  - Xác minh cả 2 dataset cùng tồn tại trong `lh.gold.{feat_customer_daily,feat_product_daily,lbl_order_return}` mà không xung đột khóa.
+- [ ] Restart `lakekeeper`, `spark-master`, `spark-worker1`, `spark-worker2` rồi chạy verifier read-only (`make verify-features`, `make verify-labels`) cùng toàn bộ chuỗi regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`).
 
-**Đạt khi:** Bộ kiểm thử DQ và chống rò rỉ dữ liệu chạy xanh trên cả 2 dataset.
-**Commit gợi ý:** `test(features): verify data quality and leakage prevention`.
+**Đạt khi:** Cả 2 dataset vượt qua toàn bộ bài kiểm tra chống rò rỉ dữ liệu, maturity censoring, recovery và restart persistence.
+**Commit gợi ý:** `test(dp3): verify point-in-time leakage maturity censoring recovery and coexistence`.
 
-### P4D-07 — Makefile, CI và tài liệu bàn giao Phase 4E
+### P4D-07 — Makefile, CI, tài liệu và bàn giao Phase 4E
 
-- [ ] Mở rộng `Makefile`: bổ sung các target `smoke-features`, `verify-features`, `test-features-dq`, `test-features-recovery`.
-- [ ] Đảm bảo `make check` chạy nhanh, pass 100% linter và unit tests mới.
-- [ ] Cập nhật `README.md`, `docs/implementation-status.md`, và viết `docs/features-validation.md`.
-- [ ] Chuẩn bị hợp đồng bàn giao Phase 4E (`docs/warehouse-handoff.md`).
+- [ ] Mở rộng `Makefile`:
+  - Hỗ trợ `JOB=dp3_features` và `JOB=dp3_return_labels` trong `spark-submit`.
+  - Thêm các target: `smoke-features`, `smoke-labels`, `verify-features`, `verify-labels`, `integration-dp3`, `integration-dp3-reference`, `test-dp3-dq`, `test-dp3-recovery` (giữ nguyên toàn bộ target cũ).
+- [ ] Cập nhật `docker/batch/ci_events.py` (allowlist các structured event của Gold và `dp3`) và thêm/cập nhật manual workflow `.github/workflows/gold-dp3.yml` (hoặc tương đương) dùng small fixture, timeout rõ ràng và `make down` không xóa volume.
+- [ ] Cập nhật `docs/runbook.md`, `docs/data-model.md`, `docs/implementation-status.md`, `README.md`, `docs/features-warehouse-handoff.md` và viết báo cáo bằng chứng `docs/dp3-validation.md`.
+- [ ] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế, lưu trữ vào `docs/phase4d-checklist.md`, commit theo Conventional Commits và gắn tag `v0.4d-features` khi đạt đủ local DoD.
 
-**Đạt khi:** Đầy đủ công cụ vận hành, CI pass và tài liệu kiểm chứng hoàn tất.
-**Commit gợi ý:** `docs(features): complete Phase 4D validation evidence and Phase 4E handoff`.
-
----
+**Đạt khi:** Đầy đủ công cụ `make`, CI allowlist, runbook, báo cáo kiểm chứng và hợp đồng bàn giao sang Phase 4E (`dp4_warehouse`).
+**Commit gợi ý:** `docs(dp3): publish Phase 4D validation evidence and Phase 4E warehouse handoff`.
 
 ## 4. Điều kiện đóng Phase 4D
 
-- [ ] 3 bảng trong `lh.features` (`customer_features_daily`, `product_features_daily`, `order_return_labels`) chuẩn schema, grain và audit columns.
-- [ ] Point-in-time correctness: Không rò rỉ dữ liệu tương lai vào features quá khứ.
-- [ ] Maturity guard: Các đơn hàng chưa hết hạn đổi trả được đánh dấu rõ ràng, không bị gán nhãn 0 sai lệch.
-- [ ] Multi-dataset coexistence: Cả 2 dataset cùng tồn tại trong `lh.features.*` với khóa phân tách theo `_dataset_run_id`.
-- [ ] Publication ledger đầy đủ và phục hồi lỗi atomic.
-- [ ] `make check` và kiểm thử integration hoàn toàn xanh; tag `v0.4d-features`.
+- [ ] 3 bảng `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return` đúng schema, grain, surrogate key uniqueness và kiểu `DECIMAL(18,2)`.
+- [ ] Input được pin chặt chẽ từ completed Gold publication ledger (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`; publication của `dp3` tách riêng tại `/runtime/dp3/publication/ledger.json`.
+- [ ] Point-in-time correctness tuyệt đối: không lộ đơn hàng (`order_ts >= as_of_ts`) hay hoàn trả tương lai (`return_ts >= as_of_ts`) vào features.
+- [ ] Maturity censoring chuẩn xác: đơn hàng chưa qua hết `horizon_days` có `is_mature = false` và `is_returned IS NULL` (không gán âm giả `0`).
+- [ ] Multi-dataset coexistence (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`), replay idempotent, recovery sau lỗi và restart persistence đều xanh.
+- [ ] `make check` và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver`/`gold` đều xanh; tài liệu, ADR-0010, DDL và runbook cập nhật đầy đủ.
+
+## 5. Quy tắc thực hiện
+
+1. Mọi checkbox để trống cho đến khi có implementation và bằng chứng kiểm tra tương ứng.
+2. Sau mỗi task nhỏ: chạy kiểm tra liên quan và `make check`, cập nhật `TODO.md`/evidence, rồi tạo commit theo Conventional Commits ngay; không chờ dồn cuối phase.
+3. Mục không áp dụng phải ghi rõ `N/A` kèm lý do; mục bị chặn giữ nguyên `[ ]` và ghi rõ blocker.
+4. Không đổi version/port đã pin, không xóa volume/bucket/DB, không expire các snapshot đang được pin/ledger tham chiếu.
+5. Không commit `.env`, secret, HMAC key, raw PII hay file dữ liệu runtime.
+6. Mọi quyết định thiết kế về `as_of_ts`, cửa sổ trượt 7d/30d và maturity censoring phải được chốt trong ADR-0010 trước khi viết code phụ thuộc.
+
+Sau 4D: **Phase 4E** (`dp4_warehouse` export 30 ngày gần nhất sang PostgreSQL `warehouse.*`)
+→ **Phase 4F** (benchmark skew & đóng toàn bộ Phase 4).

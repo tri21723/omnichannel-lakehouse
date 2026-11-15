@@ -6,33 +6,35 @@ This document specifies the input contracts, schemas, point-in-time correctness,
 
 ---
 
-## 1. Phase 4D: Feature Store & Return Labels (`dp3_features`)
+## 1. Phase 4D: Feature Store & Return Labels (`dp3_features`, `dp3_return_labels`)
 
-### 1.1 Source Selection & Pinning
-- **Source Namespace:** `lh.gold.*` (`dim_customer`, `dim_product`, `dim_seller`, `dim_channel`, `fact_orders`, `fact_order_items`, `fact_returns`).
-- **Pinning Mechanism:** Read `/runtime/gold/publication/ledger.json`. Require `status == "completed"`.
+### 1.1 Source Selection & Publication Ownership
+- **Source Namespace:** `lh.gold.*` (`dim_customer`, `dim_product`, `dim_seller`, `dim_channel`, `dim_date`, `fact_orders`, `fact_order_items`, `fact_returns`).
+- **Pinning Mechanism:** Read `/runtime/gold/publication/ledger.json`. Require `status == "completed"` and verify the content-addressed archive `publication-<sha256>.json`.
 - Readers must bind to explicit Iceberg snapshot IDs recorded in the Gold publication ledger (`tables[<table_fqdn>]["snapshot"]`). Never query `latest` dynamically.
-- Filter strictly by `_dataset_run_id` to prevent cross-contamination between coexisting datasets.
+- Filter strictly by `_dataset_run_id` and `not is_deleted` to prevent cross-contamination between coexisting datasets.
+- **Ownership Boundary (ADR-0003):** `dp2` owns the 8 dimensional/fact tables (`dim_*`, `fact_*`) and `/runtime/gold/publication/ledger.json`. `dp3` owns the 3 feature/label tables (`lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return`) and records its own publication ledger in `/runtime/dp3/publication/ledger.json`.
 
-### 1.2 Point-in-Time Correctness & Leakage Prevention
-- **Cutoff Rule:** Any feature calculation as of logical timestamp $T_{\text{as\_of}}$ must satisfy:
+### 1.2 Point-in-Time Correctness & Dual-Timestamp Leakage Prevention
+- **Order Cutoff Rule:** Any order-based feature calculation as of logical timestamp $T_{\text{as\_of}}$ must satisfy:
   $$\text{order\_ts} < T_{\text{as\_of}}$$
-- No post-cutoff updates, orders, or profile changes may be included in feature aggregations.
-- Lineage columns (`_dataset_run_id`, `_gold_publication_id`, `_as_of_ts`, `_policy_version`) must be captured on every feature row.
+- **Return Cutoff Rule:** Because customer returns occur $1..14$ days after `order_ts`, any return-based feature (`returned_orders_30d`, `return_count_30d`, `refund_amount_30d`, `return_rate_30d`) must satisfy **both**:
+  $$\text{order\_ts} < T_{\text{as\_of}} \quad \land \quad \text{return\_ts} < T_{\text{as\_of}}$$
+- **No Synthetic Return Quantity:** Per ADR-0009, `fact_returns` has no `return_qty` column. Product return metrics use return line count and refund amount (`DECIMAL(18,2)`), never an invented quantity.
+- **Currency Preservation:** All monetary features (`spend_7d`, `spend_30d`, `aov_30d`, `net_revenue_7d`, `net_revenue_30d`, `refund_amount_30d`) preserve the channel's native `currency` (`USD` or `VND`) in `DECIMAL(18,2)`.
+- Lineage columns (`_dataset_run_id`, `_gold_publication_id`, `_record_hash`, `_policy_version`) must be captured on every feature and label row.
 
 ### 1.3 Return Label Generation Contract (`dp3_return_labels`)
-- **Observation Horizon:** Return window $W_{\text{return}}$ (standard: 14 days or 30 days).
-- **Maturity Condition:** An order is mature for label generation if and only if:
-  $$\text{order\_ts} + W_{\text{return}} \le T_{\text{observation\_end}}$$
-  Immature orders (within the active return window) must be marked with `is_mature = false` and excluded from supervised model training sets to avoid false negatives.
-- **Label Definition:**
-  - Target: `is_returned \in \{0, 1\}`.
-  - An order is labeled `is_returned = 1` if a matching record exists in `lh.gold.fact_returns` for that `order_key` (or `order_item_key` for item-level predictions).
-  - Target: `refund_ratio = refund_amount / net_amount`.
-- **Target Iceberg Tables:**
-  - `lh.features.customer_features_daily`
-  - `lh.features.product_features_daily`
-  - `lh.features.order_return_labels`
+- **Observation Horizon:** Configurable return window $H$ (`--horizon-days`, default: `14` days).
+- **Maturity Condition:** An order placed at `order_ts` is mature as of $T_{\text{as\_of}}$ if and only if:
+  $$\text{order\_ts} + \text{INTERVAL } H \text{ DAYS} \le T_{\text{as\_of}}$$
+- **Right-Censoring Rule (ADR-0003):**
+  - When `is_mature = false`, label fields (`is_returned`, `first_return_ts`, `days_to_return`, `return_line_count`, `refund_amount`, `refund_ratio`) must be set to `NULL` (never `0`), preventing false-negative label leakage and positive-only selection bias.
+  - When `is_mature = true`, only returns satisfying $\text{order\_ts} \le \text{return\_ts} \le \text{order\_ts} + \text{INTERVAL } H \text{ DAYS}$ and $\text{return\_ts} < T_{\text{as\_of}}$ are aggregated to the order grain (`order_key`) before joining `fact_orders`, yielding `is_returned \in \{0, 1\}`.
+- **Target Iceberg Tables (in `lh.gold` per `AGENTS.md` §6 and `docs/data-model.md`):**
+  - `lh.gold.feat_customer_daily` (`spark/jobs/dp3_features/main.py`)
+  - `lh.gold.feat_product_daily` (`spark/jobs/dp3_features/main.py`)
+  - `lh.gold.lbl_order_return` (`spark/jobs/dp3_return_labels/main.py`)
 
 ---
 
@@ -40,39 +42,25 @@ This document specifies the input contracts, schemas, point-in-time correctness,
 
 ### 2.1 Scope & Architecture
 - **Source:** `lh.gold` Iceberg tables (pinned from `/runtime/gold/publication/ledger.json`).
-- **Target:** PostgreSQL analytics schema (`analytics.*`) serving reporting and BI layers.
+- **Target:** PostgreSQL database `sources`, schema `warehouse.*` serving reporting and BI layers.
 - Per ADR-0003, `dp4_warehouse` performs read-only export from Gold; it never writes back to Iceberg.
 
 ### 2.2 30-Day Sliding Window
 - For a scheduled run at `run_date` (UTC), the export window is defined as:
   $$[\text{run\_date} - 29\text{ days},\, \text{run\_date} + 1\text{ day}) \quad \text{UTC}$$
-- All fact records (`fact_orders`, `fact_order_items`, `fact_returns`) with timestamps within this 30-day window are selected.
-- Dimension tables (`dim_customer`, `dim_product`, `dim_seller`, `dim_channel`, `dim_date`) are synchronized fully or via high-watermark upsert.
+- Fact records (`fact_orders`, `fact_order_items`, `fact_returns`) within this 30-day window are selected, and any rows outside the window for that run are removed atomically.
+- Referenced dimension tables (`dim_customer`, `dim_product`, `dim_seller`, `dim_channel`, `dim_date`) are synchronized transactionally.
 
 ### 2.3 Idempotency and Atomic Publication
-- **Staging Table Strategy:** Export data is written to temporary staging tables (e.g., `analytics.stg_fact_orders`).
-- **Atomic Transaction:** Inside a single PostgreSQL transaction (`BEGIN ... COMMIT`):
-  1. Delete existing slice for the 30-day date range:
-     ```sql
-     DELETE FROM analytics.fact_orders
-     WHERE order_ts >= :window_start AND order_ts < :window_end
-       AND _dataset_run_id = :run_id;
-     ```
-  2. Insert staged records:
-     ```sql
-     INSERT INTO analytics.fact_orders SELECT * FROM analytics.stg_fact_orders;
-     ```
-- **Monetary Reconciliation:**
-  - `sum(net_amount)` in PostgreSQL `analytics.fact_orders` must exactly equal `sum(net_amount)` in `lh.gold.fact_orders` for the exported window.
-  - No precision loss or floating-point conversions (`NUMERIC(18,2)` in PostgreSQL).
+- **Transactional Replace:** Inside a single PostgreSQL transaction (`BEGIN ... COMMIT`), replace the target slice for the selected `_dataset_run_id` and enforce exact `NUMERIC(18,2)` reconciliation against `lh.gold.*`.
 
 ---
 
 ## 3. Publication Ledgers & Downstream Artifacts
 
-| Phase | Artifact Location | Status | Consumer |
+| Phase | Artifact Location | Target Namespace / Schema | Consumer |
 | --- | --- | --- | --- |
-| 4B (Silver) | `/runtime/silver/publication/ledger.json` | Completed | 4C (Gold) |
-| 4C (Gold) | `/runtime/gold/publication/ledger.json` | Completed | 4D (Features), 4E (Warehouse) |
-| 4D (Features) | `/runtime/features/publication/ledger.json` | Planned | ML Training & Scoring |
-| 4E (Warehouse) | `/runtime/warehouse/export/ledger.json` | Planned | Metabase / Superset / BI |
+| 4B (Silver) | `/runtime/silver/publication/ledger.json` | `lh.silver.*` | 4C (`dp2_gold`) |
+| 4C (Gold Star Schema) | `/runtime/gold/publication/ledger.json` | `lh.gold.{dim_*,fact_*}` | 4D (`dp3_*`), 4E (`dp4_warehouse`) |
+| 4D (Features & Labels) | `/runtime/dp3/publication/ledger.json` | `lh.gold.{feat_*,lbl_*}` | ML Training & Trino |
+| 4E (Warehouse Export) | `/runtime/warehouse/export/ledger.json` | PostgreSQL `warehouse.*` | DBeaver / BI |

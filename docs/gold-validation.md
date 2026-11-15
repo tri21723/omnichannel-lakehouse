@@ -12,24 +12,25 @@ See ADR-0003, ADR-0008, `docs/data-model.md`, and `docs/gold-handoff.md`.
 - **Audit Lineage:** Every Gold dimension and fact table carries standard audit lineage columns:
   - `_dataset_run_id`: Run identifier isolating datasets.
   - `_silver_publication_id`: SHA-256 fingerprint of the source Silver publication.
-  - `_silver_snapshot`: Source Iceberg snapshot ID from which the row was materialized.
-  - `_policy_version`: Policy version string (`urn:policy:v1`).
+  - `_silver_snapshot`: Source Iceberg snapshot ID from which the row was materialized (`dim_customer`, `dim_product`, `fact_orders`, `fact_order_items`, `fact_returns`).
+  - `_record_hash`: Deterministic SHA-256 hash of canonical business fields.
+  - `_policy_version`: Policy version string (`gold-policy-v1`).
 
 ## Schema & Grains
 
-Eight Gold tables are published in namespace `lh.gold`:
+Eight Gold tables are published in namespace `lh.gold` (matching `sql/iceberg/gold_contract.sql`):
 
 ### 1. Dimensions (5)
-- `dim_date`: Calendar date lookup table (`date_key`, `date`, `day_of_week`, `day_name`, `month`, `month_name`, `quarter`, `year`, `is_weekend`, `_dataset_run_id`).
+- `dim_date`: Calendar date lookup table (`date_key`, `calendar_date`, `year`, `quarter`, `month`, `day_of_month`, `day_of_week`, `is_weekend`, `_dataset_run_id`).
 - `dim_channel`: Omnichannel sales channel lookup (`channel_key`, `channel`, `channel_name`, `ingestion_mode`, `_dataset_run_id`).
-- `dim_customer`: Customer profile dimension (`customer_key`, `channel`, `customer_id`, `name_hash`, `email_hash`, `first_order_ts`, `status`, `city`, `state`, `country`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_policy_version`).
-- `dim_product`: Product catalog dimension (`product_key`, `channel`, `product_id`, `product_name`, `category`, `brand`, `is_active`, `created_ts`, `seller_id`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_policy_version`).
-- `dim_seller`: Derived seller dimension (`seller_key`, `channel`, `seller_id`, `first_seen_ts`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_policy_version`).
+- `dim_customer`: Customer profile dimension (`customer_key`, `channel`, `customer_id`, `name_hash`, `email_hash`, `country`, `first_order_ts`, `updated_ts`, `_pii_key_version`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_record_hash`, `_policy_version`).
+- `dim_product`: Product catalog dimension (`product_key`, `seller_key`, `channel`, `product_id`, `seller_id`, `title`, `category`, `brand`, `updated_ts`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_record_hash`, `_policy_version`).
+- `dim_seller`: Derived ID-only seller dimension (`seller_key`, `channel`, `seller_id`, `_dataset_run_id`, `_silver_publication_id`, `_record_hash`, `_policy_version`).
 
 ### 2. Facts (3)
-- `fact_orders`: Grain: 1 row per sales order (`order_key`, `order_date_key`, `channel_key`, `customer_key`, `channel`, `order_id`, `order_ts`, `updated_ts`, `status`, `currency`, `item_count`, `gross_amount`, `discount_amount`, `net_amount`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_policy_version`). Partitioned by `days(order_ts)`.
-- `fact_order_items`: Grain: 1 row per order line item (`order_item_key`, `order_key`, `order_date_key`, `channel_key`, `customer_key`, `product_key`, `seller_key`, `channel`, `order_id`, `line_no`, `product_id`, `seller_id`, `order_ts`, `updated_ts`, `status`, `currency`, `qty`, `unit_price`, `discount`, `gross_line_amount`, `net_line_amount`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_policy_version`). Partitioned by `days(order_ts)`.
-- `fact_returns`: Grain: 1 row per customer return event (`return_key`, `order_key`, `order_item_key`, `return_date_key`, `order_date_key`, `channel_key`, `customer_key`, `product_key`, `channel`, `return_id`, `return_line_no`, `order_id`, `order_line_no`, `return_ts`, `refund_amount`, `return_reason`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_policy_version`). Partitioned by `days(return_ts)`.
+- `fact_orders`: Grain: 1 row per sales order (`order_key`, `order_date_key`, `channel_key`, `customer_key`, `channel`, `order_id`, `customer_id`, `order_ts`, `updated_ts`, `status`, `currency`, `gross_amount`, `discount_amount`, `net_amount`, `item_count`, `total_qty`, `shipping_country`, `is_deleted`, `fulfillment_type`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_record_hash`, `_policy_version`). Partitioned by `days(order_ts)`.
+- `fact_order_items`: Grain: 1 row per order line item (`order_item_key`, `order_key`, `order_date_key`, `channel_key`, `customer_key`, `product_key`, `seller_key`, `channel`, `order_id`, `line_no`, `product_id`, `seller_id`, `order_ts`, `updated_ts`, `status`, `currency`, `qty`, `unit_price`, `discount`, `gross_line_amount`, `net_line_amount`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_record_hash`, `_policy_version`). Partitioned by `days(order_ts)`.
+- `fact_returns`: Grain: 1 row per customer return line (`return_key`, `order_key`, `order_item_key`, `order_date_key`, `return_date_key`, `channel_key`, `customer_key`, `product_key`, `seller_key`, `channel`, `return_id`, `return_line_no`, `order_id`, `line_no`, `reason`, `return_ts`, `updated_ts`, `currency`, `refund_amount`, `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`, `_record_hash`, `_policy_version`). Partitioned by `days(return_ts)`.
 
 ## Multi-Dataset Coexistence
 
