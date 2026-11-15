@@ -125,18 +125,18 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-04 — Job `dp3_return_labels`: `lbl_order_return`, horizon và maturity guard
 
-- [ ] Tạo `spark/lib/dp3_labels.py` và entrypoint `spark/jobs/dp3_return_labels/main.py` hỗ trợ CLI: `--run-id`, `--as-of-date`, `--horizon-days` (mặc định `14`), `--publication-id`, `--mode full|incremental`, `--verify`.
-- [ ] Chỉ chọn các đơn hàng trong `fact_orders` có `order_ts < as_of_ts` và `not is_deleted`.
-- [ ] Lọc `fact_returns` theo điều kiện quan sát hợp lệ:
+- [x] Tạo `spark/lib/dp3_labels.py` và entrypoint `spark/jobs/dp3_return_labels/main.py` hỗ trợ CLI: `--run-id`, `--as-of-date`, `--horizon-days` (mặc định `14`), `--publication-id`, `--mode full|incremental`, `--verify`.
+- [x] Chỉ chọn các đơn hàng trong `fact_orders` có `order_ts < as_of_ts` và `not is_deleted`.
+- [x] Lọc `fact_returns` theo điều kiện quan sát hợp lệ:
   - Cùng `(_dataset_run_id, channel, order_id)` (hoặc `order_key`).
   - `return_ts >= order_ts`
   - `return_ts < as_of_ts` (đã xảy ra trước thời điểm cắt quan sát).
   - `return_ts <= order_ts + INTERVAL horizon_days DAYS` (nằm trong cửa sổ quan sát hoàn trả).
-- [ ] Tổng hợp `fact_returns` hợp lệ về grain đơn hàng `(_dataset_run_id, order_key)` trước khi join với `fact_orders` (tránh nhân bản dòng khi 1 đơn có nhiều dòng hoàn trả):
+- [x] Tổng hợp `fact_returns` hợp lệ về grain đơn hàng `(_dataset_run_id, order_key)` trước khi join với `fact_orders` (tránh nhân bản dòng khi 1 đơn có nhiều dòng hoàn trả):
   - `first_return_ts = MIN(return_ts)`
   - `return_line_count = COUNT(*)`
   - ` horizon_refund_amount = CAST(SUM(refund_amount) AS DECIMAL(18,2))`
-- [ ] Tính toán các cột của `lh.gold.lbl_order_return` ở grain `(_dataset_run_id, order_key, horizon_days, as_of_date)`:
+- [x] Tính toán các cột của `lh.gold.lbl_order_return` ở grain `(_dataset_run_id, order_key, horizon_days, as_of_date)`:
   - Keys: `order_label_key` (`sha256(_dataset_run_id:channel:order_id:horizon_days:as_of_date)`), `order_key`, `customer_key`, `channel_key`, `order_date_key`, `as_of_date_key`, `channel`, `order_id`, `order_ts`, `as_of_date`, `as_of_ts`, `horizon_days`, `currency`, `net_amount`.
   - Maturity flag: `is_mature = (order_ts + INTERVAL horizon_days DAYS <= as_of_ts)`.
   - Censored labels khi `is_mature == False`: `is_returned = NULL` (`INT`), `first_return_ts = NULL`, `days_to_return = NULL` (`INT`), `return_line_count = NULL`, `refund_amount = NULL` (`DECIMAL(18,2)`), `refund_ratio = NULL` (`DECIMAL(18,4)`).
@@ -145,7 +145,7 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
     - `days_to_return = DATEDIFF(DATE(first_return_ts), DATE(order_ts))` nếu `is_returned == 1`, ngược lại `NULL`.
     - `refund_amount = COALESCE(horizon_refund_amount, CAST(0.00 AS DECIMAL(18,2)))`.
     - `refund_ratio = CAST(refund_amount / NULLIF(net_amount, 0) AS DECIMAL(18,4))`.
-- [ ] Viết unit tests (`spark/tests/test_dp3_labels.py`) kiểm chứng: đơn chưa đủ tuổi (`is_mature = false` → `is_returned IS NULL`), đơn đủ tuổi không hoàn trả (`is_returned = 0`), đơn đủ tuổi có hoàn trả trong horizon (`is_returned = 1`), hoàn trả xảy ra sau horizon (`is_returned = 0`), và đơn có nhiều dòng hoàn trả không bị nhân bản.
+- [x] Viết unit tests (`spark/tests/test_dp3_labels.py`) kiểm chứng: đơn chưa đủ tuổi (`is_mature = false` → `is_returned IS NULL`), đơn đủ tuổi không hoàn trả (`is_returned = 0`), đơn đủ tuổi có hoàn trả trong horizon (`is_returned = 1`), hoàn trả xảy ra sau horizon (`is_returned = 0`), và đơn có nhiều dòng hoàn trả không bị nhân bản.
 
 **Đạt khi:** `lbl_order_return` tuân thủ tuyệt đối quy tắc maturity censoring của ADR-0003 và không nhân bản đơn hàng.
 **Commit gợi ý:** `feat(dp3): build order return labels with horizon and maturity censoring`.
