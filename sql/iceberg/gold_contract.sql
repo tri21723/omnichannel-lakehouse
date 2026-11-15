@@ -156,3 +156,97 @@ CREATE TABLE IF NOT EXISTS lh.gold.fact_returns (
 ) USING ICEBERG
 PARTITIONED BY (DAYS (return_ts))
 TBLPROPERTIES ('format-version' = '2', 'write.parquet.compression-codec' = 'zstd'); -- noqa: RF05
+
+CREATE TABLE IF NOT EXISTS lh.gold.feat_customer_daily (
+    customer_feature_key STRING,
+    customer_key STRING,
+    channel_key STRING,
+    as_of_date_key INT,
+    channel STRING,
+    customer_id STRING,
+    as_of_date DATE,
+    as_of_ts TIMESTAMP,
+    currency STRING,
+    last_order_ts TIMESTAMP,
+    days_since_last_order INT,
+    lifetime_order_count INT,
+    lifetime_net_amount DECIMAL(18, 2),
+    orders_7d INT,
+    orders_30d INT,
+    spend_7d DECIMAL(18, 2),
+    spend_30d DECIMAL(18, 2),
+    aov_30d DECIMAL(18, 2),
+    returned_orders_30d INT,
+    refund_amount_30d DECIMAL(18, 2),
+    return_rate_30d DECIMAL(18, 4),
+    _dataset_run_id STRING,
+    _gold_publication_id STRING,
+    _record_hash STRING,
+    _policy_version STRING
+) USING ICEBERG
+PARTITIONED BY (as_of_date)
+TBLPROPERTIES ('format-version' = '2', 'write.parquet.compression-codec' = 'zstd'); -- noqa: RF05
+
+CREATE TABLE IF NOT EXISTS lh.gold.feat_product_daily (
+    product_feature_key STRING,
+    product_key STRING,
+    seller_key STRING,
+    channel_key STRING,
+    as_of_date_key INT,
+    channel STRING,
+    product_id STRING,
+    seller_id STRING,
+    as_of_date DATE,
+    as_of_ts TIMESTAMP,
+    currency STRING,
+    orders_7d INT,
+    orders_30d INT,
+    units_sold_7d INT,
+    units_sold_30d INT,
+    gross_revenue_7d DECIMAL(18, 2),
+    gross_revenue_30d DECIMAL(18, 2),
+    net_revenue_7d DECIMAL(18, 2),
+    net_revenue_30d DECIMAL(18, 2),
+    discount_amount_30d DECIMAL(18, 2),
+    return_count_7d INT,
+    return_count_30d INT,
+    refund_amount_7d DECIMAL(18, 2),
+    refund_amount_30d DECIMAL(18, 2),
+    return_rate_30d DECIMAL(18, 4),
+    _dataset_run_id STRING,
+    _gold_publication_id STRING,
+    _record_hash STRING,
+    _policy_version STRING
+) USING ICEBERG
+PARTITIONED BY (as_of_date)
+TBLPROPERTIES ('format-version' = '2', 'write.parquet.compression-codec' = 'zstd'); -- noqa: RF05
+
+CREATE TABLE IF NOT EXISTS lh.gold.lbl_order_return (
+    order_label_key STRING,
+    order_key STRING,
+    customer_key STRING,
+    channel_key STRING,
+    order_date_key INT,
+    as_of_date_key INT,
+    channel STRING,
+    order_id STRING,
+    order_ts TIMESTAMP,
+    as_of_date DATE,
+    as_of_ts TIMESTAMP,
+    horizon_days INT,
+    currency STRING,
+    net_amount DECIMAL(18, 2),
+    is_mature BOOLEAN,
+    is_returned INT,
+    first_return_ts TIMESTAMP,
+    days_to_return INT,
+    return_line_count INT,
+    refund_amount DECIMAL(18, 2),
+    refund_ratio DECIMAL(18, 4),
+    _dataset_run_id STRING,
+    _gold_publication_id STRING,
+    _record_hash STRING,
+    _policy_version STRING
+) USING ICEBERG
+PARTITIONED BY (as_of_date)
+TBLPROPERTIES ('format-version' = '2', 'write.parquet.compression-codec' = 'zstd'); -- noqa: RF05

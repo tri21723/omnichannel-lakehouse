@@ -74,18 +74,19 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-01 — Baseline Gold, ADR-0010, physical DDL và bộ test fixtures
 
-- [ ] Chạy kiểm tra baseline: `make check`, `make verify-gold`, `make reconcile-gold` trên cả 2 run (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`).
-- [ ] Soạn thảo `docs/adr/0010-features-and-return-labels.md` chốt các quyết định thiết kế:
+- [x] Chạy kiểm tra baseline: `make check`, `make verify-gold`, `make reconcile-gold` trên cả 2 run (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`).
+- [x] Soạn thảo `docs/adr/0010-features-and-return-labels.md` chốt các quyết định thiết kế:
   - Quy ước quy chiếu thời gian: với một ngày `as_of_date` (`DATE` UTC), mốc cắt `as_of_ts` được định nghĩa thống nhất (ví dụ đầu ngày kế tiếp `as_of_date + 1 day 00:00:00 UTC` cho báo cáo cuối ngày `as_of_date`, hoặc đầu ngày `as_of_date 00:00:00 UTC`), kèm quy tắc join an toàn giữa `lbl_order_return` và `feat_*_daily` sao cho mọi feature gắn với đơn hàng đều có timestamp `< order_ts`.
   - Định nghĩa chính xác cửa sổ trượt 7 ngày (`[as_of_ts - INTERVAL 7 DAYS, as_of_ts)`) và 30 ngày (`[as_of_ts - INTERVAL 30 DAYS, as_of_ts)`).
   - Dual-timestamp cutoff: `order_ts < as_of_ts` cho sự kiện đặt hàng và `return_ts < as_of_ts` cho sự kiện hoàn trả.
   - Định nghĩa grain, surrogate keys (`customer_feature_key`, `product_feature_key`, `order_label_key`), `horizon_days` (mặc định `14`), và quy tắc right-censoring (`is_mature = false` → nhãn `NULL`).
   - Ranh giới publication ledger của `dp3` tách biệt với `/runtime/gold/publication/ledger.json` của `dp2`.
-- [ ] Cập nhật `sql/iceberg/gold_contract.sql` (và `docs/data-model.md`) bổ sung DDL cho 3 bảng Iceberg v2 (Parquet, ZSTD):
+- [x] Cập nhật `sql/iceberg/gold_contract.sql` (và `docs/data-model.md`) bổ sung DDL cho 3 bảng Iceberg v2 (Parquet, ZSTD):
   - `lh.gold.feat_customer_daily` (`PARTITIONED BY (as_of_date)`)
   - `lh.gold.feat_product_daily` (`PARTITIONED BY (as_of_date)`)
   - `lh.gold.lbl_order_return` (`PARTITIONED BY (as_of_date)`)
-- [ ] Tạo `spark/tests/fixtures/dp3_cases.json` chứa các kịch bản biên: đơn hàng đặt đúng biên `as_of_ts`, hoàn trả xảy ra sau `as_of_ts` (phải bị loại khỏi feature), hoàn trả xảy ra sau `order_ts + horizon_days`, đơn hàng có nhiều dòng hoàn trả, khách hàng/sản phẩm chưa có đơn trong 7d/30d, và đơn hàng `is_deleted = true`.
+- [x] Tạo `spark/tests/fixtures/dp3_cases.json` chứa các kịch bản biên: đơn hàng đặt đúng biên `as_of_ts`, hoàn trả xảy ra sau `as_of_ts` (phải bị loại khỏi feature), hoàn trả xảy ra sau `order_ts + horizon_days`, đơn hàng có nhiều dòng hoàn trả, khách hàng/sản phẩm chưa có đơn trong 7d/30d, và đơn hàng `is_deleted = true`.
+- [x] Viết unit tests (`spark/tests/test_dp3_cases.py`) kiểm tra fixtures / schemas / logic biên và maturity censoring.
 
 **Đạt khi:** ADR-0010, DDL và bộ fixture kiểm thử chống leakage/censoring được chốt rõ ràng trước khi viết code transform.
 **Commit gợi ý:** `docs(adr): define Phase 4D feature store and return label contracts`.

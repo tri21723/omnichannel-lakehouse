@@ -84,3 +84,12 @@ Orders and returns are modeled as separate fact tables to prevent Cartesian fan-
 Audit columns record `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`,
 `_record_hash`, and `_policy_version`. See [ADR-0009](adr/0009-gold-star-schema.md) and
 [physical DDL](../sql/iceberg/gold_contract.sql).
+
+## Feature Store & Return Label contract (Phase 4D)
+
+Three Iceberg tables in `lh.gold`:
+- `lh.gold.feat_customer_daily`: Customer RFM, order counts (7d, 30d), spend (7d, 30d, AOV), and return behavior (30d) evaluated as of `as_of_date`. Keyed by `customer_feature_key`. Partitioned by `(as_of_date)`.
+- `lh.gold.feat_product_daily`: Product sales velocity (7d, 30d), revenue (7d, 30d, net/gross/discount), and return frequency/refund amounts (7d, 30d). Keyed by `product_feature_key`. Partitioned by `(as_of_date)`.
+- `lh.gold.lbl_order_return`: Supervised binary classification label `is_returned \in \{0, 1\}` with configurable return observation horizon (`horizon_days`, default 14 days). Right-censored: immature orders (`order_ts + interval horizon_days days > as_of_ts`) carry `is_mature = false` and `is_returned = NULL` to prevent label leakage. Keyed by `order_label_key`. Partitioned by `(as_of_date)`.
+
+Point-in-time correctness enforces dual-timestamp cutoff: `order_ts < as_of_ts` and `return_ts < as_of_ts`. All monetary features preserve `DECIMAL(18,2)` and channel `currency`. Managed by independent publication ledger `/runtime/dp3/publication/ledger.json`. See [ADR-0010](adr/0010-features-and-return-labels.md) and [physical DDL](../sql/iceberg/gold_contract.sql).

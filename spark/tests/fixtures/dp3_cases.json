@@ -1,0 +1,321 @@
+{
+  "contract": "dp3-contract-v1",
+  "policy_version": "gold-policy-v1",
+  "as_of_date": "2026-01-03",
+  "as_of_ts": "2026-01-04T00:00:00Z",
+  "horizon_days": 14,
+  "cases": [
+    {
+      "case_id": "case_normal_mature_returned",
+      "description": "Mature order within horizon with return before as_of_ts",
+      "eval_as_of_date": "2026-01-20",
+      "eval_as_of_ts": "2026-01-21T00:00:00Z",
+      "order": {
+        "order_id": "ord-001",
+        "channel": "walmart",
+        "customer_id": "cust-01",
+        "order_ts": "2026-01-01T10:00:00Z",
+        "status": "paid",
+        "currency": "USD",
+        "net_amount": "100.00",
+        "is_deleted": false
+      },
+      "items": [
+        {
+          "order_id": "ord-001",
+          "line_no": 1,
+          "product_id": "prod-01",
+          "seller_id": "seller-01",
+          "qty": 2,
+          "net_line_amount": "100.00"
+        }
+      ],
+      "returns": [
+        {
+          "return_id": "ret-001",
+          "return_line_no": 1,
+          "order_id": "ord-001",
+          "line_no": 1,
+          "return_ts": "2026-01-05T12:00:00Z",
+          "refund_amount": "100.00"
+        }
+      ],
+      "expected_label": {
+        "is_mature": true,
+        "is_returned": 1,
+        "days_to_return": 4,
+        "return_line_count": 1,
+        "refund_amount": "100.00",
+        "refund_ratio": "1.0000"
+      }
+    },
+    {
+      "case_id": "case_mature_not_returned",
+      "description": "Mature order with no return",
+      "eval_as_of_date": "2026-01-20",
+      "eval_as_of_ts": "2026-01-21T00:00:00Z",
+      "order": {
+        "order_id": "ord-002",
+        "channel": "walmart",
+        "customer_id": "cust-01",
+        "order_ts": "2026-01-01T14:00:00Z",
+        "status": "paid",
+        "currency": "USD",
+        "net_amount": "50.00",
+        "is_deleted": false
+      },
+      "items": [
+        {
+          "order_id": "ord-002",
+          "line_no": 1,
+          "product_id": "prod-02",
+          "seller_id": "seller-01",
+          "qty": 1,
+          "net_line_amount": "50.00"
+        }
+      ],
+      "returns": [],
+      "expected_label": {
+        "is_mature": true,
+        "is_returned": 0,
+        "days_to_return": null,
+        "return_line_count": 0,
+        "refund_amount": "0.00",
+        "refund_ratio": "0.0000"
+      }
+    },
+    {
+      "case_id": "case_immature_censored",
+      "description": "Order within active horizon at as_of_date must have right-censored null labels",
+      "eval_as_of_date": "2026-01-05",
+      "eval_as_of_ts": "2026-01-06T00:00:00Z",
+      "order": {
+        "order_id": "ord-003",
+        "channel": "walmart",
+        "customer_id": "cust-02",
+        "order_ts": "2026-01-03T15:00:00Z",
+        "status": "paid",
+        "currency": "USD",
+        "net_amount": "80.00",
+        "is_deleted": false
+      },
+      "items": [
+        {
+          "order_id": "ord-003",
+          "line_no": 1,
+          "product_id": "prod-01",
+          "seller_id": "seller-01",
+          "qty": 1,
+          "net_line_amount": "80.00"
+        }
+      ],
+      "returns": [
+        {
+          "return_id": "ret-003",
+          "return_line_no": 1,
+          "order_id": "ord-003",
+          "line_no": 1,
+          "return_ts": "2026-01-07T10:00:00Z",
+          "refund_amount": "80.00"
+        }
+      ],
+      "expected_label": {
+        "is_mature": false,
+        "is_returned": null,
+        "days_to_return": null,
+        "return_line_count": null,
+        "refund_amount": null,
+        "refund_ratio": null
+      }
+    },
+    {
+      "case_id": "case_future_return_leakage",
+      "description": "Order placed before as_of_ts but return occurred after as_of_ts; return must not leak into features",
+      "eval_as_of_date": "2026-01-03",
+      "eval_as_of_ts": "2026-01-04T00:00:00Z",
+      "order": {
+        "order_id": "ord-004",
+        "channel": "walmart",
+        "customer_id": "cust-03",
+        "order_ts": "2026-01-02T10:00:00Z",
+        "status": "paid",
+        "currency": "USD",
+        "net_amount": "120.00",
+        "is_deleted": false
+      },
+      "items": [
+        {
+          "order_id": "ord-004",
+          "line_no": 1,
+          "product_id": "prod-03",
+          "seller_id": "seller-02",
+          "qty": 3,
+          "net_line_amount": "120.00"
+        }
+      ],
+      "returns": [
+        {
+          "return_id": "ret-004",
+          "return_line_no": 1,
+          "order_id": "ord-004",
+          "line_no": 1,
+          "return_ts": "2026-01-10T14:00:00Z",
+          "refund_amount": "120.00"
+        }
+      ],
+      "expected_customer_features": {
+        "orders_7d": 1,
+        "spend_7d": "120.00",
+        "returned_orders_30d": 0,
+        "refund_amount_30d": "0.00",
+        "return_rate_30d": "0.0000"
+      },
+      "expected_label": {
+        "is_mature": false,
+        "is_returned": null,
+        "days_to_return": null,
+        "return_line_count": null,
+        "refund_amount": null,
+        "refund_ratio": null
+      }
+    },
+    {
+      "case_id": "case_return_beyond_horizon",
+      "description": "Return occurred beyond 14 days horizon; mature order is labeled not returned",
+      "eval_as_of_date": "2026-01-25",
+      "eval_as_of_ts": "2026-01-26T00:00:00Z",
+      "order": {
+        "order_id": "ord-005",
+        "channel": "walmart",
+        "customer_id": "cust-04",
+        "order_ts": "2026-01-01T10:00:00Z",
+        "status": "paid",
+        "currency": "USD",
+        "net_amount": "60.00",
+        "is_deleted": false
+      },
+      "items": [
+        {
+          "order_id": "ord-005",
+          "line_no": 1,
+          "product_id": "prod-01",
+          "seller_id": "seller-01",
+          "qty": 1,
+          "net_line_amount": "60.00"
+        }
+      ],
+      "returns": [
+        {
+          "return_id": "ret-005",
+          "return_line_no": 1,
+          "order_id": "ord-005",
+          "line_no": 1,
+          "return_ts": "2026-01-18T10:00:00Z",
+          "refund_amount": "60.00"
+        }
+      ],
+      "expected_label": {
+        "is_mature": true,
+        "is_returned": 0,
+        "days_to_return": null,
+        "return_line_count": 0,
+        "refund_amount": "0.00",
+        "refund_ratio": "0.0000"
+      }
+    },
+    {
+      "case_id": "case_multi_line_return_no_fanout",
+      "description": "Order with multiple returned lines must not fan out to duplicate rows in lbl_order_return",
+      "eval_as_of_date": "2026-01-20",
+      "eval_as_of_ts": "2026-01-21T00:00:00Z",
+      "order": {
+        "order_id": "ord-006",
+        "channel": "walmart",
+        "customer_id": "cust-05",
+        "order_ts": "2026-01-01T10:00:00Z",
+        "status": "paid",
+        "currency": "USD",
+        "net_amount": "200.00",
+        "is_deleted": false
+      },
+      "items": [
+        {
+          "order_id": "ord-006",
+          "line_no": 1,
+          "product_id": "prod-01",
+          "seller_id": "seller-01",
+          "qty": 1,
+          "net_line_amount": "100.00"
+        },
+        {
+          "order_id": "ord-006",
+          "line_no": 2,
+          "product_id": "prod-02",
+          "seller_id": "seller-01",
+          "qty": 1,
+          "net_line_amount": "100.00"
+        }
+      ],
+      "returns": [
+        {
+          "return_id": "ret-006a",
+          "return_line_no": 1,
+          "order_id": "ord-006",
+          "line_no": 1,
+          "return_ts": "2026-01-04T10:00:00Z",
+          "refund_amount": "100.00"
+        },
+        {
+          "return_id": "ret-006b",
+          "return_line_no": 2,
+          "order_id": "ord-006",
+          "line_no": 2,
+          "return_ts": "2026-01-06T10:00:00Z",
+          "refund_amount": "100.00"
+        }
+      ],
+      "expected_label": {
+        "is_mature": true,
+        "is_returned": 1,
+        "days_to_return": 3,
+        "return_line_count": 2,
+        "refund_amount": "200.00",
+        "refund_ratio": "1.0000"
+      }
+    },
+    {
+      "case_id": "case_deleted_order_excluded",
+      "description": "Soft deleted order must be completely ignored from features and labels",
+      "eval_as_of_date": "2026-01-20",
+      "eval_as_of_ts": "2026-01-21T00:00:00Z",
+      "order": {
+        "order_id": "ord-007",
+        "channel": "walmart",
+        "customer_id": "cust-06",
+        "order_ts": "2026-01-01T10:00:00Z",
+        "status": "cancelled",
+        "currency": "USD",
+        "net_amount": "150.00",
+        "is_deleted": true
+      },
+      "items": [
+        {
+          "order_id": "ord-007",
+          "line_no": 1,
+          "product_id": "prod-01",
+          "seller_id": "seller-01",
+          "qty": 1,
+          "net_line_amount": "150.00"
+        }
+      ],
+      "returns": [],
+      "expected_label": null,
+      "expected_customer_features": {
+        "orders_7d": 0,
+        "orders_30d": 0,
+        "spend_7d": "0.00",
+        "spend_30d": "0.00"
+      }
+    }
+  ]
+}
