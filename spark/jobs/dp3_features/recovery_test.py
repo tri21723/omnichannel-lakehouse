@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+from datetime import timedelta
 from typing import Any
 
 from pyspark.sql import functions as F
@@ -28,9 +29,18 @@ def test_dp3_recovery(spark: Any, run_id: str) -> None:
         spark, gold_ledger, run_id, publication_id=gold_pub_id
     )
 
-    max_dt_row = frames["fact_orders"].select(F.to_date(F.max("order_ts"))).first()
-    max_dt = max_dt_row[0].isoformat() if max_dt_row and max_dt_row[0] else "2026-01-03"
-    dates = [max_dt]
+    distinct_rows = (
+        frames["fact_orders"]
+        .select(F.to_date("order_ts").alias("dt"))
+        .filter(F.col("dt").isNotNull())
+        .distinct()
+        .sort("dt")
+        .collect()
+    )
+    feat_dates = [r["dt"].isoformat() for r in distinct_rows]
+    mature_dt = (distinct_rows[-1]["dt"] + timedelta(days=15)).isoformat()
+    label_dates = feat_dates + ([mature_dt] if mature_dt not in feat_dates else [])
+    dates = [feat_dates[-1]]
 
     features = build_features(spark, frames, run_id, pub_id, dates)
     labels = build_return_labels(spark, frames, run_id, pub_id, dates, horizon_days=14)
@@ -122,15 +132,26 @@ def test_dp3_recovery(spark: Any, run_id: str) -> None:
         if current_bytes != initial_ledger_bytes:
             raise AssertionError("ledger.json modified despite failed publish attempt")
 
-    # 4. Clean publish: must recover atomically and complete
-    ledger, skipped = publish_dp3(
+    # 4. Clean publish: must recover atomically and complete across all evaluation dates
+    full_features = build_features(spark, frames, run_id, pub_id, feat_dates)
+    full_labels = build_return_labels(spark, frames, run_id, pub_id, label_dates, horizon_days=14)
+    publish_dp3(
         spark,
-        all_tables,
+        full_features,
         run_id=run_id,
         gold_pub_id=pub_id,
         root=DP3_ROOT,
         force=True,
-        as_of_dates=dates,
+        as_of_dates=feat_dates,
+    )
+    ledger, skipped = publish_dp3(
+        spark,
+        full_labels,
+        run_id=run_id,
+        gold_pub_id=pub_id,
+        root=DP3_ROOT,
+        force=True,
+        as_of_dates=label_dates,
     )
     if ledger.get("status") != "completed":
         raise AssertionError(f"Recovery failed: ledger status is {ledger.get('status')}")

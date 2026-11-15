@@ -1,8 +1,8 @@
 # Features & Warehouse handoff — Phase 4D & 4E contracts
 
 This document specifies the input contracts, schemas, point-in-time correctness, and operational rules for downstream processing phases:
-- **Phase 4D:** Feature Store & Return Label Generation (`dp3_features`, `dp3_return_labels`).
-- **Phase 4E:** Downstream Data Warehouse Export (`dp4_warehouse`).
+- **Phase 4D (Completed — `v0.4d-features`):** Feature Store & Return Label Generation (`dp3_features`, `dp3_return_labels`). See [DP3 validation](dp3-validation.md) and [ADR-0010](adr/0010-features-and-return-labels.md).
+- **Phase 4E (Next):** Downstream Data Warehouse Export (`dp4_warehouse`).
 
 ---
 

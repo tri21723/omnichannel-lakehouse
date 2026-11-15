@@ -54,3 +54,22 @@ def test_silver_nested_counts_cannot_copy_private_fields():
     assert result == [
         {"event": "silver_published", "entities": {"customers": {"valid": 5, "rejected": 0}}}
     ]
+
+
+def test_dp3_events_preserve_safe_metrics_and_runs():
+    event = {
+        "event": "labels_published",
+        "run_id": "186ae107d0793d2ee237",
+        "horizon_days": 14,
+        "skipped": False,
+        "secret_token": "super-secret-do-not-leak",
+    }
+    result = list(module.safe_events([json.dumps(event)]))
+    assert result == [
+        {
+            "event": "labels_published",
+            "run_id": "186ae107d0793d2ee237",
+            "horizon_days": 14,
+            "skipped": False,
+        }
+    ]

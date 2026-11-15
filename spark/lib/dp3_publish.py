@@ -136,6 +136,8 @@ def publish_dp3(
         table_names = sorted(tables.keys())
         is_features_publish = any(t.startswith("feat_") for t in table_names)
         is_labels_publish = any(t.startswith("lbl_") for t in table_names)
+        req_dates = sorted(str(d) for d in (as_of_dates or []))
+        prior_table_dates = prior_run.get("table_dates", {}) if prior_run else {}
 
         # Check skip condition if identical publication already completed
         if (
@@ -143,8 +145,16 @@ def publish_dp3(
             and fail_after is None
             and prior_run
             and prior_run.get("gold_publication_id") == gold_pub_id
+            and prior_run.get("horizon_days", 14) == horizon_days
             and old.get("status") == "completed"
             and all(f"lh.gold.{t}" in prior_run.get("tables", []) for t in table_names)
+            and (
+                not req_dates
+                or all(
+                    set(req_dates).issubset(set(prior_table_dates.get(f"lh.gold.{t}", [])))
+                    for t in table_names
+                )
+            )
         ):
             verify_dp3(spark, old, target_run_id=run_id, target_tables=table_names)
             return old, True
@@ -235,10 +245,20 @@ def publish_dp3(
                     "horizon_days": horizon_days,
                 }
             )
-            # Update list of published tables for this run
+            # Update list of published tables and evaluation dates for this run
             published_tables = set(current["runs"][run_id].get("tables", []))
             published_tables.update([f"lh.gold.{t}" for t in table_names])
             current["runs"][run_id]["tables"] = sorted(published_tables)
+
+            run_table_dates = dict(current["runs"][run_id].get("table_dates", {}))
+            for t in table_names:
+                fqdn = f"lh.gold.{t}"
+                if mode == "incremental":
+                    merged_dates = set(run_table_dates.get(fqdn, [])) | set(req_dates)
+                    run_table_dates[fqdn] = sorted(merged_dates)
+                else:
+                    run_table_dates[fqdn] = req_dates
+            current["runs"][run_id]["table_dates"] = run_table_dates
 
             current["status"] = "completed"
             current["duration_seconds"] = round(time.monotonic() - started, 3)

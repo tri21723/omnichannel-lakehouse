@@ -40,7 +40,7 @@ must preserve the same business result for the same source snapshot.
 returns. Walmart IDs are source-local primary keys; channel is added at ingestion.
 Only orders is published to CDC initially. Sellers remain embedded seller_id values;
 a standalone OLTP seller table is deferred until generator requirements justify it.
-Five Silver entity tables are implemented; Gold remains proposed.
+Five Silver entity tables, eight Gold star-schema tables, and three DP3 feature/label tables are implemented.
 
 ## Implemented generator payload (batch-v1)
 

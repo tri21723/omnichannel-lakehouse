@@ -83,11 +83,29 @@ See [Silver validation](silver-validation.md), [completed checklist](phase4b-che
 
 See [Gold validation](gold-validation.md) and [Features & Warehouse handoff](features-warehouse-handoff.md).
 
-## Next: Phase 4D — Feature Store and Return Labels (`dp3_features`, `dp3_return_labels`)
+## Phase 4D — Feature Store and Return Labels complete locally
 
-Per ADR-0003, `dp3_features` builds customer and product features with point-in-time correctness
-(`order_ts < as_of_ts`), and `dp3_return_labels` computes mature return classification labels with
-observation horizons and data leakage prevention. Warehouse export to PostgreSQL is Phase 4E.
+- Local milestone v0.4d-features; 138 unit tests, full lint and all regression/recovery checks pass.
+- Feature Store and supervised Return Labels published in `lh.gold` on Iceberg v2:
+  `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, and `lh.gold.lbl_order_return`.
+- Pinned inputs from completed Gold publication ledger `/runtime/gold/publication/ledger.json`
+  by exact snapshot ID (`46d63f72f5aba0aec78bc2601491a2bb5db092662feb551ea61fb16640acd37c`);
+  independent DP3 publication ledger recorded at `/runtime/dp3/publication/ledger.json`.
+- Dual-timestamp point-in-time leakage prevention (`order_ts < as_of_ts` and `return_ts < as_of_ts`)
+  and 7d/30d rolling windows verified with future event injection tests (`make test-dp3-dq`).
+- Observation horizon (`horizon_days = 14`) and maturity right-censoring (`is_mature = false`
+  forces `is_returned = NULL`, never `0`) verified at `2026-01-03` (100% immature) and `2026-01-18`
+  (100% mature, exact 30 / 1,500 returned orders).
+- Multi-dataset coexistence (`186ae107d0793d2ee237` and `b1e64afaff0176de180a`), atomic recovery
+  across three failure injection points (`make test-dp3-recovery`), and restart persistence verified.
+
+See [DP3 validation](dp3-validation.md), [completed checklist](phase4d-checklist.md), and
+[Features & Warehouse handoff](features-warehouse-handoff.md).
+
+## Next: Phase 4E — Data Warehouse Export (`dp4_warehouse`)
+
+Per ADR-0003, `dp4_warehouse` exports the 30-day sliding window from pinned `lh.gold` snapshots
+into PostgreSQL `warehouse.*` with transactional idempotency and exact `NUMERIC(18,2)` reconciliation.
 
 ## Later phases
 

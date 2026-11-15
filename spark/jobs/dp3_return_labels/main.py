@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+from datetime import timedelta
 
 from pyspark.sql import functions as F
 
@@ -55,6 +56,9 @@ def run_job(spark, args):
         dates = [r["dt"].isoformat() for r in distinct_rows]
         if not dates:
             raise ValueError(f"No order dates found in fact_orders for run {args.run_id}")
+        mature_dt = (distinct_rows[-1]["dt"] + timedelta(days=horizon_days + 1)).isoformat()
+        if mature_dt not in dates:
+            dates.append(mature_dt)
     elif getattr(args, "as_of_date", None):
         dates = [d.strip() for d in args.as_of_date.split(",") if d.strip()]
     else:

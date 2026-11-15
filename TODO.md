@@ -1,6 +1,6 @@
 # TODO — Phase 4D: Xây dựng Feature Store và Return Labels (`dp3_features`, `dp3_return_labels`)
 
-Cập nhật: **2026-11-15**. Trạng thái: **Đã rà soát và chốt kế hoạch chi tiết; chưa bắt đầu triển khai (0/68 checklist)**.
+Cập nhật: **2026-11-15**. Trạng thái: **Hoàn thành Phase 4D local DoD — 47/47 checklist**.
 
 Mục tiêu: triển khai hai job độc lập `dp3_features` và `dp3_return_labels` thuộc phạm vi `dp3`
 (theo [ADR-0003](docs/adr/0003-data-contracts.md), [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)),
@@ -13,9 +13,11 @@ hai ma trận dữ liệu (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`).
 
 Tham chiếu: [plan](docs/plan.md), [data model](docs/data-model.md),
 [bàn giao Phase 4D/4E](docs/features-warehouse-handoff.md), [Gold contract](sql/iceberg/gold_contract.sql),
-[ADR-0003](docs/adr/0003-data-contracts.md), [ADR-0009](docs/adr/0009-gold-star-schema.md).
+[ADR-0003](docs/adr/0003-data-contracts.md), [ADR-0009](docs/adr/0009-gold-star-schema.md),
+[ADR-0010](docs/adr/0010-features-and-return-labels.md).
 Lịch sử: [checklist Phase 4C](docs/phase4c-checklist.md),
 [bằng chứng Gold](docs/gold-validation.md), tag `v0.4c-gold`.
+Bằng chứng Phase 4D: [bằng chứng DP3](docs/dp3-validation.md), tag `v0.4d-features`.
 
 ## 1. Baseline và các điểm rà soát kiến trúc quan trọng
 
@@ -181,24 +183,24 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-07 — Makefile, CI, tài liệu và bàn giao Phase 4E
 
-- [ ] Mở rộng `Makefile`:
+- [x] Mở rộng `Makefile`:
   - Hỗ trợ `JOB=dp3_features` và `JOB=dp3_return_labels` trong `spark-submit`.
   - Thêm các target: `smoke-features`, `smoke-labels`, `verify-features`, `verify-labels`, `integration-dp3`, `integration-dp3-reference`, `test-dp3-dq`, `test-dp3-recovery` (giữ nguyên toàn bộ target cũ).
-- [ ] Cập nhật `docker/batch/ci_events.py` (allowlist các structured event của Gold và `dp3`) và thêm/cập nhật manual workflow `.github/workflows/gold-dp3.yml` (hoặc tương đương) dùng small fixture, timeout rõ ràng và `make down` không xóa volume.
-- [ ] Cập nhật `docs/runbook.md`, `docs/data-model.md`, `docs/implementation-status.md`, `README.md`, `docs/features-warehouse-handoff.md` và viết báo cáo bằng chứng `docs/dp3-validation.md`.
-- [ ] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế, lưu trữ vào `docs/phase4d-checklist.md`, commit theo Conventional Commits và gắn tag `v0.4d-features` khi đạt đủ local DoD.
+- [x] Cập nhật `docker/batch/ci_events.py` (allowlist các structured event của Gold và `dp3`) và thêm/cập nhật manual workflow `.github/workflows/gold-dp3.yml` (hoặc tương đương) dùng small fixture, timeout rõ ràng và `make down` không xóa volume.
+- [x] Cập nhật `docs/runbook.md`, `docs/data-model.md`, `docs/implementation-status.md`, `README.md`, `docs/features-warehouse-handoff.md` và viết báo cáo bằng chứng `docs/dp3-validation.md`.
+- [x] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế, lưu trữ vào `docs/phase4d-checklist.md`, commit theo Conventional Commits và gắn tag `v0.4d-features` khi đạt đủ local DoD.
 
 **Đạt khi:** Đầy đủ công cụ `make`, CI allowlist, runbook, báo cáo kiểm chứng và hợp đồng bàn giao sang Phase 4E (`dp4_warehouse`).
 **Commit gợi ý:** `docs(dp3): publish Phase 4D validation evidence and Phase 4E warehouse handoff`.
 
 ## 4. Điều kiện đóng Phase 4D
 
-- [ ] 3 bảng `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return` đúng schema, grain, surrogate key uniqueness và kiểu `DECIMAL(18,2)`.
-- [ ] Input được pin chặt chẽ từ completed Gold publication ledger (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`; publication của `dp3` tách riêng tại `/runtime/dp3/publication/ledger.json`.
-- [ ] Point-in-time correctness tuyệt đối: không lộ đơn hàng (`order_ts >= as_of_ts`) hay hoàn trả tương lai (`return_ts >= as_of_ts`) vào features.
-- [ ] Maturity censoring chuẩn xác: đơn hàng chưa qua hết `horizon_days` có `is_mature = false` và `is_returned IS NULL` (không gán âm giả `0`).
-- [ ] Multi-dataset coexistence (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`), replay idempotent, recovery sau lỗi và restart persistence đều xanh.
-- [ ] `make check` và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver`/`gold` đều xanh; tài liệu, ADR-0010, DDL và runbook cập nhật đầy đủ.
+- [x] 3 bảng `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return` đúng schema, grain, surrogate key uniqueness và kiểu `DECIMAL(18,2)`.
+- [x] Input được pin chặt chẽ từ completed Gold publication ledger (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`; publication của `dp3` tách riêng tại `/runtime/dp3/publication/ledger.json`.
+- [x] Point-in-time correctness tuyệt đối: không lộ đơn hàng (`order_ts >= as_of_ts`) hay hoàn trả tương lai (`return_ts >= as_of_ts`) vào features.
+- [x] Maturity censoring chuẩn xác: đơn hàng chưa qua hết `horizon_days` có `is_mature = false` và `is_returned IS NULL` (không gán âm giả `0`).
+- [x] Multi-dataset coexistence (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`), replay idempotent, recovery sau lỗi và restart persistence đều xanh.
+- [x] `make check` và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver`/`gold` đều xanh; tài liệu, ADR-0010, DDL và runbook cập nhật đầy đủ.
 
 ## 5. Quy tắc thực hiện
 

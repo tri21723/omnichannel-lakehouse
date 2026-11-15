@@ -291,3 +291,36 @@ CI: .github/workflows/silver.yml is manual and uses the small fixture, timeout a
 make down without volume removal. ci_run.sh emits only allowlisted events/counts;
 raw diagnostics remain in ignored .local-data on the disposable runner. No new hosted
 Silver run is claimed until an actual run result is available.
+
+## Gold star schema (Phase 4C) and Feature Store / Return Labels (Phase 4D)
+
+```sh
+make integration-gold
+make verify-gold
+make reconcile-gold GOLD_RUN_ID=186ae107d0793d2ee237
+make reconcile-gold GOLD_RUN_ID=b1e64afaff0176de180a
+make test-gold-dq GOLD_RUN_ID=186ae107d0793d2ee237
+make test-gold-recovery
+
+make smoke-features
+make verify-features
+make smoke-labels
+make verify-labels
+make integration-dp3
+make test-dp3-dq DP3_RUN_ID=186ae107d0793d2ee237
+make test-dp3-dq DP3_RUN_ID=b1e64afaff0176de180a
+make test-dp3-recovery
+```
+
+`dp2_gold` owns the 8 star-schema tables (`lh.gold.dim_*`, `lh.gold.fact_*`) and writes
+`/runtime/gold/publication/ledger.json`. `dp3_features` and `dp3_return_labels` consume
+pinned snapshot IDs from `/runtime/gold/publication/ledger.json` read-only and record
+their own state in `/runtime/dp3/publication/ledger.json` without mutating Gold's ledger.
+Both small fixture (`186ae107d0793d2ee237`) and default reference (`b1e64afaff0176de180a`)
+coexist in `lh.gold.{feat_customer_daily,feat_product_daily,lbl_order_return}`.
+
+Point-in-time feature cutoffs enforce `order_ts < as_of_ts` and `return_ts < as_of_ts`.
+`dp3_return_labels` enforces observation horizon right-censoring (`is_mature = false`
+sets `is_returned` and all return label metrics to `NULL`, never `0`).
+See [ADR-0010](adr/0010-features-and-return-labels.md), [DP3 validation](dp3-validation.md),
+and `.github/workflows/gold-dp3.yml`.

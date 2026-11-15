@@ -11,9 +11,10 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 Đã có `dp1_bronze` cho JSONL 5 kênh và JDBC Walmart, kèm replay/recovery và đối soát.
 Phase 4B hoàn thành local (`v0.4b-silver`): Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
 Phase 4C hoàn thành local (`v0.4c-gold`): Kimball star schema 8 bảng trong `lh.gold`, đối soát tiền tệ `DECIMAL(18,2)`, multi-dataset coexistence và atomic recovery.
-Features/labels (Phase 4D) và Data Warehouse export (Phase 4E) là các giai đoạn tiếp theo.
+Phase 4D hoàn thành local (`v0.4d-features`): Feature Store (`feat_customer_daily`, `feat_product_daily`) và Return Labels (`lbl_order_return`) trong `lh.gold` với point-in-time dual-timestamp cutoff và maturity right-censoring.
+Data Warehouse export (Phase 4E) là giai đoạn tiếp theo.
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Gold validation](docs/gold-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -118,6 +119,24 @@ Cả hai dataset (small fixture 375 đơn và default reference 15.000 đơn) c�
 trong `lh.gold.*` (tổng 15.375 đơn). Đối soát tiền tệ `DECIMAL(18,2)` khớp tuyệt đối
 giữa Gold, Silver và Bronze. Xem [Gold validation](docs/gold-validation.md) và
 [Handoff Phase 4D/4E](docs/features-warehouse-handoff.md).
+
+## Chạy Feature Store & Return Labels (Phase 4D)
+
+```sh
+make smoke-features
+make verify-features
+make smoke-labels
+make verify-labels
+make integration-dp3
+make test-dp3-dq DP3_RUN_ID=186ae107d0793d2ee237
+make test-dp3-dq DP3_RUN_ID=b1e64afaff0176de180a
+make test-dp3-recovery
+```
+
+Xuất bản `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily` và `lh.gold.lbl_order_return`
+với ledger độc lập tại `/runtime/dp3/publication/ledger.json`. Đảm bảo point-in-time cutoff kép
+(`order_ts < as_of_ts` và `return_ts < as_of_ts`) và maturity censoring (`is_mature = false` → `is_returned IS NULL`).
+Xem [ADR-0010](docs/adr/0010-features-and-return-labels.md) và [DP3 validation](docs/dp3-validation.md).
 
 ## Kiến trúc và source
 
