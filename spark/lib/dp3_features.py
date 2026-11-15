@@ -70,7 +70,7 @@ def compute_customer_daily_features(
     # Returns within dual-timestamp boundary (order_ts < as_of_ts AND return_ts < as_of_ts)
     # for orders placed in the 30-day window
     returns = frames["fact_returns"].join(
-        orders.select("order_key", "order_ts"),
+        orders.select("order_key", "order_ts", "customer_id"),
         on="order_key",
         how="inner",
     )

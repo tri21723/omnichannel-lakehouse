@@ -129,8 +129,10 @@ restart-lakehouse: ## Restart catalog and Spark; preserve data
 BRONZE_ARGS ?=
 SILVER_ARGS ?=
 GOLD_ARGS ?=
-spark-submit: ## Submit smoke, dp1_bronze, dp2_silver or dp2_gold (use BRONZE/SILVER/GOLD_ARGS)
-	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver|dp2_gold'; exit 2 ;; esac
+FEATURES_ARGS ?=
+LABELS_ARGS ?=
+spark-submit: ## Submit smoke, dp1_bronze, dp2_silver, dp2_gold, dp3_features or dp3_return_labels
+	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp3_return_labels) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_return_labels/main.py $(LABELS_ARGS) ;; dp3_features) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/main.py $(FEATURES_ARGS) ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver|dp2_gold|dp3_features|dp3_return_labels'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
@@ -243,3 +245,32 @@ test-gold-dq: ## Check surrogate key formats, non-null decimals, item roll-ups a
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_dq_test.py --run-id $(GOLD_RUN_ID)
 test-gold-recovery: ## Verify partial publish failure points and ledger preservation
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_recovery_test.py --run-id $(GOLD_RUN_ID)
+
+.PHONY: smoke-features verify-features smoke-labels verify-labels integration-dp3 integration-dp3-reference test-dp3-dq test-dp3-recovery
+DP3_RUN_ID ?= 186ae107d0793d2ee237
+smoke-features: ## Build/publish daily features on the small fixture
+	$(MAKE) spark-submit JOB=dp3_features FEATURES_ARGS='--run-id $(DP3_RUN_ID) --all-dates --mode full'
+verify-features: ## Verify committed DP3 feature tables without modifying data
+	$(MAKE) spark-submit JOB=dp3_features FEATURES_ARGS='--run-id $(DP3_RUN_ID) --verify'
+smoke-labels: ## Build/publish supervised return labels on the small fixture
+	$(MAKE) spark-submit JOB=dp3_return_labels LABELS_ARGS='--run-id $(DP3_RUN_ID) --all-dates --horizon-days 14 --mode full'
+verify-labels: ## Verify committed DP3 label tables without modifying data
+	$(MAKE) spark-submit JOB=dp3_return_labels LABELS_ARGS='--run-id $(DP3_RUN_ID) --verify'
+integration-dp3: ## Build and verify features and labels for both small fixture and default reference
+	$(MAKE) spark-submit JOB=dp3_features FEATURES_ARGS='--run-id 186ae107d0793d2ee237 --all-dates --mode full'
+	$(MAKE) spark-submit JOB=dp3_return_labels LABELS_ARGS='--run-id 186ae107d0793d2ee237 --all-dates --horizon-days 14 --mode full'
+	$(MAKE) spark-submit JOB=dp3_features FEATURES_ARGS='--run-id b1e64afaff0176de180a --all-dates --mode full'
+	$(MAKE) spark-submit JOB=dp3_return_labels LABELS_ARGS='--run-id b1e64afaff0176de180a --all-dates --horizon-days 14 --mode full'
+	$(MAKE) verify-features DP3_RUN_ID=186ae107d0793d2ee237
+	$(MAKE) verify-labels DP3_RUN_ID=186ae107d0793d2ee237
+	$(MAKE) verify-features DP3_RUN_ID=b1e64afaff0176de180a
+	$(MAKE) verify-labels DP3_RUN_ID=b1e64afaff0176de180a
+integration-dp3-reference: ## Build and verify features and labels on the default reference dataset (15000 orders)
+	$(MAKE) spark-submit JOB=dp3_features FEATURES_ARGS='--run-id b1e64afaff0176de180a --all-dates --mode full'
+	$(MAKE) spark-submit JOB=dp3_return_labels LABELS_ARGS='--run-id b1e64afaff0176de180a --all-dates --horizon-days 14 --mode full'
+	$(MAKE) verify-features DP3_RUN_ID=b1e64afaff0176de180a
+	$(MAKE) verify-labels DP3_RUN_ID=b1e64afaff0176de180a
+test-dp3-dq: ## Check surrogate key formats, non-negative metrics, censoring and point-in-time join
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/dq_test.py --run-id $(DP3_RUN_ID)
+test-dp3-recovery: ## Verify partial publish failure points and ledger preservation for DP3
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/recovery_test.py --run-id $(DP3_RUN_ID)

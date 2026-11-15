@@ -164,17 +164,17 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-06 — Verifier read-only, kiểm thử DQ/leakage, đối soát đa dataset và regression
 
-- [ ] Tích hợp chế độ `--verify` read-only cho `dp3_features` và `dp3_return_labels` đọc trực tiếp từ `/runtime/dp3/publication/ledger.json` mà không ghi lại dữ liệu.
-- [ ] Viết `spark/jobs/dp3_features/dq_test.py` kiểm chứng trên Spark:
+- [x] Tích hợp chế độ `--verify` read-only cho `dp3_features` và `dp3_return_labels` đọc trực tiếp từ `/runtime/dp3/publication/ledger.json` mà không ghi lại dữ liệu.
+- [x] Viết `spark/jobs/dp3_features/dq_test.py` kiểm chứng trên Spark:
   - **Point-in-time leakage test:** tiêm đơn hàng và hoàn trả ở tương lai (`>= as_of_ts`), chứng minh chúng không làm thay đổi bất kỳ giá trị nào của `feat_customer_daily`, `feat_product_daily` và `lbl_order_return` tại `as_of_date`.
   - **Maturity censoring test:** tại `as_of_date = 2026-01-03` (với `horizon_days = 14`), 100% đơn hàng (`2026-01-01..2026-01-03`) có `is_mature = false` và `is_returned IS NULL`; tại `as_of_date = 2026-01-18`, 100% đơn hàng có `is_mature = true`, `is_returned IN (0, 1)`, và tổng số đơn `is_returned = 1` khớp chính xác số đơn có hoàn trả trong Gold (`30` cho small fixture, `1,500` cho default reference).
   - **Point-in-time training join test:** join `lbl_order_return` với `feat_customer_daily` và `feat_product_daily` theo đúng quy tắc point-in-time trong ADR-0010, chứng minh không có dòng nào lấy feature được tính từ sự kiện tại hoặc sau `order_ts`.
-- [ ] Viết `spark/jobs/dp3_features/recovery_test.py` kiểm chứng 3 điểm tiêm lỗi (`fail_after="features" | "labels" | "completion"`), bảo toàn ledger và phục hồi atomic.
-- [ ] Chạy và đối soát toàn diện trên cả 2 dataset:
+- [x] Viết `spark/jobs/dp3_features/recovery_test.py` kiểm chứng 3 điểm tiêm lỗi (`fail_after="features" | "labels" | "completion"`), bảo toàn ledger và phục hồi atomic.
+- [x] Chạy và đối soát toàn diện trên cả 2 dataset:
   - Small fixture (`186ae107d0793d2ee237`): `375` orders, `25` customers, `88` products, `30` mature returns.
   - Default reference (`b1e64afaff0176de180a`): `15,000` orders, `1,000` customers, `100` products, `1,500` mature returns.
   - Xác minh cả 2 dataset cùng tồn tại trong `lh.gold.{feat_customer_daily,feat_product_daily,lbl_order_return}` mà không xung đột khóa.
-- [ ] Restart `lakekeeper`, `spark-master`, `spark-worker1`, `spark-worker2` rồi chạy verifier read-only (`make verify-features`, `make verify-labels`) cùng toàn bộ chuỗi regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`).
+- [x] Restart `lakekeeper`, `spark-master`, `spark-worker1`, `spark-worker2` rồi chạy verifier read-only (`make verify-features`, `make verify-labels`) cùng toàn bộ chuỗi regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`).
 
 **Đạt khi:** Cả 2 dataset vượt qua toàn bộ bài kiểm tra chống rò rỉ dữ liệu, maturity censoring, recovery và restart persistence.
 **Commit gợi ý:** `test(dp3): verify point-in-time leakage maturity censoring recovery and coexistence`.

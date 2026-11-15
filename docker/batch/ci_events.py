@@ -33,6 +33,17 @@ EVENTS = {
     "bronze_input_failure_matrix_passed",
     "bronze_channel_contract_passed",
     "bronze_raw_contract_passed",
+    "gold_published",
+    "gold_verified",
+    "gold_reconciled",
+    "gold_dq_passed",
+    "gold_recovery_passed",
+    "features_published",
+    "features_verified",
+    "labels_published",
+    "labels_verified",
+    "dp3_dq_passed",
+    "dp3_recovery_passed",
 }
 ERROR_TYPES = {
     "ValueError",
@@ -77,7 +88,7 @@ def safe_events(lines):
         if item["event"] not in EVENTS:
             continue
         clean = {"event": item["event"]}
-        for key in ("batch_id", "attempt"):
+        for key in ("batch_id", "attempt", "run_id"):
             if re.fullmatch(r"[a-f0-9]{20,32}", str(item.get(key, ""))):
                 clean[key] = item[key]
         if isinstance(item.get("input_id"), str) and re.fullmatch(
@@ -88,7 +99,7 @@ def safe_events(lines):
             clean["channel"] = item["channel"]
         if item.get("stage") in ("contribution", "quarantine", "completion"):
             clean["stage"] = item["stage"]
-        for name in ("slices", "orders", "channels", "failures"):
+        for name in ("slices", "orders", "channels", "failures", "tables", "horizon_days"):
             if type(item.get(name)) is int:
                 clean[name] = item[name]
         for name in ("entities", "counts"):
@@ -115,6 +126,7 @@ def safe_events(lines):
             "rows",
             "jsonl_rows",
             "jdbc_orders",
+            "skipped",
         ):
             if type(item.get(key)) in (int, bool):
                 clean[key] = item[key]

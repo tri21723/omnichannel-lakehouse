@@ -131,7 +131,13 @@ if __name__ == "__main__":
     try:
         run()
     except Exception as exc:
-        logging.error(
-            json.dumps({"event": "features_job_failed", "error_type": type(exc).__name__})
+        logging.exception(
+            json.dumps(
+                {
+                    "event": "features_job_failed",
+                    "error_type": type(exc).__name__,
+                    "detail": str(exc),
+                }
+            )
         )
         raise SystemExit(1) from None

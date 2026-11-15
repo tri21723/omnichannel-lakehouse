@@ -144,7 +144,7 @@ def publish_dp3(
             and prior_run
             and prior_run.get("gold_publication_id") == gold_pub_id
             and old.get("status") == "completed"
-            and all(f"lh.gold.{t}" in old.get("tables", {}) for t in table_names)
+            and all(f"lh.gold.{t}" in prior_run.get("tables", []) for t in table_names)
         ):
             verify_dp3(spark, old, target_run_id=run_id, target_tables=table_names)
             return old, True
@@ -311,6 +311,11 @@ def verify_dp3(
             raise ValueError(f"Clear PII detected in {base_name}")
 
         scoped = frame.filter(F.col("_dataset_run_id") == target_run_id) if target_run_id else frame
+        if target_run_id and table_fqdn in ledger.get("runs", {}).get(target_run_id, {}).get(
+            "tables", []
+        ):
+            if scoped.limit(1).count() == 0:
+                raise ValueError(f"Table {table_fqdn} has 0 rows for target run {target_run_id}")
 
         # Table-specific checks
         if base_name == "feat_customer_daily":
