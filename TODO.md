@@ -93,12 +93,12 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-02 — Reader Gold publication cố định theo snapshot-id và cô lập dataset run
 
-- [ ] Tạo `spark/lib/dp3_input.py` đọc `/runtime/gold/publication/ledger.json`, yêu cầu `status == "completed"`, kiểm tra đủ 8 bảng Gold star schema và xác thực `publication_id` (`SHA-256` canonical JSON) khớp với file bất biến `publication-<id>.json`.
-- [ ] Từ chối đọc từ `attempt.json` hoặc fallback sang `latest`; báo lỗi rõ nếu snapshot bị thiếu hoặc hết hạn.
-- [ ] Đọc các bảng `lh.gold.{dim_customer,dim_product,dim_channel,dim_date,fact_orders,fact_order_items,fact_returns}` bằng `option("snapshot-id", ...)`, đối soát summary (`rows`, `h1`, `h2`) khớp với ledger trước khi lọc.
-- [ ] Lọc chặt chẽ theo `_dataset_run_id == args.run_id` và loại bỏ các đơn hàng `is_deleted == True`; báo lỗi nếu `args.run_id` không có mặt trong `ledger["runs"]`.
-- [ ] Hỗ trợ tham số `--as-of-date` (một ngày cụ thể `YYYY-MM-DD` hoặc danh sách/phạm vi ngày của run khi chạy batch backfill).
-- [ ] Viết unit tests (`spark/tests/test_dp3_input.py`) cho các trường hợp: ledger chưa completed, sai digest, thiếu run_id, và cô lập tuyệt đối giữa 2 dataset run.
+- [x] Tạo `spark/lib/dp3_input.py` đọc `/runtime/gold/publication/ledger.json`, yêu cầu `status == "completed"`, kiểm tra đủ 8 bảng Gold star schema và xác thực `publication_id` (`SHA-256` canonical JSON) khớp với file bất biến `publication-<id>.json`.
+- [x] Từ chối đọc từ `attempt.json` hoặc fallback sang `latest`; báo lỗi rõ nếu snapshot bị thiếu hoặc hết hạn.
+- [x] Đọc các bảng `lh.gold.{dim_customer,dim_product,dim_channel,dim_date,fact_orders,fact_order_items,fact_returns}` bằng `option("snapshot-id", ...)`, đối soát summary (`rows`, `h1`, `h2`) khớp với ledger trước khi lọc.
+- [x] Lọc chặt chẽ theo `_dataset_run_id == args.run_id` và loại bỏ các đơn hàng `is_deleted == True`; báo lỗi nếu `args.run_id` không có mặt trong `ledger["runs"]`.
+- [x] Hỗ trợ tham số `--as-of-date` (một ngày cụ thể `YYYY-MM-DD` hoặc danh sách/phạm vi ngày của run khi chạy batch backfill).
+- [x] Viết unit tests (`spark/tests/test_dp3_input.py`) cho các trường hợp: ledger chưa completed, sai digest, thiếu run_id, và cô lập tuyệt đối giữa 2 dataset run.
 
 **Đạt khi:** `dp3` chỉ đọc dữ liệu từ một Gold publication đã hoàn tất theo snapshot ID cố định và cô lập từng `_dataset_run_id`.
 **Commit gợi ý:** `feat(dp3): read pinned Gold publication snapshots by dataset run`.
