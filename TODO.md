@@ -152,12 +152,12 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-05 — Publication ledger `/runtime/dp3/publication`, MERGE idempotent và phục hồi lỗi
 
-- [ ] Tạo `spark/lib/dp3_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/dp3/publication` (tách biệt hoàn toàn với `/runtime/gold/publication` của `dp2`), quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `publication-<sha256>.json`.
-- [ ] Ghi idempotent từng bảng (`lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return`) bằng `MERGE INTO` theo phạm vi `(_dataset_run_id, as_of_date)` (hoặc toàn bộ `_dataset_run_id` khi chạy `mode="full"` / khi `_gold_publication_id` thay đổi), bảo toàn dữ liệu của các `_dataset_run_id` khác cùng tồn tại trong bảng.
-- [ ] Nếu gặp đúng tổ hợp `(_dataset_run_id, _gold_publication_id, as_of_dates, horizon_days)` đã completed và read-back khớp summary, cho phép skip an toàn.
-- [ ] Khi Gold có publication mới (do Silver/Gold hiệu chỉnh hoặc retract đơn hàng), `dp3` recompute lại `_dataset_run_id` từ snapshot Gold mới và xóa sạch các dòng feature/label mồ côi của run đó.
-- [ ] Kiểm tra read-back trước khi ghi `ledger.json`: khớp schema, không trùng khóa chính, không lộ PII rõ, không có `is_returned` khác `NULL` khi `is_mature = false`, và `0 <= refund_ratio <= 1`.
-- [ ] Hỗ trợ tiêm lỗi (`fail_after="features" | "labels" | "completion"`) để kiểm thử partial publish: `attempt.json` ghi `failed`, `ledger.json` cũ giữ nguyên từng byte, và chạy lại phục hồi thành công.
+- [x] Tạo `spark/lib/dp3_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/dp3/publication` (tách biệt hoàn toàn với `/runtime/gold/publication` của `dp2`), quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `publication-<sha256>.json`.
+- [x] Ghi idempotent từng bảng (`lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily`, `lh.gold.lbl_order_return`) bằng `MERGE INTO` theo phạm vi `(_dataset_run_id, as_of_date)` (hoặc toàn bộ `_dataset_run_id` khi chạy `mode="full"` / khi `_gold_publication_id` thay đổi), bảo toàn dữ liệu của các `_dataset_run_id` khác cùng tồn tại trong bảng.
+- [x] Nếu gặp đúng tổ hợp `(_dataset_run_id, _gold_publication_id, as_of_dates, horizon_days)` đã completed và read-back khớp summary, cho phép skip an toàn.
+- [x] Khi Gold có publication mới (do Silver/Gold hiệu chỉnh hoặc retract đơn hàng), `dp3` recompute lại `_dataset_run_id` từ snapshot Gold mới và xóa sạch các dòng feature/label mồ côi của run đó.
+- [x] Kiểm tra read-back trước khi ghi `ledger.json`: khớp schema, không trùng khóa chính, không lộ PII rõ, không có `is_returned` khác `NULL` khi `is_mature = false`, và `0 <= refund_ratio <= 1`.
+- [x] Hỗ trợ tiêm lỗi (`fail_after="features" | "labels" | "completion"`) để kiểm thử partial publish: `attempt.json` ghi `failed`, `ledger.json` cũ giữ nguyên từng byte, và chạy lại phục hồi thành công.
 
 **Đạt khi:** Việc xuất bản features và labels có tính nguyên tử (atomic) theo ledger riêng của `dp3`, idempotent và tự phục hồi sau lỗi.
 **Commit gợi ý:** `feat(dp3): publish replay-safe features and labels with ledger and recovery`.

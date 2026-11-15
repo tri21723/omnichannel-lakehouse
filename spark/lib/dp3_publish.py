@@ -13,6 +13,34 @@ from spark.lib.silver_publish import frame_at, summary
 ROOT = Path("/runtime/dp3/publication")
 
 
+def load_dp3_publication(
+    ledger_path: str | Path = ROOT / "ledger.json",
+    publication_id: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Load and validate completed DP3 publication ledger and optional archive."""
+    ledger_path = Path(ledger_path)
+    if not ledger_path.exists():
+        raise FileNotFoundError(f"DP3 publication ledger not found: {ledger_path}")
+
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    if ledger.get("status") != "completed":
+        raise ValueError(f"DP3 publication is not completed (status={ledger.get('status')})")
+
+    computed_id = hashlib.sha256(json.dumps(ledger, sort_keys=True).encode()).hexdigest()
+    if publication_id and publication_id != computed_id:
+        raise ValueError(
+            f"Requested publication ID {publication_id} does not match ledger {computed_id}"
+        )
+
+    archive_path = ledger_path.parent / f"publication-{computed_id}.json"
+    if archive_path.exists():
+        archive = json.loads(archive_path.read_text(encoding="utf-8"))
+        if archive != ledger:
+            raise ValueError("Corrupted publication archive: content mismatch")
+
+    return ledger, computed_id
+
+
 def replace_dp3_table(spark: Any, table: str, df: Any) -> dict[str, Any]:
     """Replace Iceberg table contents atomically using delete-marker MERGE."""
     from pyspark.sql import functions as F
