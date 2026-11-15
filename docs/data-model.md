@@ -25,7 +25,8 @@ Silver dedup uses updated_ts and canonical normalized SHA-256 as defined in ADR-
 
 Gold dimensions: dim_date, dim_channel, dim_customer, dim_product, dim_seller.
 Gold facts: fact_orders (one row per channel/order), fact_order_items (per order line),
-fact_returns (per return line). Surrogate key strategy is pending physical DDL.
+fact_returns (per return line). Surrogate keys use deterministic 64-char SHA-256 hex strings
+(and integer YYYYMMDD for date_key). See ADR-0009 and sql/iceberg/gold_contract.sql.
 Features: feat_customer_daily and feat_product_daily keyed by channel/entity/as_of_date.
 Labels: lbl_order_return keyed by channel/order/observation horizon, with maturity flag.
 
@@ -67,3 +68,19 @@ Neither stores raw PII. Profile versions use source updated_ts; items/returns in
 order updated_ts. Customer first_order_ts is the global minimum of active valid orders.
 See [ADR-0008](adr/0008-silver-contract.md) for correction/replay/PII policies and
 [Gold handoff](gold-handoff.md) for consistent snapshot consumption.
+
+## Implemented Gold contract (Phase 4C)
+
+Eight Iceberg tables in `lh.gold`: five dimensions (`dim_date`, `dim_channel`, `dim_customer`,
+`dim_product`, `dim_seller`) and three facts (`fact_orders`, `fact_order_items`, `fact_returns`).
+Surrogate keys are deterministic 64-char lowercase SHA-256 hex strings scoped by `_dataset_run_id`
+and `channel`, ensuring multi-dataset isolation without cross-run collisions. `date_key` is an
+integer `YYYYMMDD` in UTC covering all order, customer first order, and return dates.
+
+`dim_seller` is an ID-only dimension derived from valid product and order item sellers, with no
+invented attributes. `dim_customer` preserves HMAC-SHA256 privacy hashes (`name_hash`, `email_hash`).
+All money amounts are `DECIMAL(18,2)` grouped by `(channel, currency)` with no cross-currency conversion.
+Orders and returns are modeled as separate fact tables to prevent Cartesian fan-out on joins.
+Audit columns record `_dataset_run_id`, `_silver_publication_id`, `_silver_snapshot`,
+`_record_hash`, and `_policy_version`. See [ADR-0009](adr/0009-gold-star-schema.md) and
+[physical DDL](../sql/iceberg/gold_contract.sql).

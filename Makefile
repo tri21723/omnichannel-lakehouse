@@ -127,8 +127,10 @@ restart-lakehouse: ## Restart catalog and Spark; preserve data
 
 .PHONY: spark-submit
 BRONZE_ARGS ?=
-spark-submit: ## Submit smoke, dp1_bronze or dp2_silver (use BRONZE_ARGS / SILVER_ARGS)
-	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver'; exit 2 ;; esac
+SILVER_ARGS ?=
+GOLD_ARGS ?=
+spark-submit: ## Submit smoke, dp1_bronze, dp2_silver or dp2_gold (use BRONZE/SILVER/GOLD_ARGS)
+	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver|dp2_gold'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
@@ -220,3 +222,15 @@ test-silver-dq: ## Five-entity DQ, deterministic ties, cross-channel keys and ma
 .PHONY: reconcile-silver
 reconcile-silver: ## Read-only keys and currency/refund reconciliation against pinned authoritative Bronze
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/reference_verify.py --run-id $(SILVER_RUN_ID)
+
+.PHONY: smoke-gold verify-gold integration-gold
+GOLD_RUN_ID ?= 186ae107d0793d2ee237
+smoke-gold: ## Build/publish Gold star schema on the small fixture (375 orders)
+	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id $(GOLD_RUN_ID) --mode full'
+verify-gold: ## Verify committed Gold snapshots without publishing
+	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id $(GOLD_RUN_ID) --verify'
+integration-gold: ## Publish both small fixture and default reference datasets into Gold
+	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id 186ae107d0793d2ee237 --mode full'
+	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id b1e64afaff0176de180a --mode full'
+	$(MAKE) verify-gold GOLD_RUN_ID=186ae107d0793d2ee237
+	$(MAKE) verify-gold GOLD_RUN_ID=b1e64afaff0176de180a

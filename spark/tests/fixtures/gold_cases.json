@@ -1,0 +1,64 @@
+{
+  "contract": "gold-policy-v1",
+  "cases": [
+    {
+      "name": "multi_line_order",
+      "order_id": "ORD_ML_1",
+      "channel": "walmart",
+      "currency": "USD",
+      "items": [
+        {"line_no": 1, "product_id": "P1", "seller_id": "S1", "qty": 2, "unit_price": "10.00", "discount": "0.00", "expected_net": "20.00"},
+        {"line_no": 2, "product_id": "P2", "seller_id": "S2", "qty": 1, "unit_price": "15.50", "discount": "1.50", "expected_net": "14.00"}
+      ],
+      "expected_order_net": "34.00",
+      "expected_item_count": 2,
+      "expected_total_qty": 3
+    },
+    {
+      "name": "partial_and_multiple_returns",
+      "order_id": "ORD_RET_1",
+      "channel": "walmart",
+      "currency": "USD",
+      "line_no": 1,
+      "paid_net": "50.00",
+      "returns": [
+        {"return_id": "RET1", "return_line_no": 1, "refund_amount": "20.00"},
+        {"return_id": "RET2", "return_line_no": 1, "refund_amount": "30.00"}
+      ],
+      "expected_total_refund": "50.00",
+      "expected_exceeded_refund": "50.01"
+    },
+    {
+      "name": "return_after_order_date",
+      "order_ts": "2026-01-01T10:00:00Z",
+      "return_ts": "2026-01-08T14:30:00Z",
+      "expected_order_date_key": 20260101,
+      "expected_return_date_key": 20260108
+    },
+    {
+      "name": "multi_currency_isolation",
+      "currencies": [
+        {"channel": "walmart", "currency": "USD", "amount": "100.00"},
+        {"channel": "lazada", "currency": "VND", "amount": "2500000.00"}
+      ],
+      "expected_grouping": ["channel", "currency"]
+    },
+    {
+      "name": "cross_channel_same_id_distinct_keys",
+      "order_id": "ORD_COMMON_99",
+      "channels": ["walmart", "amazon"],
+      "expected_distinct_keys": 2
+    },
+    {
+      "name": "seller_id_only_derivation",
+      "seller_id": "SELLER_XYZ",
+      "channel": "tiktok_shop",
+      "prohibited_fields": ["seller_name", "country", "address"]
+    },
+    {
+      "name": "customer_pii_boundary",
+      "allowed_hash_fields": ["name_hash", "email_hash", "_pii_key_version"],
+      "prohibited_clear_fields": ["full_name", "email"]
+    }
+  ]
+}
