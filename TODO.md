@@ -105,20 +105,20 @@ Tổng **19–28 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4D-03 — Job `dp3_features`: `feat_customer_daily` và `feat_product_daily`
 
-- [ ] Tạo `spark/lib/dp3_features.py` và entrypoint `spark/jobs/dp3_features/main.py` hỗ trợ CLI: `--run-id`, `--as-of-date` (hoặc `--all-dates`), `--publication-id`, `--mode full|incremental`, `--verify`.
-- [ ] Xây dựng `lh.gold.feat_customer_daily` ở grain `(_dataset_run_id, channel, customer_id, as_of_date)`:
+- [x] Tạo `spark/lib/dp3_features.py` và entrypoint `spark/jobs/dp3_features/main.py` hỗ trợ CLI: `--run-id`, `--as-of-date` (hoặc `--all-dates`), `--publication-id`, `--mode full|incremental`, `--verify`.
+- [x] Xây dựng `lh.gold.feat_customer_daily` ở grain `(_dataset_run_id, channel, customer_id, as_of_date)`:
   - Keys & context: `customer_feature_key` (`sha256(_dataset_run_id:channel:customer_id:as_of_date)`), `customer_key`, `channel_key`, `as_of_date_key`, `channel`, `customer_id`, `as_of_date`, `as_of_ts`, `currency`.
-  - Hanya xét các đơn hàng của khách hàng có `order_ts < as_of_ts` và `not is_deleted`.
+  - Chỉ xét các đơn hàng của khách hàng có `order_ts < as_of_ts` và `not is_deleted`.
   - Recency: `last_order_ts` (`< as_of_ts`), `days_since_last_order` (`DATEDIFF(as_of_date, DATE(last_order_ts))`, `NULL` nếu chưa có đơn trước `as_of_ts`).
   - Frequency: `lifetime_order_count`, `orders_7d`, `orders_30d`.
   - Monetary (`DECIMAL(18,2)`): `lifetime_net_amount`, `spend_7d`, `spend_30d`, `aov_30d` (`spend_30d / NULLIF(orders_30d, 0)` làm tròn `DECIMAL(18,2)`).
   - Return behavior (chỉ tính các hoàn trả có **`order_ts < as_of_ts` VÀ `return_ts < as_of_ts`**): `returned_orders_30d`, `refund_amount_30d`, `return_rate_30d` (`CAST(returned_orders_30d / NULLIF(orders_30d, 0) AS DECIMAL(18,4))`, `0.0000` hoặc `NULL` khi `orders_30d == 0`).
-- [ ] Xây dựng `lh.gold.feat_product_daily` ở grain `(_dataset_run_id, channel, product_id, as_of_date)`:
+- [x] Xây dựng `lh.gold.feat_product_daily` ở grain `(_dataset_run_id, channel, product_id, as_of_date)`:
   - Keys & context: `product_feature_key` (`sha256(_dataset_run_id:channel:product_id:as_of_date)`), `product_key`, `seller_key`, `channel_key`, `as_of_date_key`, `channel`, `product_id`, `seller_id`, `as_of_date`, `as_of_ts`, `currency`.
   - Velocity & Revenue (từ `fact_order_items` có `order_ts < as_of_ts`): `orders_7d`, `orders_30d`, `units_sold_7d`, `units_sold_30d`, `gross_revenue_7d`, `gross_revenue_30d`, `net_revenue_7d`, `net_revenue_30d`, `discount_amount_30d` (`DECIMAL(18,2)`).
   - Return metrics (từ `fact_returns` có **`order_ts < as_of_ts` VÀ `return_ts < as_of_ts`**): `return_count_7d`, `return_count_30d`, `refund_amount_7d`, `refund_amount_30d`, `return_rate_30d` (`CAST(return_count_30d / NULLIF(orders_30d, 0) AS DECIMAL(18,4))`).
-- [ ] Gắn đầy đủ cột audit: `_dataset_run_id`, `_gold_publication_id`, `_record_hash`, `_policy_version`.
-- [ ] Viết unit tests (`spark/tests/test_dp3_features.py`) kiểm chứng công thức RFM, cửa sổ 7d/30d, chống rò rỉ `order_ts >= as_of_ts` và `return_ts >= as_of_ts`, và bảo toàn `DECIMAL(18,2)`.
+- [x] Gắn đầy đủ cột audit: `_dataset_run_id`, `_gold_publication_id`, `_record_hash`, `_policy_version`.
+- [x] Viết unit tests (`spark/tests/test_dp3_features.py`) kiểm chứng công thức RFM, cửa sổ 7d/30d, chống rò rỉ `order_ts >= as_of_ts` và `return_ts >= as_of_ts`, và bảo toàn `DECIMAL(18,2)`.
 
 **Đạt khi:** Hai bảng `feat_customer_daily` và `feat_product_daily` tính đúng RFM/velocity theo point-in-time mà không lộ dữ liệu tương lai hay trộn tiền tệ.
 **Commit gợi ý:** `feat(dp3): build point-in-time customer and product daily features`.
