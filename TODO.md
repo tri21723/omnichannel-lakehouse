@@ -1,208 +1,269 @@
-# TODO — Phase 4B: Chuẩn hóa Bronze thành Silver
+# TODO — Phase 4C: Xây dựng Gold dimensions và facts
 
-Cập nhật: **2026-11-13**. Trạng thái: **Hoàn thành Phase 4B local DoD — 78/78 checklist**.
+Cập nhật: **2026-11-15**. Trạng thái: **Đã lập kế hoạch; chưa bắt đầu triển khai (0/72 checklist)**.
 
-Mục tiêu: triển khai phần Silver của `dp2_silver`, tạo dữ liệu chuẩn cho 5 kênh,
-không trùng natural key, bảo vệ PII, có quarantine và đối soát từng bước.
+Mục tiêu: triển khai phần Gold dimensions và facts thuộc phạm vi `dp2` (theo [ADR-0003](docs/adr/0003-data-contracts.md)),
+tiêu thụ nhất quán một completed Silver publication theo snapshot ID, tạo star schema
+chuẩn trên Iceberg (`lh.gold`), bảo toàn kiểu `DECIMAL(18,2)` / `currency` / ranh giới PII,
+hỗ trợ recompute idempotent khi nguồn Silver hiệu chỉnh và đối soát toàn diện 5 kênh.
 
 Tham chiếu: [plan](docs/plan.md), [data model](docs/data-model.md),
-[bàn giao Silver](docs/silver-handoff.md), [Bronze contract](docs/bronze-contract.md).
-Lịch sử: [checklist Phase 4A](docs/phase4a-checklist.md),
-[bằng chứng Bronze](docs/bronze-validation.md), tag `v0.4a-bronze`.
+[bàn giao Gold](docs/gold-handoff.md), [Silver contract](sql/iceberg/silver_contract.sql),
+[ADR-0003](docs/adr/0003-data-contracts.md), [ADR-0008](docs/adr/0008-silver-contract.md).
+Lịch sử: [checklist Phase 4B](docs/phase4b-checklist.md),
+[bằng chứng Silver](docs/silver-validation.md), tag `v0.4b-silver`.
 
 ## 1. Baseline và phạm vi
 
-Bronze đã kiểm chứng local: JSONL 15.600 dòng, Walmart JDBC 3.000 orders,
-completion có snapshot references; 49 unit tests pass tại mốc Phase 4A.
-Walmart JDBC là nguồn authoritative; JSONL Walmart chỉ đối soát, không union vào Silver.
+Silver đã hoàn tất kiểm chứng local (`v0.4b-silver`): 5 entity (`orders`, `order_items`,
+`customers`, `products`, `returns`) trên 5 kênh (`walmart`, `amazon`, `tiktok_shop`,
+`shopee`, `lazada`), 98 unit tests pass. Hai dataset độc lập cùng tồn tại trong Silver
+trên 3 ngày logic (`2026-01-01`..`2026-01-03`):
+- Small fixture (`186ae107d0793d2ee237`): `orders=375`, `order_items=375`, `customers=25`, `products=88`, `returns=30`.
+- Default reference (`b1e64afaff0176de180a`): `orders=15,000`, `order_items=15,000`, `customers=1,000`, `products=100`, `returns=1,500`.
 
-Phạm vi: orders, order_items, customers, products, returns cho 5 kênh; seller_id
-được giữ trong entity liên quan. Bảng sellers riêng cần quyết định contract vì nguồn
-hiện chưa có đủ seller profile. Bắt đầu Walmart trước, rồi mở rộng JSONL.
+Phạm vi Phase 4C:
+- Chốt ADR-0009 và physical Iceberg DDL (`sql/iceberg/gold_contract.sql`) cho 8 bảng Gold:
+  `dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`,
+  `fact_orders`, `fact_order_items`, `fact_returns`.
+- Đọc đầu vào từ một completed Silver publication (`/runtime/silver/publication/ledger.json`
+  và bản lưu bất biến `publication-<sha256>.json`), dùng `option("snapshot-id", ...)`
+  cho cả 5 bảng `lh.silver.<entity>` và lọc theo `_dataset_run_id` được chọn rõ ràng.
+- Thiết kế surrogate keys deterministic, grain, FK joins luôn kèm `channel`, xử lý
+  `dim_seller` dẫn xuất ID-only từ `seller_id` (không tự bịa `seller_name`/`country`),
+  giữ nguyên `currency` gốc và ranh giới PII (`name_hash`, `email_hash`, `_pii_key_version`).
+- Ghi atomic từng bảng và quản lý Gold publication ledger (`/runtime/gold/publication/ledger.json`),
+  đảm bảo recompute từ Silver publication mới thay thế sạch trạng thái của dataset run đó
+  (kể cả khi dòng cũ bị retract thành invalid/rỗng) mà không nhân đôi khoá hay ảnh hưởng run khác.
 
-Ngoài phạm vi: Gold dim/fact, features/labels, warehouse export, Airflow/Trino,
-streaming/CDC, DataHub, AWS và benchmark skew lớn. Không đổi runtime/port đã pin.
-Người dùng xác nhận đã xử lý billing và CI hosted chạy thành công (2026-11-13).
-Chưa có URL/run ID trong phiên này; không suy ra mọi workflow đều đã pass.
-Khi triển khai Silver, vẫn kiểm chứng các workflow tương ứng với thay đổi mới.
+Ngoài phạm vi: `dp3_features`, `dp3_return_labels` (Phase 4D), `dp4_warehouse` export sang
+PostgreSQL `warehouse` (Phase 4E), benchmark skew quy mô lớn, Airflow (Phase 5),
+Trino (Phase 6), streaming/CDC, DataHub và AWS. Không đổi version/port đã pin.
 
 ## 2. Thứ tự và mốc bàn giao
 
 | Task | Phụ thuộc | Đầu ra | Công sức dự kiến |
 | --- | --- | --- | --- |
-| P4B-01 | — | Baseline và fixture | 1–2 giờ |
-| P4B-02 | 01 | ADR/DDL/semantics | 3–5 giờ |
-| P4B-03 | 02 | Reader snapshot và input manifest | 3–5 giờ |
-| P4B-04 | 03 | Walmart orders/customers/items | 4–6 giờ |
-| P4B-05 | 04 | Walmart products/returns, DQ quan hệ | 3–5 giờ |
-| P4B-06 | 02, 04 | PII và quarantine | 3–5 giờ |
-| P4B-07 | 05, 06 | Dedup/MERGE/recovery | 4–7 giờ |
-| P4B-08 | 07 | Chuẩn hóa 4 nguồn JSONL còn lại | 4–7 giờ |
-| P4B-09 | 08 | Đối soát và regression | 3–5 giờ |
-| P4B-10 | 09 | CI/runbook/bàn giao Gold | 2–4 giờ |
+| P4C-01 | — | Baseline Silver, kiểm chứng snapshot và fixture Gold | 1–2 giờ |
+| P4C-02 | 01 | ADR-0009, star-schema contract, surrogate keys và DDL | 3–5 giờ |
+| P4C-03 | 02 | Reader Silver publication theo snapshot cố định và run isolation | 3–4 giờ |
+| P4C-04 | 03 | Xây dựng 5 bảng chiều (`dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`) | 4–6 giờ |
+| P4C-05 | 04 | Xây dựng 3 bảng fact (`fact_orders`, `fact_order_items`, `fact_returns`) và DQ tiền tệ | 4–6 giờ |
+| P4C-06 | 05 | Gold publication ledger, recompute/retraction và phục hồi lỗi | 4–6 giờ |
+| P4C-07 | 06 | Verifier read-only, đối soát 2 dataset (small + default) và regression | 3–5 giờ |
+| P4C-08 | 07 | Make/CI/runbook, báo cáo validation và bàn giao Phase 4D/4E | 2–4 giờ |
 
-Tổng **30–51 giờ công**, là ước lượng lập kế hoạch, không phải deadline.
-Mốc A: contract/input; mốc B: Walmart hoàn chỉnh; mốc C: đủ 5 kênh và local DoD.
+Tổng **24–38 giờ công**, là ước lượng lập kế hoạch, không phải deadline.
+Mốc A: contract và reader (`01–03`); mốc B: dimensions và facts (`04–05`);
+mốc C: ledger/recovery, đối soát đủ 5 kênh và đóng local DoD (`06–08`).
 
 ## 3. Checklist triển khai
 
-### P4B-01 — Baseline và fixture
+### P4C-01 — Baseline Silver và fixture kiểm thử
 
-- [x] Đọc AGENTS, ADR và Git status; giữ thay đổi ngoài task.
-- [x] Chạy make check, verify-runtime, verify-bronze và test-bronze-contract khi bắt đầu; ghi kết quả mới.
-- [x] Chọn rõ run/date/completion đầu vào; xác minh snapshot còn tồn tại, không tự dùng latest khi thiếu.
-- [x] Chuẩn bị fixture nhỏ riêng cho missing fields, null, JSON scalar, decimal overflow, timestamp lỗi, duplicate và key conflict.
-- [x] Fixture mutation/recovery phải dùng namespace/run riêng; không sửa raw đã publish hoặc reset volume.
+- [ ] Đọc `AGENTS.md`, `docs/gold-handoff.md`, các ADR hiện có và kiểm tra `git status`.
+- [ ] Chạy `make check`, `make verify-runtime`, `make verify-silver` và `make reconcile-silver`
+  cho cả `186ae107d0793d2ee237` (small) và `b1e64afaff0176de180a` (default); ghi nhận baseline.
+- [ ] Xác minh `/runtime/silver/publication/ledger.json` có `status=completed`, bản lưu
+  `publication-<identity>.json` khớp SHA-256 của `json.dumps(ledger, sort_keys=True).encode()`
+  và cả 5 bảng `lh.silver.<entity>` đọc được bằng `snapshot-id`.
+- [ ] Chuẩn bị fixture unit/local test cho Gold: đơn hàng nhiều dòng, hoàn trả một phần/nhiều lần,
+  hoàn trả khác ngày đặt hàng (`return_ts > order_ts`), nhiều tiền tệ (`USD`, `VND`),
+  cùng `order_id`/`customer_id`/`product_id`/`seller_id` ở 2 kênh khác nhau và bản sửa Silver retract dòng cũ.
+- [ ] Đảm bảo mọi thử nghiệm mutation/recovery dùng `_dataset_run_id` hoặc thư mục ledger riêng,
+  không làm bẩn dữ liệu Silver đã publish hoặc xóa volume.
 
-**Đạt khi:** Có baseline tái lập, fixture và expected outcomes, không chứa PII thật.
-**Commit gợi ý:** `test(silver): establish source snapshots and fixtures`.
+**Đạt khi:** Baseline Silver được xác nhận nguyên vẹn và có bộ test cases Gold độc lập.
+**Commit gợi ý:** `test(gold): establish Silver publication baseline and Gold fixtures`.
 
-### P4B-02 — Chốt contract Silver và DDL
+### P4C-02 — Chốt contract Gold, surrogate keys và DDL
 
-- [x] Viết ADR mới và cập nhật data-model/DDL cho 5 entity; quyết định sellers là deferred hoặc có nguồn đủ rõ.
-- [x] Chốt natural keys: channel/order_id; channel/order_id/line_no; channel/customer_id; channel/product_id; channel/return_id/return_line_no.
-- [x] Chốt kiểu STRING, UTC TIMESTAMP, DECIMAL(18,2), nullable/required và enum hợp lệ cho từng trường.
-- [x] Chốt scope CLI --run-id, --run-date, --channel, --mode full|incremental và cách chọn completion cụ thể.
-- [x] Định nghĩa full/incremental, source snapshot revision và hành vi khi bản sửa nguồn làm một dòng trước đây valid trở thành invalid hoặc biến mất.
-- [x] Chốt dedup theo updated_ts và tie-break ổn định bằng canonical payload hash; không dùng ingest time hay thứ tự file.
-- [x] Định nghĩa version cho items/returns thiếu updated_ts: kế thừa nguồn nào, xử lý snapshot mới/cũ và conflict ra sao.
-- [x] Chọn partition và audit fields, policy schema evolution; cấm drop/recreate bảng khi mismatch.
-- [x] Chốt ranh giới atomic từng bảng, completion toàn job và cơ chế khóa writer; không tuyên bố transaction nhiều bảng.
+- [ ] Viết `docs/adr/0009-gold-star-schema.md` và cập nhật `docs/data-model.md`,
+  `sql/iceberg/gold_contract.sql` cho 8 bảng trong namespace `lh.gold`.
+- [ ] Chốt ranh giới entrypoint thuộc `dp2` (mở rộng `dp2_silver` hoặc module `dp2_gold` dùng chung
+  thư viện `spark/lib/gold_*.py`) và tham số CLI: `--run-id`, `--publication-id` (tuỳ chọn,
+  mặc định pin từ `ledger.json` hiện hành), `--mode full|incremental`, `--verify`.
+- [ ] Chốt quy tắc sinh surrogate keys deterministic (ví dụ SHA-256 canonical theo `_dataset_run_id`
+  + `channel` + natural key cho `customer_key`, `product_key`, `seller_key`, `channel_key`;
+  `date_key` dạng `INT` `YYYYMMDD` hoặc `DATE` UTC) để chạy lại luôn cho cùng khoá.
+- [ ] Chốt thiết kế `dim_seller`: dẫn xuất ID-only (`seller_key`, `channel`, `seller_id`,
+  audit fields) từ tập hợp `seller_id` hợp lệ trong `silver.products` và `silver.order_items`;
+  tuyệt đối không tự suy diễn `seller_name` hay `country`.
+- [ ] Chốt thiết kế `dim_date` (UTC calendar attributes: `date_key`, `calendar_date`, `year`,
+  `quarter`, `month`, `day_of_month`, `day_of_week`, `is_weekend`) bao phủ đầy đủ mọi ngày
+  xuất hiện trong `order_ts`, `first_order_ts` và `return_ts` của dataset run.
+- [ ] Chốt thiết kế `dim_channel` (5 kênh chuẩn kèm thuộc tính tĩnh có kiểm soát như
+  `channel_key`, `channel`, `source_Format`/` ingestion_mode` hoặc metadata được định nghĩa rõ).
+- [ ] Chốt grain và measures cho 3 bảng fact:
+  - `fact_orders`: 1 dòng / `(channel, order_id)`; giữ `gross_amount`, `discount_amount`,
+    `net_amount` (`total_amount`), `item_count`, `total_qty`, `currency`, `status`, `is_deleted`.
+  - `fact_order_items`: 1 dòng / `(channel, order_id, line_no)`; giữ `qty`, `unit_price`,
+    `discount`, `gross_line_amount` (`qty * unit_price`), `net_line_amount` (`qty * unit_price - discount`), `currency`.
+  - `fact_returns`: 1 dòng / `(channel, return_id, return_line_no)`; liên kết về order line,
+    `order_date_key`, `return_date_key`, `refund_amount`, `currency`, `reason`.
+- [ ] Chốt cách tránh nhân bản số liệu (fan-out/chasm trap) khi kết hợp order facts và return facts:
+  tổng hợp hoàn trả về đúng grain trước khi đối soát hoặc giữ tách biệt ở `fact_returns`.
+- [ ] Chốt các cột audit/provenance Gold (`_dataset_run_id`, `_silver_publication_id`,
+  `_silver_snapshot`, `_record_hash`, `_policy_version`) và cấu hình bảng Iceberg v2 / Parquet / ZSTD / partitioning.
 
-**Đạt khi:** Contract giải quyết rõ replay, sửa dữ liệu và phiên bản nguồn trước khi viết MERGE.
-**Commit gợi ý:** `docs(adr): define Silver schemas and merge semantics`.
+**Đạt khi:** Schema, surrogate keys, công thức tiền tệ và cơ chế pin publication được định nghĩa rõ ràng trước khi viết code transform.
+**Commit gợi ý:** `docs(adr): define Gold star schema and publication contract`.
 
-### P4B-03 — Reader Bronze theo snapshot cố định
+### P4C-03 — Reader Silver publication cố định và cô lập dataset run
 
-- [x] Tạo reader dùng chung trong spark/lib; kiểm tra status completed, contract, selection, batch ID và allowlist bảng.
-- [x] Copy bộ input references thành manifest bất biến cho attempt Silver; completion Bronze bị thay sau đó không làm đổi input đang xử lý.
-- [x] Đọc Iceberg bằng snapshot ID rồi lọc run/channel/date/source/batch; reconcile count/content với completion.
-- [x] Với snapshot NULL chỉ chấp nhận evidence zero rows và tạo input rỗng typed; snapshot bị expire phải fail rõ.
-- [x] Từ chối completion legacy thiếu selection; hướng dẫn replay Bronze full để nâng metadata.
-- [x] JDBC Walmart yêu cầu đủ 5 bảng cùng completion; JSONL Walmart không được chọn cho authoritative Silver.
-- [x] Test Bronze latest thay đổi sau khi chọn input, completion failed/running, thiếu bảng và snapshot không tồn tại.
+- [ ] Tạo `spark/lib/gold_input.py` đọc `/runtime/silver/publication/ledger.json`, kiểm tra
+  `status == "completed"`, đầy đủ 15 bảng Silver và tính `publication_id` đúng chuẩn
+  `hashlib.sha256(json.dumps(ledger, sort_keys=True).encode()).hexdigest()`.
+- [ ] Xác minh file bất biến `publication-<publication_id>.json` tồn tại và khớp nội dung;
+  từ chối đọc từ `attempt.json` hoặc trạng thái `running`/`failed`.
+- [ ] Pin input cho Gold attempt; nếu Silver publish thêm slice mới trong lúc Gold đang chạy,
+  Gold vẫn chỉ đọc đúng bộ `snapshot-id` của `publication_id` đã pin.
+- [ ] Đọc 5 bảng `lh.silver.{orders,order_items,customers,products,returns}` bằng
+  `option("snapshot-id", ...)`; xử lý `snapshot = None` thành DataFrame rỗng có kiểu chỉ khi
+  `rows == "0"`, và báo lỗi rõ nếu snapshot bị thiếu/expire.
+- [ ] Đối soát summary (`rows`, `h1`, `h2`) của từng bảng Silver đọc từ snapshot khớp với
+  `evidence["content"]` trong ledger trước khi lọc theo `_dataset_run_id`.
+- [ ] Lọc chặt chẽ theo `_dataset_run_id == args.run_id`; từ chối nếu `_dataset_run_id` không
+  có bất kỳ slice nào trong `ledger["slices"]` (trừ trường hợp toàn bộ slice của run đó đều là
+  retraction/empty slice hợp lệ đã được ghi nhận trong `ledger["slices"]`).
+- [ ] Viết unit/integration test cho các trường hợp: ledger chưa completed, sai hash archive,
+  snapshot không tồn tại, Silver cập nhật bảng sau khi Gold đã pin, và cô lập giữa small run với default run.
 
-**Đạt khi:** Input Silver được cố định và đối soát trước mọi ghi đích.
-**Commit gợi ý:** `feat(silver): read validated Bronze snapshot inputs`.
+**Đạt khi:** Đầu vào Gold bất biến theo một Silver publication đã hoàn tất và không bao giờ trộn lẫn hai dataset run.
+**Commit gợi ý:** `feat(gold): read pinned Silver publication snapshots by dataset run`.
 
-### P4B-04 — Vertical slice Walmart
+### P4C-04 — Xây dựng 5 bảng chiều (`dim_*`)
 
-- [x] Tạo spark/jobs/dp2_silver với thư viện parse/schema/audit dùng chung và structured logs.
-- [x] Parse _raw bằng schema explicit; phân biệt missing, null, cast failure, JSON scalar và invalid syntax.
-- [x] Chuẩn hóa orders/customers/items: timestamp UTC, DECIMAL chính xác, ID dạng string và giữ currency.
-- [x] Không dùng float hoặc làm tròn âm thầm; overflow/sai scale theo policy phải có error code.
-- [x] Kiểm tra qty > 0, line_no hợp lệ, amount không âm và key bắt buộc; định nghĩa kiểm tra tổng tiền với discount.
-- [x] Giữ provenance về batch/snapshot/record fingerprint; chưa publish customer PII rõ ra bảng Silver.
-- [x] Chạy một ngày Walmart trên Spark cluster; assert schema, giá trị và accounting theo entity.
+- [ ] Xây dựng `dim_channel` và `dim_date` deterministic theo phạm vi ngày thực tế của run
+  (bao gồm cả ngày của `order_ts`, `first_order_ts`, `return_ts`, kể cả khi `return_ts` rơi vào sau `run_date`).
+- [ ] Xây dựng `dim_customer` từ `lh.silver.customers`: giữ nguyên `name_hash`, `email_hash`,
+  `_pii_key_version`, `country`, `first_order_ts`, `updated_ts`; đảm bảo không có `full_name`/`email` rõ.
+- [ ] Xây dựng `dim_product` từ `lh.silver.products`: giữ `title`, `category`, `brand` (nullable),
+  `seller_id`, `seller_key`, `updated_ts`.
+- [ ] Xây dựng `dim_seller` dẫn xuất từ tập hợp `(channel, seller_id)` của `products` và `order_items`
+  trong run; kiểm tra tính duy nhất của `( _dataset_run_id, channel, seller_id )` và `seller_key`.
+- [ ] Đảm bảo mọi khoá tự nhiên và surrogate key đều phân tách theo `channel` (cùng ID gốc ở
+  2 kênh khác nhau phải sinh ra 2 dòng dimension với 2 surrogate key khác nhau).
+- [ ] Kiểm tra không có NULL trên surrogate keys, natural keys hoặc cột bắt buộc; kiểm tra
+  chính sách current-state profile (không nhân bản lịch sử SCD2 ngoài phạm vi v1).
+- [ ] Viết unit test kiểm chứng schema, surrogate keys, `dim_date` boundary (bao gồm ngày hoàn trả muộn)
+  và tính bảo mật PII của `dim_customer`.
 
-**Đạt khi:** Một slice typed có expected values và provenance; PII chưa được xuất rõ.
-**Commit gợi ý:** `feat(silver): normalize Walmart orders customers and items`.
+**Đạt khi:** 5 bảng `dim_*` tạo ra tập khoá duy nhất, đầy đủ để join 100% với các bảng fact.
+**Commit gợi ý:** `feat(gold): build deterministic dimensions for date channel customer product and seller`.
 
-### P4B-05 — Products/returns và quan hệ
+### P4C-05 — Xây dựng 3 bảng sự kiện (`fact_*`) và đối soát tiền tệ
 
-- [x] Mở rộng parser cho products và returns; giữ brand nullable và return line key đầy đủ.
-- [x] Returns chọn theo membership của orders; không loại vì return_ts sau run_date.
-- [x] Dedup customers/products lặp giữa date slices theo version contract, không tăng entity count mỗi ngày.
-- [x] Chốt và test orphan order/item/product/return: quarantine hay deferred lookup phải rõ.
-- [x] Join luôn gồm channel; test cùng source ID xuất hiện ở hai kênh không bị join nhầm.
-- [x] Kiểm tra refund/return quantity theo dữ liệu hiện có; không tự suy ra field nguồn chưa cung cấp.
+- [ ] Xây dựng `fact_order_items` từ `lh.silver.order_items` join với `lh.silver.orders` (để lấy
+  `order_ts`, `order_date_key`, `customer_key`, `currency`, `status`) và join `dim_product`, `dim_seller`, `dim_channel`.
+- [ ] Tính chính xác bằng `DECIMAL(18,2)`: `gross_line_amount = qty * unit_price`,
+  `discount_amount = discount`, `net_line_amount = qty * unit_price - discount`; không dùng float.
+- [ ] Xây dựng `fact_orders` từ `lh.silver.orders` kết hợp tổng hợp ở grain `(channel, order_id)`
+  từ `fact_order_items` (`item_count`, `total_qty`, `gross_amount`, `discount_amount`, `net_amount`),
+  đối soát `net_amount == orders.total_amount`.
+- [ ] Xây dựng `fact_returns` từ `lh.silver.returns` join với `fact_order_items` / `orders` theo
+  `(_dataset_run_id, channel, order_id, line_no)`: gắn `return_date_key` (từ `return_ts` UTC thực tế),
+  `order_date_key`, `customer_key`, `product_key`, `seller_key`, `currency`, `refund_amount`, `reason`.
+- [ ] Không suy diễn trường số lượng hoàn trả (`return_qty` = N/A vì nguồn không cung cấp);
+  kiểm tra tổng `refund_amount` theo `(channel, order_id, line_no)` không vượt quá `net_line_amount`.
+- [ ] Đảm bảo khi một đơn hàng có nhiều lần hoàn trả trên cùng/khác dòng, việc join tổng hợp
+  không làm nhân đôi doanh thu đơn hàng (`fact_orders`) hay giá trị dòng hàng (`fact_order_items`).
+- [ ] Bảo toàn `currency` gốc theo từng kênh (ví dụ `VND` cho Lazada, `USD` cho các kênh khác);
+  mọi kiểm tra đối soát tổng tiền đều nhóm theo `(channel, currency)`.
+- [ ] Viết unit test kiểm chứng công thức tính tiền, trường hợp hoàn trả nhiều dòng/nhiều ngày
+  và kiểm tra không thất thoát hay nhân bản dòng khi join với 5 bảng `dim_*`.
 
-Return quantity: **N/A** vì nguồn không cung cấp field; kiểm tra refund bằng giá trị đã trả.
+**Đạt khi:** 3 bảng `fact_*` khớp 100% số dòng, khoá ngoại và tổng tiền `DECIMAL(18,2)` với Silver.
+**Commit gợi ý:** `feat(gold): build order item and return fact tables with decimal reconciliation`.
 
-**Đạt khi:** Đủ 5 entity Walmart với DQ quan hệ và ngày hoàn trả được xử lý đúng.
-**Commit gợi ý:** `feat(silver): normalize Walmart products returns and relationships`.
+### P4C-06 — Gold publication ledger, recompute/retraction và phục hồi lỗi
 
-### P4B-06 — PII và quarantine
+- [ ] Tạo `spark/lib/gold_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/gold/publication`,
+  quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `publication-<id>.json`.
+- [ ] Ghi idempotent từng bảng trong `lh.gold.*` theo phạm vi `_dataset_run_id` bằng `MERGE INTO`
+  (delete mọi dòng cũ của `_dataset_run_id` đó + insert tập dòng mới của run đó), giữ nguyên
+  dữ liệu của các `_dataset_run_id` khác đang cùng tồn tại trong bảng.
+- [ ] Nếu `mode` (`full` hoặc `incremental`) gặp đúng cặp `(_dataset_run_id, _silver_publication_id)`
+  đã được publish completed và read-back tất cả 8 bảng Gold đều khớp summary, cho phép skip an toàn.
+- [ ] Khi Silver có publication mới (do nạp thêm ngày/kênh hoặc `--correction` làm thay đổi/retract
+  dòng cũ hoặc tạo slice rỗng), Gold recompute toàn bộ `_dataset_run_id` từ snapshot Silver mới,
+  xoá sạch các dòng fact/dim không còn hiệu lực của run đó mà không để lại dữ liệu mồ côi.
+- [ ] Từ chối publish nếu phát hiện natural key hoặc surrogate key bị trùng giữa hai `_dataset_run_id` khác nhau.
+- [ ] Kiểm tra read-back schema, key uniqueness, referential integrity (mọi FK trong 3 bảng fact
+  đều tồn tại trong 5 bảng dim của cùng `_dataset_run_id`), PII guard và tổng tiền trước khi ghi `ledger.json`.
+- [ ] Hỗ trợ tiêm lỗi (`fail_after="dim" | "fact" | "completion"`) để kiểm thử partial publish:
+  khi lỗi xảy ra, `attempt.json` chuyển sang `failed`, `ledger.json` cũ giữ nguyên từng byte,
+  và lần chạy lại phục hồi thành công từ trạng thái đã commit mà không nhân đôi dữ liệu.
 
-- [x] Chốt normalization/hash policy trong ADR: tên/email, giá trị null, key/version, scope liên kết giữa kênh; tránh tự tạo cross-channel identity.
-- [x] Nếu dùng keyed hash/HMAC: secret qua env, không có default key; cùng key cho kết quả ổn định, ghi key version và quy trình rotation.
-- [x] Test không còn full_name/email rõ trong Silver schema, data mẫu, logs và exception; raw/quarantine có policy hạn chế truy cập.
-- [x] Tạo silver.quarantine_<entity> với error code ổn định, provenance và record fingerprint; quyết định rõ có lưu raw hay chỉ tham chiếu Bronze.
-- [x] Quarantine idempotent; retry không tăng bản sao, sửa lỗi nguồn giải quyết hoặc thay trạng thái quarantine cũ theo contract.
-- [x] Định nghĩa thứ tự kiểm tra lỗi và reason list; một record nhiều lỗi không bị đếm thành nhiều record.
-- [x] Ghi accounting: input occurrences = rejected + valid candidates; candidates = winners + duplicate losers. Tách accounting cha/con khi explode.
+**Đạt khi:** Gold publish có tính atomic theo ledger cho từng dataset run, chịu lỗi tốt và xử lý đúng retraction từ Silver.
+**Commit gợi ý:** `feat(gold): publish replay-safe Gold tables with ledger and recovery`.
 
-**Đạt khi:** PII được xử lý nhất quán và mọi dòng bị loại khỏi Silver có lý do đối soát được.
-**Commit gợi ý:** `feat(silver): protect PII and reconcile quarantined records`.
+### P4C-07 — Verifier read-only, đối soát đa kênh và regression
 
-### P4B-07 — Dedup, MERGE và phục hồi
+- [ ] Tạo verifier read-only (`--verify` và `spark/jobs/dp2_silver/gold_verify.py` hoặc tương đương)
+  đọc các snapshot trong `/runtime/gold/publication/ledger.json` mà không ghi lại dữ liệu.
+- [ ] Kiểm chứng toàn diện trên small fixture (`186ae107d0793d2ee237`):
+  `fact_orders=375`, `fact_order_items=375`, `dim_customer=25`, `dim_product=88`, `fact_returns=30`,
+  `dim_channel=5`, cùng số lượng `dim_seller` và `dim_date` khớp tập khoá duy nhất từ Silver.
+- [ ] Kiểm chứng toàn diện trên default reference dataset (`b1e64afaff0176de180a`):
+  `fact_orders=15,000` (3.000/kênh), `fact_order_items=15,000`, `dim_customer=1,000`,
+  `dim_product=100`, `fact_returns=1,500`, `dim_channel=5`.
+- [ ] Xác minh cả hai dataset (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`) cùng tồn tại
+  trong các bảng `lh.gold.*` (`total fact_orders = 15,375`), đọc độc lập theo `_dataset_run_id`
+  và tổng tiền/hoàn trả theo `(channel, currency)` khớp tuyệt đối giữa Gold, Silver và Bronze authoritative.
+- [ ] Kiểm thử chạy lại (replay) 2 lần liên tiếp cho cả `full` và `incremental`: số dòng,
+  surrogate keys và business hashes không đổi.
+- [ ] Kiểm thử kịch bản nguồn Silver thay đổi (correction retract một đơn hàng và cập nhật profile):
+  Gold cập nhật đúng fact/dim và giữ nguyên các thực thể dùng chung bởi ngày khác.
+- [ ] Restart `lakekeeper`, `spark-master`, `spark-worker1`, `spark-worker2` rồi chạy verifier
+  read-only trước mọi thao tác ghi; chạy lại regression `make smoke-core`, `make verify-sources`,
+  `make verify-lakehouse`, `make verify-bronze`, `make verify-silver` và `make reconcile-silver`.
+- [ ] Ghi nhận thời gian chạy, số dòng, số file/bytes của các bảng Gold; không diễn giải số liệu
+  fixture/default nhỏ thành benchmark skew triệu dòng.
 
-- [x] Dedup trước MERGE để mỗi target key chỉ có một source winner; giữ conflict/duplicate metrics.
-- [x] Test đổi thứ tự input/repartition vẫn chọn cùng winner, kể cả bằng updated_ts nhưng payload khác.
-- [x] MERGE không để batch cũ ghi đè phiên bản mới; kiểm thử late replay của date cũ sau date mới.
-- [x] Full replacement có scope chính xác; không xóa customer/product dùng chung bởi ngày khác. Chốt xử lý record biến mất/invalid trước khi coi full là hoàn chỉnh.
-- [x] Không suy ra CDC delete hoặc is_deleted từ việc thiếu row nếu source contract không đảm bảo full snapshot scope.
-- [x] Publish completion Silver sau read-back/DQ tất cả bảng, gồm input snapshots, output snapshots, counts và policy versions.
-- [x] Tiêm lỗi sau commit một bảng, trước completion và trong quarantine; marker incomplete, retry phục hồi và không tạo bản sao.
-- [x] Test writer conflict, empty output, NULL identity và hai dataset cùng ngày; nguồn Bronze giữ nguyên.
+**Đạt khi:** Cả hai ma trận dữ liệu đối soát khớp 100% từ Bronze → Silver → Gold và vượt qua bài kiểm tra restart/regression.
+**Commit gợi ý:** `test(gold): verify five-channel reconciliation replay recovery and persistence`.
 
-**Đạt khi:** Replay deterministic, không rollback dữ liệu mới và partial publish không thành công giả.
-**Commit gợi ý:** `feat(silver): publish deterministic replay-safe entity state`.
+### P4C-08 — Make, CI, tài liệu và bàn giao Phase 4D/4E
 
-### P4B-08 — Mở rộng JSONL đa kênh
+- [ ] Mở rộng `Makefile` (ví dụ `JOB=dp2_gold` hoặc mở rộng `dp2_silver` cùng các target
+  `smoke-gold`, `verify-gold`, `integration-gold`, `integration-gold-reference`,
+  `test-gold-dq`, `test-gold-recovery`, `reconcile-gold`), giữ nguyên toàn bộ target cũ.
+- [ ] Đảm bảo `make check` chạy nhanh (lint Python/SQL/YAML/shell + unit tests) không cần Docker,
+  không skip ngầm các bài kiểm tra bắt buộc.
+- [ ] Cập nhật hoặc thêm workflow GitHub Actions manual cho Gold dùng small fixture, timeout rõ ràng,
+  diagnostics đã lọc PII/secret và dọn container không xóa volume local.
+- [ ] Cập nhật `docs/gold-validation.md`, `README.md`, `docs/runbook.md`, `docs/implementation-status.md`,
+  `docs/data-model.md`, `sql/iceberg/gold_contract.sql` và `docs/adr/0009-gold-star-schema.md`.
+- [ ] Viết tài liệu bàn giao tiếp theo (`docs/features-warehouse-handoff.md` hoặc cập nhật handoff)
+  cho Phase 4D (`dp3_features`, `dp3_return_labels`: point-in-time cutoff `order_ts < as_of_ts`,
+  observation horizon, maturity flag, chống data leakage) và Phase 4E (`dp4_warehouse`:
+  cửa sổ `[run_date - 29 days, run_date + 1 day)` UTC, atomic publish sang PostgreSQL `warehouse`).
+- [ ] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế; commit theo Conventional Commits
+  cho từng bước và chỉ gắn tag `v0.4c-gold` sau khi đạt toàn bộ local DoD. Chưa gắn tag đóng toàn bộ Phase 4.
 
-- [x] Amazon: coalesce customer_id/buyer_id; nếu cả hai có giá trị khác nhau thì xử lý conflict rõ; giữ fulfillment_type nullable.
-- [x] TikTok Shop: parse schema hiện có và explode customer/items/products/returns với provenance.
-- [x] Shopee: parse timestamp có +0700 bằng format explicit, chuyển UTC, test boundary qua ngày và malformed date.
-- [x] Lazada: brand nullable, VND và decimal strings giữ nguyên; không dùng hệ số generator như FX rate.
-- [x] Giữ fields lạ trong Bronze; Silver schema evolution theo contract/version, không mergeSchema mù.
-- [x] Phân biệt missing array với empty array; dùng policy để tránh sinh child row NULL hoặc bỏ mất lỗi.
-- [x] Test embedded customer/product lặp ở nhiều orders; natural-key dedup không làm mất order/item/return.
-- [x] Nạp đủ 4 JSONL kênh + Walmart JDBC; chạy lại toàn bộ không tăng business keys.
+**Đạt khi:** Có đầy đủ mã nguồn, kiểm thử, tài liệu vận hành và hợp đồng bàn giao sang Phase 4D/4E.
+**Commit gợi ý:** `docs(gold): publish validation evidence and Phase 4D/4E handoff`.
 
-**Đạt khi:** 5 kênh dùng chung schema Silver, source differences được kiểm thử rõ.
-**Commit gợi ý:** `feat(silver): normalize omnichannel JSONL entities`.
+## 4. Điều kiện đóng Phase 4C
 
-### P4B-09 — Đối soát và vận hành
-
-- [x] Tạo verifier read-only theo completion/snapshot, kiểm tra schema, uniqueness, FK/DQ, PII policy và row accounting.
-- [x] Baseline default kỳ vọng 15.000 orders duy nhất = 3.000/kênh; không cộng Walmart export thành kênh thứ sáu.
-- [x] Expected counts của items/customers/products/returns tính theo source keys và scope, không mặc định bằng số orders.
-- [x] Kiểm tra tổng tiền/refund theo channel/currency bằng DECIMAL; không tổng hợp USD và VND vào cùng một số.
-- [x] Test malformed fixtures có expected reject/dedup/winner counts; mọi đầu vào được giải thích, kể cả parent-child rejection.
-- [x] Test replay hai lần, source correction, late older batch, PII key thiếu, snapshot mất, input completion sai và catalog failure.
-- [x] Restart rồi verify trước mọi ghi lại; regression Bronze/core/source vẫn pass.
-- [x] Ghi runtime, input/output rows, duration, staging/shuffle/file metrics phù hợp; không diễn giải fixture nhỏ thành benchmark lớn.
-
-**Đạt khi:** Có evidence cho correctness, privacy, recovery và persistence.
-**Commit gợi ý:** `test(silver): verify reconciliation PII replay and persistence`.
-
-### P4B-10 — Make/CI/tài liệu và bàn giao
-
-- [x] Mở rộng make spark-submit JOB=dp2_silver; thêm smoke-silver, verify-silver và integration-silver, giữ target Bronze.
-- [x] Tách unit/local Spark tests khỏi Docker integration; không im lặng skip rồi báo pipeline pass.
-- [x] Workflow manual dùng fixture nhỏ, timeout, cleanup không xóa volumes local và failure logs đã lọc PII/secret.
-- [x] Chạy make check và integration local; ghi hosted CI riêng, không tick hosted pass khi chưa có run.
-- [x] Hoàn tất docs/silver-validation.md, README, runbook, implementation-status, DDL và ADR bằng expected/actual evidence.
-- [x] Bàn giao Gold: grain, natural keys, currency, relationships, quarantine accounting, PII fields và snapshot input contract.
-- [x] Rà soát TODO theo bằng chứng; commit mỗi task nhỏ, tag v0.4b-silver chỉ sau local DoD đạt. Chưa tag toàn Phase 4.
-
-**Đạt khi:** Có cách tái lập Silver và contract đủ để lập kế hoạch Gold.
-**Commit gợi ý:** `docs(silver): publish validation and Gold handoff`.
-
-## 4. Điều kiện đóng Phase 4B
-
-- [x] 5 entity/5 kênh đúng schema, key uniqueness và source ownership.
-- [x] Input pinned theo completion/snapshot; replay và correction có semantics được kiểm thử.
-- [x] PII policy đạt; quarantine/accounting không mất dòng âm thầm.
-- [x] Partial failure/retry và restart pass; Bronze/source regression xanh.
-- [x] Lint, unit/integration local đạt; CI hosted và giới hạn được ghi trung thực.
-- [x] DDL/ADR/runbook/evidence/handoff cập nhật, commits và milestone hoàn tất.
-
-Local evidence: [silver-validation.md](docs/silver-validation.md). make check: 98 tests
-và lint pass; matrix nhỏ/default, DQ, recovery, đối soát, restart/read-only verify và
-regression core/source/Lakehouse/Bronze đều pass. Milestone: `v0.4b-silver`.
-Workflow Silver manual đã thêm; chưa có hosted run mới, không suy ra hosted pass.
+- [ ] 8 bảng Gold (`dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`,
+  `fact_orders`, `fact_order_items`, `fact_returns`) đúng schema, grain, surrogate key uniqueness và FK integrity.
+- [ ] Input được pin chặt chẽ từ completed Silver publication ledger theo `snapshot-id`; không dùng `latest`.
+- [ ] Không lộ PII rõ trong schema, dữ liệu, exception hay log; `currency` và `DECIMAL(18,2)` được bảo toàn.
+- [ ] Replay idempotent, cô lập đúng giữa các `_dataset_run_id`, xử lý đúng Silver correction/retraction và phục hồi sau lỗi.
+- [ ] Restart persistence và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver` đều xanh.
+- [ ] `make check` và bộ integration local đạt; tài liệu, ADR, DDL, runbook và handoff được cập nhật đầy đủ.
 
 ## 5. Quy tắc thực hiện
 
-1. Checkbox để trống đến khi có implementation và kiểm chứng tương ứng.
-2. Sau mỗi task nhỏ: chạy kiểm tra liên quan và make check, cập nhật evidence/TODO,
-   rồi commit Conventional Commits ngay; không cần chờ cả nhóm task lớn.
-3. Mục không áp dụng ghi N/A kèm quyết định phạm vi; blocker giữ unchecked.
-4. Không đổi version/port, xóa bucket/volume/DB, expire snapshot hoặc tạo cloud resources.
-5. Không commit secret, raw payload, hash key, dữ liệu runtime hoặc artifact lớn.
-6. Các quyết định chưa chốt ở checklist phải được giải quyết trong ADR trước dependent code.
+1. Mọi checkbox để trống cho đến khi có implementation và bằng chứng kiểm tra tương ứng.
+2. Sau mỗi task nhỏ: chạy kiểm tra liên quan và `make check`, cập nhật `TODO.md`/evidence,
+   rồi tạo commit theo Conventional Commits ngay; không chờ dồn cuối phase.
+3. Mục không áp dụng phải ghi rõ `N/A` kèm lý do; mục bị chặn giữ nguyên `[ ]` và ghi rõ blocker.
+4. Không đổi version/port đã pin, không xóa volume/bucket/DB, không expire các snapshot đang được pin/ledger tham chiếu.
+5. Không commit `.env`, secret, HMAC key, raw PII hay file dữ liệu runtime.
+6. Mọi quyết định thiết kế về surrogate keys, `dim_seller` và grain phải được chốt trong ADR-0009 trước khi viết code phụ thuộc.
 
-Sau 4B: 4C Gold dim/fact → 4D features/labels → 4E warehouse export → benchmark và
-batch end-to-end để đóng toàn Phase 4. Các phần này không thuộc DoD Silver hiện tại.
+Sau 4C: **Phase 4D** (`dp3_features`, `dp3_return_labels`) → **Phase 4E** (`dp4_warehouse` export sang PostgreSQL)
+→ **Phase 4F** (benchmark skew & đóng toàn bộ Phase 4).

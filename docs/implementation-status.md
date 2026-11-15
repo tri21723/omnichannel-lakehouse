@@ -62,9 +62,16 @@ milestones; the final Phase 4A report records the current count.
 - Small matrix: 375 orders; default matrix: 15,000 orders. Both datasets coexist.
 - Manual Silver CI workflow added; new hosted execution is not claimed.
 
-See [Silver validation](silver-validation.md), [TODO](../TODO.md) and
-[Gold handoff](gold-handoff.md). Next is Phase 4C: Gold dimensions/facts owned by dp2.
-Features/labels and PostgreSQL warehouse export are later phases.
+See [Silver validation](silver-validation.md), [completed checklist](phase4b-checklist.md) and
+[Gold handoff](gold-handoff.md).
+
+## Next: Phase 4C — Gold dimensions and facts
+
+Detailed implementation plan: [TODO](../TODO.md); implementation has not started.
+Per ADR-0003, dp2 owns Gold dimensions and facts (`dim_date`, `dim_channel`, `dim_customer`,
+`dim_product`, `dim_seller`, `fact_orders`, `fact_order_items`, `fact_returns`) consumed from
+a pinned completed Silver publication ledger. Features/labels and PostgreSQL warehouse export
+are later phases.
 
 ## Later phases
 

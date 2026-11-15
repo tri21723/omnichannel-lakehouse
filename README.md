@@ -12,7 +12,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 Phase 4B hoàn thành local (`v0.4b-silver`): Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
 Gold và Airflow là các giai đoạn tiếp theo.
 Chi tiết: [implementation status](docs/implementation-status.md).
-Kế hoạch Silver: [TODO — Phase 4B](TODO.md). Bàn giao tiếp theo: [Gold](docs/gold-handoff.md).
+Checklist Silver: [Phase 4B](docs/phase4b-checklist.md). Kế hoạch Gold: [TODO — Phase 4C](TODO.md). Bàn giao: [Gold](docs/gold-handoff.md).
 
 ## Bắt đầu phát triển
 
