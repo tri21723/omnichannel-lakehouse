@@ -97,6 +97,7 @@ def publish_gold(
     silver_pub_id,
     root=ROOT,
     fail_after=None,
+    force=False,
 ):
     """Publish Gold tables atomically with per-run scoping and update ledger."""
     from pyspark.sql import functions as F
@@ -113,7 +114,9 @@ def publish_gold(
         # Check if identical publication for this run already completed
         prior_run = old.get("runs", {}).get(run_id)
         if (
-            prior_run
+            not force
+            and fail_after is None
+            and prior_run
             and prior_run.get("silver_publication_id") == silver_pub_id
             and old.get("status") == "completed"
         ):
@@ -163,12 +166,22 @@ def publish_gold(
                 other_runs = base.filter(F.col("_dataset_run_id") != run_id)
                 combined = other_runs.unionByName(new_df).localCheckpoint(eager=True)
 
-                # Ensure surrogate keys don't collide between runs
-                collision = combined.groupBy(*GOLD_KEYS[name]).agg(
-                    F.countDistinct("_dataset_run_id").alias("_runs")
+                dup_within_run = (
+                    combined.groupBy("_dataset_run_id", *GOLD_KEYS[name])
+                    .count()
+                    .filter(F.col("count") > 1)
                 )
-                if collision.filter("_runs > 1").limit(1).count():
-                    raise ValueError(f"Cross-run key collision in {name}")
+                if dup_within_run.limit(1).count():
+                    raise ValueError(f"Duplicate key within run in {name}")
+
+                # Ensure surrogate keys don't collide between runs
+                # (dim_date and dim_channel are calendar/channel lookups)
+                if name not in ("dim_date", "dim_channel"):
+                    collision = combined.groupBy(*GOLD_KEYS[name]).agg(
+                        F.countDistinct("_dataset_run_id").alias("_runs")
+                    )
+                    if collision.filter("_runs > 1").limit(1).count():
+                        raise ValueError(f"Cross-run key collision in {name}")
 
                 current["tables"][table_fqdn] = replace_table(spark, table_fqdn, combined)
                 pending["tables"][table_fqdn] = current["tables"][table_fqdn]
@@ -241,7 +254,12 @@ def verify_gold(spark, ledger, target_run_id=None):
             ):
                 raise ValueError(f"Null or empty surrogate key {key} in {name}")
 
-        if frame.groupBy(*GOLD_KEYS[name]).count().filter("count > 1").limit(1).count():
+        keys_to_check = (
+            ["_dataset_run_id"] + GOLD_KEYS[name]
+            if name in ("dim_date", "dim_channel")
+            else GOLD_KEYS[name]
+        )
+        if frame.groupBy(*keys_to_check).count().filter("count > 1").limit(1).count():
             raise ValueError(f"Duplicate surrogate key in {name}")
 
         # PII check: no clear PII
@@ -263,53 +281,75 @@ def verify_gold(spark, ledger, target_run_id=None):
         )
 
     # Referential integrity checks
-    def check_fk(child_df, parent_df, keys, rel_name):
-        orphans = child_df.join(parent_df.select(*keys).distinct(), keys, "left_anti")
+    def check_fk(child_df, parent_df, child_key, parent_key, rel_name):
+        parent_projected = parent_df.select(F.col(parent_key).alias(child_key)).distinct()
+        orphans = child_df.join(parent_projected, child_key, "left_anti")
         if orphans.limit(1).count():
             raise ValueError(f"Gold relationship failed: {rel_name}")
 
     check_fk(
-        frames["fact_orders"], frames["dim_date"], ["order_date_key"], "fact_orders -> dim_date"
+        frames["fact_orders"],
+        frames["dim_date"],
+        "order_date_key",
+        "date_key",
+        "fact_orders -> dim_date",
     )
     check_fk(
-        frames["fact_orders"], frames["dim_channel"], ["channel_key"], "fact_orders -> dim_channel"
+        frames["fact_orders"],
+        frames["dim_channel"],
+        "channel_key",
+        "channel_key",
+        "fact_orders -> dim_channel",
     )
     check_fk(
         frames["fact_orders"],
         frames["dim_customer"],
-        ["customer_key"],
+        "customer_key",
+        "customer_key",
         "fact_orders -> dim_customer",
     )
 
     check_fk(
         frames["fact_order_items"],
         frames["fact_orders"],
-        ["order_key"],
+        "order_key",
+        "order_key",
         "fact_order_items -> fact_orders",
     )
     check_fk(
         frames["fact_order_items"],
+        frames["dim_date"],
+        "order_date_key",
+        "date_key",
+        "fact_order_items -> dim_date",
+    )
+    check_fk(
+        frames["fact_order_items"],
         frames["dim_product"],
-        ["product_key"],
+        "product_key",
+        "product_key",
         "fact_order_items -> dim_product",
     )
     check_fk(
         frames["fact_order_items"],
         frames["dim_seller"],
-        ["seller_key"],
+        "seller_key",
+        "seller_key",
         "fact_order_items -> dim_seller",
     )
 
     check_fk(
         frames["fact_returns"],
         frames["fact_order_items"],
-        ["order_item_key"],
+        "order_item_key",
+        "order_item_key",
         "fact_returns -> fact_order_items",
     )
     check_fk(
         frames["fact_returns"],
         frames["dim_date"],
-        ["return_date_key"],
+        "return_date_key",
+        "date_key",
         "fact_returns -> dim_date (return)",
     )
 

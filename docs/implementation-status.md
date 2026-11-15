@@ -65,13 +65,29 @@ milestones; the final Phase 4A report records the current count.
 See [Silver validation](silver-validation.md), [completed checklist](phase4b-checklist.md) and
 [Gold handoff](gold-handoff.md).
 
-## Next: Phase 4C — Gold dimensions and facts
+## Phase 4C — Gold complete locally
 
-Detailed implementation plan: [TODO](../TODO.md); implementation has not started.
-Per ADR-0003, dp2 owns Gold dimensions and facts (`dim_date`, `dim_channel`, `dim_customer`,
-`dim_product`, `dim_seller`, `fact_orders`, `fact_order_items`, `fact_returns`) consumed from
-a pinned completed Silver publication ledger. Features/labels and PostgreSQL warehouse export
-are later phases.
+- Local milestone v0.4c-gold; 110 unit tests, full lint and all regression/recovery checks pass.
+- Kimball star schema published in `lh.gold` on Iceberg v2: 5 dimensions (`dim_date`, `dim_channel`,
+  `dim_customer`, `dim_product`, `dim_seller`) and 3 facts (`fact_orders`, `fact_order_items`, `fact_returns`).
+- Pinned inputs from completed Silver publication ledger `/runtime/silver/publication/ledger.json`
+  by exact snapshot ID with zero fallback to latest.
+- Multi-dataset coexistence: small fixture (`186ae107d0793d2ee237`, 375 orders) and default reference
+  (`b1e64afaff0176de180a`, 15,000 orders) coexist cleanly in `lh.gold.*` (15,375 orders total) with
+  per-run scoping (`_dataset_run_id`) and zero cross-run surrogate key collisions.
+- Exact monetary arithmetic using `DECIMAL(18,2)`: full three-way reconciliation against Silver and
+  Bronze totals across natural keys, line-item sums, and multi-currency segregation (`USD`, `VND`).
+- Strict PII isolation: zero raw names or emails; `dim_customer` contains only SHA-256 HMAC hashes.
+- Atomic publication ledger with failure injection recovery (`fail_after="dimensions"` and
+  `fail_after="facts"`) verified via `make test-gold-recovery`.
+
+See [Gold validation](gold-validation.md) and [Features & Warehouse handoff](features-warehouse-handoff.md).
+
+## Next: Phase 4D — Feature Store and Return Labels (`dp3_features`, `dp3_return_labels`)
+
+Per ADR-0003, `dp3_features` builds customer and product features with point-in-time correctness
+(`order_ts < as_of_ts`), and `dp3_return_labels` computes mature return classification labels with
+observation horizons and data leakage prevention. Warehouse export to PostgreSQL is Phase 4E.
 
 ## Later phases
 

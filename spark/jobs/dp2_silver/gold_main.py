@@ -97,5 +97,16 @@ if __name__ == "__main__":
     try:
         run()
     except Exception as exc:
-        logging.error(json.dumps({"event": "gold_job_failed", "error_type": type(exc).__name__}))
+        import traceback
+
+        logging.error(traceback.format_exc())
+        logging.error(
+            json.dumps(
+                {
+                    "event": "gold_job_failed",
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                }
+            )
+        )
         raise SystemExit(1) from None

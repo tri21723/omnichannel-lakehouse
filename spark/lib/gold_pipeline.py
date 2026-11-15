@@ -305,6 +305,7 @@ def build_facts(spark, silver_frames, dims, run_id, pub_id, snapshots):
         "seller_key",
         "order_ts",
         "net_line_amount",
+        "currency",
     )
 
     returns = silver_frames["returns"]

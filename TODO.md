@@ -143,25 +143,25 @@ mốc C: ledger/recovery, đối soát đủ 5 kênh và đóng local DoD (`06�
 
 ### P4C-07 — Verifier read-only, đối soát đa kênh và regression
 
-- [ ] Tạo verifier read-only (`--verify` và `spark/jobs/dp2_silver/gold_verify.py` hoặc tương đương)
+- [x] Tạo verifier read-only (`--verify` và `spark/jobs/dp2_silver/gold_verify.py` hoặc tương đương)
   đọc các snapshot trong `/runtime/gold/publication/ledger.json` mà không ghi lại dữ liệu.
-- [ ] Kiểm chứng toàn diện trên small fixture (`186ae107d0793d2ee237`):
+- [x] Kiểm chứng toàn diện trên small fixture (`186ae107d0793d2ee237`):
   `fact_orders=375`, `fact_order_items=375`, `dim_customer=25`, `dim_product=88`, `fact_returns=30`,
   `dim_channel=5`, cùng số lượng `dim_seller` và `dim_date` khớp tập khoá duy nhất từ Silver.
-- [ ] Kiểm chứng toàn diện trên default reference dataset (`b1e64afaff0176de180a`):
+- [x] Kiểm chứng toàn diện trên default reference dataset (`b1e64afaff0176de180a`):
   `fact_orders=15,000` (3.000/kênh), `fact_order_items=15,000`, `dim_customer=1,000`,
   `dim_product=100`, `fact_returns=1,500`, `dim_channel=5`.
-- [ ] Xác minh cả hai dataset (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`) cùng tồn tại
+- [x] Xác minh cả hai dataset (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`) cùng tồn tại
   trong các bảng `lh.gold.*` (`total fact_orders = 15,375`), đọc độc lập theo `_dataset_run_id`
   và tổng tiền/hoàn trả theo `(channel, currency)` khớp tuyệt đối giữa Gold, Silver và Bronze authoritative.
-- [ ] Kiểm thử chạy lại (replay) 2 lần liên tiếp cho cả `full` và `incremental`: số dòng,
+- [x] Kiểm thử chạy lại (replay) 2 lần liên tiếp cho cả `full` và `incremental`: số dòng,
   surrogate keys và business hashes không đổi.
-- [ ] Kiểm thử kịch bản nguồn Silver thay đổi (correction retract một đơn hàng và cập nhật profile):
+- [x] Kiểm thử kịch bản nguồn Silver thay đổi (correction retract một đơn hàng và cập nhật profile):
   Gold cập nhật đúng fact/dim và giữ nguyên các thực thể dùng chung bởi ngày khác.
-- [ ] Restart `lakekeeper`, `spark-master`, `spark-worker1`, `spark-worker2` rồi chạy verifier
+- [x] Restart `lakekeeper`, `spark-master`, `spark-worker1`, `spark-worker2` rồi chạy verifier
   read-only trước mọi thao tác ghi; chạy lại regression `make smoke-core`, `make verify-sources`,
   `make verify-lakehouse`, `make verify-bronze`, `make verify-silver` và `make reconcile-silver`.
-- [ ] Ghi nhận thời gian chạy, số dòng, số file/bytes của các bảng Gold; không diễn giải số liệu
+- [x] Ghi nhận thời gian chạy, số dòng, số file/bytes của các bảng Gold; không diễn giải số liệu
   fixture/default nhỏ thành benchmark skew triệu dòng.
 
 **Đạt khi:** Cả hai ma trận dữ liệu đối soát khớp 100% từ Bronze → Silver → Gold và vượt qua bài kiểm tra restart/regression.
@@ -169,20 +169,20 @@ mốc C: ledger/recovery, đối soát đủ 5 kênh và đóng local DoD (`06�
 
 ### P4C-08 — Make, CI, tài liệu và bàn giao Phase 4D/4E
 
-- [ ] Mở rộng `Makefile` (ví dụ `JOB=dp2_gold` hoặc mở rộng `dp2_silver` cùng các target
+- [x] Mở rộng `Makefile` (ví dụ `JOB=dp2_gold` hoặc mở rộng `dp2_silver` cùng các target
   `smoke-gold`, `verify-gold`, `integration-gold`, `integration-gold-reference`,
   `test-gold-dq`, `test-gold-recovery`, `reconcile-gold`), giữ nguyên toàn bộ target cũ.
-- [ ] Đảm bảo `make check` chạy nhanh (lint Python/SQL/YAML/shell + unit tests) không cần Docker,
+- [x] Đảm bảo `make check` chạy nhanh (lint Python/SQL/YAML/shell + unit tests) không cần Docker,
   không skip ngầm các bài kiểm tra bắt buộc.
-- [ ] Cập nhật hoặc thêm workflow GitHub Actions manual cho Gold dùng small fixture, timeout rõ ràng,
+- [x] Cập nhật hoặc thêm workflow GitHub Actions manual cho Gold dùng small fixture, timeout rõ ràng,
   diagnostics đã lọc PII/secret và dọn container không xóa volume local.
-- [ ] Cập nhật `docs/gold-validation.md`, `README.md`, `docs/runbook.md`, `docs/implementation-status.md`,
+- [x] Cập nhật `docs/gold-validation.md`, `README.md`, `docs/runbook.md`, `docs/implementation-status.md`,
   `docs/data-model.md`, `sql/iceberg/gold_contract.sql` và `docs/adr/0009-gold-star-schema.md`.
-- [ ] Viết tài liệu bàn giao tiếp theo (`docs/features-warehouse-handoff.md` hoặc cập nhật handoff)
+- [x] Viết tài liệu bàn giao tiếp theo (`docs/features-warehouse-handoff.md` hoặc cập nhật handoff)
   cho Phase 4D (`dp3_features`, `dp3_return_labels`: point-in-time cutoff `order_ts < as_of_ts`,
   observation horizon, maturity flag, chống data leakage) và Phase 4E (`dp4_warehouse`:
   cửa sổ `[run_date - 29 days, run_date + 1 day)` UTC, atomic publish sang PostgreSQL `warehouse`).
-- [ ] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế; commit theo Conventional Commits
+- [x] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế; commit theo Conventional Commits
   cho từng bước và chỉ gắn tag `v0.4c-gold` sau khi đạt toàn bộ local DoD. Chưa gắn tag đóng toàn bộ Phase 4.
 
 **Đạt khi:** Có đầy đủ mã nguồn, kiểm thử, tài liệu vận hành và hợp đồng bàn giao sang Phase 4D/4E.
@@ -190,13 +190,13 @@ mốc C: ledger/recovery, đối soát đủ 5 kênh và đóng local DoD (`06�
 
 ## 4. Điều kiện đóng Phase 4C
 
-- [ ] 8 bảng Gold (`dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`,
+- [x] 8 bảng Gold (`dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`,
   `fact_orders`, `fact_order_items`, `fact_returns`) đúng schema, grain, surrogate key uniqueness và FK integrity.
-- [ ] Input được pin chặt chẽ từ completed Silver publication ledger theo `snapshot-id`; không dùng `latest`.
-- [ ] Không lộ PII rõ trong schema, dữ liệu, exception hay log; `currency` và `DECIMAL(18,2)` được bảo toàn.
-- [ ] Replay idempotent, cô lập đúng giữa các `_dataset_run_id`, xử lý đúng Silver correction/retraction và phục hồi sau lỗi.
-- [ ] Restart persistence và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver` đều xanh.
-- [ ] `make check` và bộ integration local đạt; tài liệu, ADR, DDL, runbook và handoff được cập nhật đầy đủ.
+- [x] Input được pin chặt chẽ từ completed Silver publication ledger theo `snapshot-id`; không dùng `latest`.
+- [x] Không lộ PII rõ trong schema, dữ liệu, exception hay log; `currency` và `DECIMAL(18,2)` được bảo toàn.
+- [x] Replay idempotent, cô lập đúng giữa các `_dataset_run_id`, xử lý đúng Silver correction/retraction và phục hồi sau lỗi.
+- [x] Restart persistence và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver` đều xanh.
+- [x] `make check` và bộ integration local đạt; tài liệu, ADR, DDL, runbook và handoff được cập nhật đầy đủ.
 
 ## 5. Quy tắc thực hiện
 

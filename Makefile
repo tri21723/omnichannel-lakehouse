@@ -223,7 +223,7 @@ test-silver-dq: ## Five-entity DQ, deterministic ties, cross-channel keys and ma
 reconcile-silver: ## Read-only keys and currency/refund reconciliation against pinned authoritative Bronze
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/reference_verify.py --run-id $(SILVER_RUN_ID)
 
-.PHONY: smoke-gold verify-gold integration-gold
+.PHONY: smoke-gold verify-gold integration-gold integration-gold-reference reconcile-gold test-gold-dq test-gold-recovery
 GOLD_RUN_ID ?= 186ae107d0793d2ee237
 smoke-gold: ## Build/publish Gold star schema on the small fixture (375 orders)
 	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id $(GOLD_RUN_ID) --mode full'
@@ -234,3 +234,12 @@ integration-gold: ## Publish both small fixture and default reference datasets i
 	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id b1e64afaff0176de180a --mode full'
 	$(MAKE) verify-gold GOLD_RUN_ID=186ae107d0793d2ee237
 	$(MAKE) verify-gold GOLD_RUN_ID=b1e64afaff0176de180a
+integration-gold-reference: ## Publish and verify default reference dataset into Gold (15000 orders)
+	$(MAKE) spark-submit JOB=dp2_gold GOLD_ARGS='--run-id b1e64afaff0176de180a --mode full'
+	$(MAKE) verify-gold GOLD_RUN_ID=b1e64afaff0176de180a
+reconcile-gold: ## Three-way reconciliation against Silver publication and Bronze totals
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_reconcile.py --run-id $(GOLD_RUN_ID)
+test-gold-dq: ## Check surrogate key formats, non-null decimals, item roll-ups and PII guard
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_dq_test.py --run-id $(GOLD_RUN_ID)
+test-gold-recovery: ## Verify partial publish failure points and ledger preservation
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_recovery_test.py --run-id $(GOLD_RUN_ID)
