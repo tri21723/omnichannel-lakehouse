@@ -60,7 +60,9 @@ def verify_warehouse_run(
     expected_counts: dict[str, int],
     expected_monetary: dict[str, dict[str, dict[str, str]]],
 ) -> None:
-    """Read back PostgreSQL warehouse.* counts and NUMERIC(18,2) totals for run_id."""
+    """Read back PostgreSQL warehouse.* counts, NUMERIC(18,2) totals, and constraints."""
+    from spark.lib.warehouse_reconcile import check_postgres_constraints
+
     conn = writer_connection(spark, read_only=True)
     try:
         actual_counts = count_run_rows(conn, run_id)
@@ -75,6 +77,7 @@ def verify_warehouse_run(
                 f"PostgreSQL monetary verification failed for run {run_id}: "
                 f"expected {expected_monetary}, got {actual_monetary}"
             )
+        check_postgres_constraints(conn)
     finally:
         rollback_close(conn)
 

@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-04` hoàn tất — 17/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-05` hoàn tất — 19/46 checklist)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -121,8 +121,8 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-05 — Verifier read-only và đối soát hai chiều Gold Iceberg ↔ PostgreSQL `warehouse.*`
 
-- [ ] Tích hợp chế độ `--verify` read-only trong `dp4_warehouse` đọc `/runtime/warehouse/export/ledger.json` và truy vấn PostgreSQL `warehouse.*` để xác nhận số dòng, tổng tiền và ràng buộc mà không ghi lại dữ liệu.
-- [ ] Tạo `spark/jobs/dp4_warehouse/reconcile.py` và `spark/jobs/dp4_warehouse/dq_test.py` kiểm chứng toàn diện:
+- [x] Tích hợp chế độ `--verify` read-only trong `dp4_warehouse` đọc `/runtime/warehouse/export/ledger.json` và truy vấn PostgreSQL `warehouse.*` để xác nhận số dòng, tổng tiền và ràng buộc mà không ghi lại dữ liệu.
+- [x] Tạo `spark/jobs/dp4_warehouse/reconcile.py` và `spark/jobs/dp4_warehouse/dq_test.py` kiểm chứng toàn diện:
   - **Row count & Key reconciliation:** số dòng của từng bảng trong `warehouse.{dim_*,fact_*}` khớp 100% với lát cắt `[W_start, W_end)` trong `lh.gold.{dim_*,fact_*}` cho từng `_dataset_run_id`.
   - **Exact monetary reconciliation (`NUMERIC(18,2)`):** tổng `gross_amount`, `discount_amount`, `net_amount` (`fact_orders`), `gross_line_amount`, `net_line_amount` (`fact_order_items`), và `refund_amount` (`fact_returns`) theo từng `(channel, currency)` trong PostgreSQL `warehouse.*` khớp tuyệt đối đến từng xu (`0.00`) với Gold Iceberg.
   - **Referential integrity & PII guard:** 0 orphan foreign keys giữa `fact_*` và `dim_*` trong PostgreSQL; 0 cột PII rõ (`full_name`, `email`, `_raw`); role `trino_ro` đọc được (`SELECT`) toàn bộ 8 bảng `warehouse.*` nhưng bị từ chối mọi lệnh ghi (`INSERT`/`UPDATE`/`DELETE`).
