@@ -42,3 +42,49 @@ Legacy file-only entries remain supported through exact reconciliation against p
 Gold. New writes seed database completion and full-row fingerprints without resetting
 existing tables. Historical snapshots/archives and source data are preserved. No
 runtime version/port change or new hosted CI result is claimed.
+
+## Follow-up review fixes — 2026-11-16
+
+Three additional findings are addressed:
+
+- DP3 freshness now records Gold publication, policy and label horizon per table/date.
+  Feature refreshes cannot mark labels current; incremental refreshes cannot promote
+  untouched dates. Full-mode skips require the exact date set. Legacy scopes without
+  this provenance recompute on their next requested publication. Input rows must
+  match the declared source, policy, dates and label horizon before publication.
+- Warehouse writers consult committed PostgreSQL metadata before parsing the file
+  mirror. Missing and malformed mirrors recover through verified retry without
+  rewriting data. Invalid legacy files still fail when no DB completion exists.
+- Feature aggregations reject unsupported channel currencies, NULL currency and
+  mixed currencies before summing. The existing channel/entity/date grain remains;
+  arbitrary-currency support requires a future schema/key migration.
+
+Validation of the updated source (image rebuilt using `make build-batch`):
+
+- `make check`: lint and **164 unit tests passed**, including table/date/horizon
+  isolation and the actual publish skip branch with mocked Spark.
+- `make test-review-regressions`: **7 real Spark cases passed**, including supported
+  USD/VND and rejection of mixed EUR, NULL currency and unknown channels.
+- `make test-warehouse-review`: **2 real JDBC scenarios passed**, now corrupting the
+  mirror JSON after the post-commit failure before retrying and verifying recovery.
+  The fixture's rows/completion are removed and remaining runs verified by the test.
+
+The fixture publish exposed an additional mapping error: the generator emits Shopee
+orders in USD, while DP3 previously assigned VND. The mapping now matches the source
+contract, with `feature-policy-v2` forcing recomputation of old feature scopes.
+The real Spark currency fixture includes Shopee USD and Lazada VND.
+
+These are local results; no new hosted CI run is claimed.
+
+Real Iceberg publish/replay also passed for run `186ae107d0793d2ee237`, evaluation
+`2026-01-03`, incremental mode, Gold publication
+`46d63f72f5aba0aec78bc2601491a2bb5db092662feb551ea61fb16640acd37c`:
+
+1. Features publish: `skipped=false`, feature policy v2.
+2. Labels publish (14-day horizon): `skipped=false`, label policy v2.
+3. Identical features replay: `skipped=true`, read-back verification passed.
+4. Identical labels replay: `skipped=true`, read-back verification passed.
+
+Only this requested date/run was migrated by the integration check. Other historical
+feature/label dates remain preserved and recompute when requested under the new
+provenance/policy rules; this is not a claim of a complete historical backfill.

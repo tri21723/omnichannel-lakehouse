@@ -175,3 +175,13 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 6. Mọi quyết định thiết kế về cửa sổ 30 ngày, giao dịch JDBC và khóa vật lý trong `warehouse.*` phải được chốt trong ADR-0011 trước khi viết code phụ thuộc.
 
 Sau 4E: **Phase 4F** (benchmark data skew & đóng toàn bộ Phase 4) → **Phase 5** (Airflow orchestration) → **Phase 6** (Trino + DBeaver federated query).
+
+## Follow-up review Phase 4C–4E (2026-11-16)
+
+- [x] DP3: lưu freshness theo bảng/ngày với Gold publication, policy và label horizon; legacy scope phải tính lại.
+- [x] Warehouse: phục hồi file mirror JSON hỏng từ metadata đã commit trong PostgreSQL.
+- [x] Features: từ chối currency không phù hợp hoặc trộn currency trước khi tổng hợp tiền; sửa Shopee thành USD theo generator, nâng feature policy v2.
+- [x] `make check`: 164 tests; Spark regression: 7 cases; JDBC recovery/tampering: 2 scenarios trên image đã build lại.
+
+Bằng chứng: [review validation](docs/review-4cde-validation.md).
+- [x] Publish/replay Iceberg thật cho features và labels trên fixture nhỏ ngày `2026-01-03`: lần đầu `skipped=false`, replay `skipped=true` cho cả hai.

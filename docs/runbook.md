@@ -365,3 +365,19 @@ Full-row fingerprints include every exported field with UTC microsecond timestam
 normalized decimals, NULLs and duplicate multiplicity. Counts/totals alone are not
 sufficient for identical-export skip. Use make test-review-regressions and
 make test-warehouse-review for the new real Spark/JDBC regression cases.
+
+### Follow-up review: DP3 provenance and feature currency
+
+DP3 ledgers now track freshness per table/date. The first refresh of a legacy scope
+recomputes it; later identical refreshes can skip. Updating features does not refresh
+labels, and changing a label horizon requires recomputing the requested dates.
+
+`Unsupported or mixed feature currency` means eligible Gold facts do not match the
+native channel currency in ADR-0010. Inspect the pinned source and correct/re-publish
+upstream data; do not relabel monetary values or bypass the guard. Other currencies
+need an explicit feature-grain/key migration.
+
+Warehouse retry reads `warehouse.export_state` before the file mirror, including when
+`ledger.json` is invalid JSON. Rerun the same export to verify DB evidence and repair
+the mirror. If database lookup fails, resolve that error first; stale files are not
+used as a fallback for database errors.
