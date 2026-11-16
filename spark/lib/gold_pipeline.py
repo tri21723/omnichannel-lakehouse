@@ -9,7 +9,7 @@ from spark.lib.gold_entities import (
 
 
 def validate_fact_numbers(df, name):
-    """Fail closed on decimal cast overflow and invalid aggregates, including ANSI-disabled Spark."""
+    """Reject decimal overflow and invalid aggregates even when ANSI is disabled."""
     from pyspark.sql import functions as F
 
     fields = {

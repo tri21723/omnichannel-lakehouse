@@ -29,9 +29,23 @@ def compute_export_id(ledger: dict[str, Any]) -> str:
 def load_warehouse_ledger(
     ledger_path: str | Path = ROOT / "ledger.json",
     export_id: str | None = None,
+    spark=None,
 ) -> tuple[dict[str, Any], str]:
     """Load and validate a completed warehouse export ledger and its archive."""
     ledger_path = Path(ledger_path)
+    if spark is not None:
+        from spark.lib.warehouse_content import read_db_ledger
+
+        conn = writer_connection(spark, read_only=True)
+        try:
+            authoritative = read_db_ledger(conn)
+        finally:
+            rollback_close(conn)
+        if authoritative is not None:
+            computed = compute_export_id(authoritative)
+            if export_id and export_id != computed:
+                raise ValueError("Requested export is not current PostgreSQL state")
+            return authoritative, computed
     if not ledger_path.exists():
         raise FileNotFoundError(f"Warehouse export ledger not found: {ledger_path}")
 
@@ -59,6 +73,7 @@ def verify_warehouse_run(
     run_id: str,
     expected_counts: dict[str, int],
     expected_monetary: dict[str, dict[str, dict[str, str]]],
+    expected_content=None,
 ) -> None:
     """Read back PostgreSQL warehouse.* counts, NUMERIC(18,2) totals, and constraints."""
     from spark.lib.warehouse_reconcile import check_postgres_constraints
@@ -77,6 +92,11 @@ def verify_warehouse_run(
                 f"PostgreSQL monetary verification failed for run {run_id}: "
                 f"expected {expected_monetary}, got {actual_monetary}"
             )
+        if expected_content is not None:
+            from spark.lib.warehouse_content import query_content
+
+            if query_content(conn, run_id) != expected_content:
+                raise ValueError("PostgreSQL full-row content verification failed")
         check_postgres_constraints(conn)
     finally:
         rollback_close(conn)
@@ -102,6 +122,16 @@ def verify_warehouse_ledger(
     else:
         run_ids = sorted(runs.keys())
 
+    from spark.lib.warehouse_content import read_db_ledger
+
+    conn = writer_connection(spark, read_only=True)
+    try:
+        authoritative = read_db_ledger(conn)
+    finally:
+        rollback_close(conn)
+    if authoritative is not None and authoritative != ledger:
+        raise ValueError("Stale file ledger: use the committed PostgreSQL export state")
+
     expected_tables = {f"warehouse.{name}" for name in INSERT_ORDER}
     for run_id in run_ids:
         meta = runs[run_id]
@@ -113,7 +143,11 @@ def verify_warehouse_ledger(
             name: int(run_tables[f"warehouse.{name}"]["rows"]) for name in INSERT_ORDER
         }
         expected_monetary = meta.get("monetary", {})
-        verify_warehouse_run(spark, run_id, expected_counts, expected_monetary)
+        verify_warehouse_run(spark, run_id, expected_counts, expected_monetary, meta.get("content"))
+        if "content" not in meta:
+            from spark.lib.warehouse_reconcile import reconcile_run
+
+            reconcile_run(spark, run_id, meta)
 
     return run_ids
 
@@ -173,6 +207,21 @@ def publish_warehouse(
             else dict(status="pending", runs={})
         )
 
+        from spark.lib.warehouse_content import (
+            payload_content,
+            query_content,
+            read_db_ledger,
+            write_db_ledger,
+        )
+
+        conn = writer_connection(spark, read_only=True)
+        try:
+            authoritative = read_db_ledger(conn)
+        finally:
+            rollback_close(conn)
+        if authoritative is not None:
+            old = authoritative
+
         if should_skip_export(
             old,
             run_id,
@@ -182,6 +231,9 @@ def publish_warehouse(
             fail_after=fail_after,
         ):
             verify_warehouse_ledger(spark, old, target_run_id=run_id)
+            export_id = compute_export_id(old)
+            save_state(root / f"export-{export_id}.json", old)
+            save_state(ledger_path, old)
             return old, True
 
         pending = dict(
@@ -198,16 +250,8 @@ def publish_warehouse(
 
         try:
             payload, monetary = collect_slice_payload(sliced_frames)
-            row_counts = replace_run_slice(
-                spark,
-                payload,
-                run_id,
-                fail_after=fail_after,
-                batch_size=batch_size,
-                ddl_path=ddl_path,
-            )
-            verify_warehouse_run(spark, run_id, row_counts, monetary)
-
+            content = payload_content(payload)
+            row_counts = {name: len(payload[name]) for name in INSERT_ORDER}
             now = round(time.time(), 3)
             current = json.loads(json.dumps(old))
             current["status"] = "completed"
@@ -223,8 +267,30 @@ def publish_warehouse(
                 "mode": mode,
                 "tables": tables_meta,
                 "monetary": monetary,
+                "content": content,
                 "updated_at": now,
             }
+
+            def commit_evidence(conn, actual_counts):
+                if query_content(conn, run_id) != content:
+                    raise ValueError("In-transaction warehouse content mismatch")
+                if query_run_monetary_totals(conn, run_id) != monetary:
+                    raise ValueError("In-transaction monetary mismatch")
+                current["duration_seconds"] = round(time.monotonic() - started, 3)
+                write_db_ledger(conn, current)
+
+            replace_run_slice(
+                spark,
+                payload,
+                run_id,
+                fail_after=fail_after if fail_after != "db_commit" else None,
+                batch_size=batch_size,
+                ddl_path=ddl_path,
+                before_commit=commit_evidence,
+            )
+            if fail_after == "db_commit":
+                raise RuntimeError("Injected failure after PostgreSQL commit")
+            verify_warehouse_run(spark, run_id, row_counts, monetary, content)
 
             export_id = compute_export_id(current)
             save_state(root / f"export-{export_id}.json", current)

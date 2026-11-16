@@ -299,10 +299,14 @@ def reconcile_run(
         gold_key_sets[table_name] = {tuple(row[c] for c in pk_cols) for row in collected}
         gold_counts[table_name] = len(collected)
 
-    _, gold_monetary = collect_slice_payload(sliced)
+    payload, gold_monetary = collect_slice_payload(sliced)
 
     conn = writer_connection(spark, read_only=True)
     try:
+        from spark.lib.warehouse_content import payload_content, query_content
+
+        if query_content(conn, run_id) != payload_content(payload):
+            raise ValueError("Full-row Gold/PostgreSQL content mismatch")
         pg_key_sets = query_postgres_key_sets(conn, run_id)
         for table_name in INSERT_ORDER:
             compare_key_sets(table_name, gold_key_sets[table_name], pg_key_sets[table_name])

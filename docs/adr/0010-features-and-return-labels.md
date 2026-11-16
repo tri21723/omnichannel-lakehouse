@@ -101,3 +101,8 @@ Idempotency and recomputation are managed via `MERGE INTO` scoped by `(_dataset_
 Boundary clarification (2026-11-16): the return horizon is closed, while events at
 the cutoff are excluded. Maturity therefore requires horizon_end < as_of_ts. At
 equality labels remain NULL until a later cutoff can observe the endpoint.
+
+Label rows now record return-label-policy-v2. The publication ledger tracks policy
+per evaluation date, so a job cannot skip dates computed with old semantics, even
+when Gold inputs and horizon are identical. Incremental migration marks only the
+requested dates as upgraded.

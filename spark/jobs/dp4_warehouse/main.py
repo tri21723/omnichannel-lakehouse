@@ -23,7 +23,7 @@ from spark.lib.warehouse_publish import (
 
 def run_job(spark, args):
     if getattr(args, "verify", False):
-        ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json")
+        ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json", spark=spark)
         verified_runs = verify_warehouse_ledger(
             spark, ledger, target_run_id=getattr(args, "run_id", None)
         )
@@ -95,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--fail-after",
-        choices=["dimensions", "facts", "completion"],
+        choices=["dimensions", "facts", "completion", "db_commit"],
         help="Inject deterministic rollback fault for recovery testing",
     )
     return parser

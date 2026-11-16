@@ -188,3 +188,9 @@ ON warehouse.fact_returns (_dataset_run_id, return_ts);
 
 CREATE INDEX IF NOT EXISTS warehouse_fact_returns_channel_currency_idx
 ON warehouse.fact_returns (channel, currency);
+
+-- Completion is committed with the eight exported tables; file ledgers are mirrors.
+CREATE TABLE IF NOT EXISTS warehouse.export_state (
+    singleton BOOLEAN PRIMARY KEY CHECK (singleton),
+    ledger JSONB NOT NULL
+);

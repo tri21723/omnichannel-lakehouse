@@ -95,11 +95,19 @@ def test_load_and_verify_ledger_guards(tmp_path: Path):
 def test_publish_warehouse_writes_ledger_skips_replay_and_preserves_ledger_on_fault(
     monkeypatch, tmp_path: Path
 ):
+    import spark.lib.warehouse_content as wc
     import spark.lib.warehouse_publish as wp
+
+    monkeypatch.setattr(wc, "read_db_ledger", lambda conn: None)
+    monkeypatch.setattr(wp, "writer_connection", lambda *a, **k: MagicMock())
 
     counts = _sample_counts()
     monetary = _sample_monetary()
-    payload = {name: [()] * counts[name] for name in INSERT_ORDER}
+    from spark.lib.warehouse_jdbc import TABLE_COLUMNS
+
+    payload = {
+        name: [tuple(None for _ in TABLE_COLUMNS[name])] * counts[name] for name in INSERT_ORDER
+    }
 
     replace_calls = []
 

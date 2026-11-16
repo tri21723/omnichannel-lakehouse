@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from spark.lib.dp3_entities import (
-    POLICY,
+    LABEL_POLICY,
     rehash_dp3,
 )
 
@@ -159,7 +159,7 @@ def compute_order_return_labels(
         .alias("refund_ratio"),
         F.lit(run_id).alias("_dataset_run_id"),
         F.lit(pub_id).alias("_gold_publication_id"),
-        F.lit(POLICY).alias("_policy_version"),
+        F.lit(LABEL_POLICY).alias("_policy_version"),
     )
 
     return rehash_dp3(result, "lbl_order_return")

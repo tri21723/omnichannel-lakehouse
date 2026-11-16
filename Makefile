@@ -297,3 +297,11 @@ test-warehouse-dq: ## Verify FK integrity, NUMERIC(18,2) reconciliation, PII gua
 	$(COMPOSE) run --rm --no-deps --entrypoint /bin/sh postgres-init -c 'export PGUSER=trino_ro PGPASSWORD="$$TRINO_RO_DB_PASSWORD"; psql -X -v ON_ERROR_STOP=1 -d sources -c "SELECT count(*) FROM warehouse.fact_orders" >/dev/null; if psql -X -v ON_ERROR_STOP=1 -d sources -c "DELETE FROM warehouse.fact_orders WHERE false" >/dev/null 2>&1; then echo "ERROR: trino_ro can write warehouse"; exit 1; fi'
 test-warehouse-recovery: ## Verify 30-day window pruning, JDBC rollback recovery and dataset isolation
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/recovery_test.py --run-id $(WAREHOUSE_RUN_ID)
+
+.PHONY: test-review-regressions
+test-review-regressions: ## Real Spark regressions for label horizon endpoint and Gold numeric overflow
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/review_regressions.py
+
+.PHONY: test-warehouse-review
+test-warehouse-review: ## Test committed DB metadata recovery and full-row corruption detection on owned fixture
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/review_test.py

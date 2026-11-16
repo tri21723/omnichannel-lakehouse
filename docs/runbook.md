@@ -345,3 +345,23 @@ Export state is stored separately at `/runtime/warehouse/export/ledger.json`. Bo
 `warehouse.*` with full PK/FK enforcement and `SELECT` access for `trino_ro`.
 See [ADR-0011](adr/0011-warehouse-export.md), [Warehouse validation](warehouse-validation.md),
 and `.github/workflows/warehouse.yml`.
+
+## Review fixes (2026-11-16)
+
+Gold publishing rejects NULL/negative monetary and quantity aggregates before commit,
+including silent DECIMAL overflow when Spark ANSI is disabled. DP3's closed return
+horizon becomes mature only when horizon_end < as_of_ts; equality stays censored.
+Label policy v2 is tracked per evaluation date; old dates are recomputed on the next
+label job, including incremental runs, rather than skipped as identical inputs.
+
+Warehouse completion now lives in warehouse.export_state, committed in the same JDBC
+transaction as the eight tables. File export manifests are recoverable mirrors. CLI
+verification reads PostgreSQL metadata first, including if file ledger is missing or
+stale. Retrying an identical export verifies all row fingerprints and repairs the
+file mirror without rewriting rows. --fail-after db_commit tests this boundary.
+Legacy file-only exports are reconciled against pinned Gold until the next rewrite
+seeds database metadata. Existing tables and data are preserved; no reset is needed.
+Full-row fingerprints include every exported field with UTC microsecond timestamps,
+normalized decimals, NULLs and duplicate multiplicity. Counts/totals alone are not
+sufficient for identical-export skip. Use make test-review-regressions and
+make test-warehouse-review for the new real Spark/JDBC regression cases.

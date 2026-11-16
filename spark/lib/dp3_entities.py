@@ -3,6 +3,7 @@
 from typing import Any
 
 POLICY = "gold-policy-v1"
+LABEL_POLICY = "return-label-policy-v2"
 
 DP3_KEYS = {
     "feat_customer_daily": ["customer_feature_key"],

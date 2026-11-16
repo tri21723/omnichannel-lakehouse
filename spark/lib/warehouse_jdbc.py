@@ -185,6 +185,7 @@ def writer_connection(spark: Any, *, read_only: bool = False) -> Any:
         conn.setAutoCommit(False)
         if read_only:
             conn.setReadOnly(True)
+            conn.setTransactionIsolation(jvm.java.sql.Connection.TRANSACTION_REPEATABLE_READ)
         stmt = conn.createStatement()
         try:
             stmt.execute("SET TIME ZONE 'UTC'")
@@ -435,6 +436,7 @@ def replace_run_slice(
     fail_after: str | None = None,
     batch_size: int = 1000,
     ddl_path: str | Path = DEFAULT_DDL_PATH,
+    before_commit=None,
 ) -> dict[str, int]:
     """Atomically replace all 8 warehouse tables for run_id in one PostgreSQL transaction."""
     if fail_after not in (None, "dimensions", "facts", "completion"):
@@ -469,10 +471,12 @@ def replace_run_slice(
         if fail_after == "completion":
             raise WarehouseFaultInjectionError("Injected transactional failure right before commit")
 
+        if before_commit is not None:
+            before_commit(conn, actual_counts)
         conn.commit()
-        return actual_counts
     except Exception:
         rollback_close(conn)
         raise
     else:
         conn.close()
+        return actual_counts

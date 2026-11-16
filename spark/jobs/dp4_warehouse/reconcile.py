@@ -19,17 +19,16 @@ def run() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json")
-    runs = ledger.get("runs", {})
-    if args.run_id:
-        if args.run_id not in runs:
-            raise ValueError(f"Run {args.run_id} is not present in warehouse export ledger")
-        target_runs = [args.run_id]
-    else:
-        target_runs = sorted(runs.keys())
-
     spark = get_spark()
     try:
+        ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json", spark=spark)
+        runs = ledger.get("runs", {})
+        if args.run_id:
+            if args.run_id not in runs:
+                raise ValueError(f"Run {args.run_id} is not present in warehouse export ledger")
+            target_runs = [args.run_id]
+        else:
+            target_runs = sorted(runs.keys())
         results = {}
         for run_id in target_runs:
             results[run_id] = reconcile_run(

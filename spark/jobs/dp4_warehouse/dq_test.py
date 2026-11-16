@@ -37,18 +37,17 @@ def run() -> None:
     if dp3_path.exists():
         _dp3_ledger, dp3_pub_id = load_dp3_publication(dp3_path)
 
-    ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json")
-    runs = ledger.get("runs", {})
-    target_runs = [args.run_id] if args.run_id else sorted(runs.keys())
-    for rid in target_runs:
-        if rid not in runs:
-            raise ValueError(f"Run {rid} is missing from warehouse export ledger")
-
-    gold_before = _ledger_digest(DEFAULT_GOLD_ROOT / "ledger.json")
-    dp3_before = _ledger_digest(dp3_path)
-
     spark = get_spark()
     try:
+        ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json", spark=spark)
+        runs = ledger.get("runs", {})
+        target_runs = [args.run_id] if args.run_id else sorted(runs.keys())
+        for rid in target_runs:
+            if rid not in runs:
+                raise ValueError(f"Run {rid} is missing from warehouse export ledger")
+
+        gold_before = _ledger_digest(DEFAULT_GOLD_ROOT / "ledger.json")
+        dp3_before = _ledger_digest(dp3_path)
         conn = writer_connection(spark, read_only=True)
         try:
             constraint_summary = check_postgres_constraints(conn)

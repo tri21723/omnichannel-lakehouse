@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from spark.lib.bronze import save_state, snapshot, writer_lock
-from spark.lib.dp3_entities import DP3_KEYS
+from spark.lib.dp3_entities import DP3_KEYS, LABEL_POLICY
 from spark.lib.silver_publish import frame_at, summary
 
 ROOT = Path("/runtime/dp3/publication")
@@ -145,6 +145,7 @@ def publish_dp3(
             and fail_after is None
             and prior_run
             and prior_run.get("gold_publication_id") == gold_pub_id
+            and (not is_labels_publish or labels_are_current(prior_run, req_dates))
             and prior_run.get("horizon_days", 14) == horizon_days
             and old.get("status") == "completed"
             and all(f"lh.gold.{t}" in prior_run.get("tables", []) for t in table_names)
@@ -245,6 +246,11 @@ def publish_dp3(
                     "horizon_days": horizon_days,
                 }
             )
+            if is_labels_publish:
+                policies = current["runs"][run_id].setdefault("label_policy_dates", {})
+                if mode != "incremental":
+                    policies.clear()
+                policies.update({d: LABEL_POLICY for d in req_dates})
             # Update list of published tables and evaluation dates for this run
             published_tables = set(current["runs"][run_id].get("tables", []))
             published_tables.update([f"lh.gold.{t}" for t in table_names])
@@ -379,3 +385,9 @@ def verify_dp3(
             )
             if bad_ratio.limit(1).count():
                 raise ValueError("refund_ratio out of range [0, 1] in lbl_order_return")
+
+
+def labels_are_current(prior, dates):
+    """Do not skip dates computed under the old endpoint semantics."""
+    policies = prior.get("label_policy_dates", {})
+    return bool(dates) and all(policies.get(d) == LABEL_POLICY for d in dates)

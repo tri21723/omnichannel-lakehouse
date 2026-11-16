@@ -23,7 +23,7 @@
 - Export state is tracked independently under `/runtime/warehouse/export/`:
   - `attempt.json`: Atomic pre-execution marker (`running` / `failed` / `completed`).
   - `export-<sha256>.json`: Immutable content-addressed export manifest.
-  - `ledger.json`: Authoritative latest export state with `runs[<run_id>]` recording
+  - `ledger.json`: Recoverable file mirror of the committed PostgreSQL export state with `runs[<run_id>]` recording
     `gold_publication_id`, `run_date`, `window_start`, `window_end`, per-table row counts,
     and monetary control totals (`NUMERIC(18,2)` grouped by `(channel, currency)`).
 
@@ -110,3 +110,13 @@ All 8 star-schema tables reside in database `sources`, schema `warehouse` (owned
 - Exact reconciliation compares PostgreSQL `warehouse.*` against the pinned Gold Iceberg
   window slice for every `_dataset_run_id`: row counts per table, zero orphan foreign keys,
   zero clear PII, and exact cent-level (`0.00`) sums per `(channel, currency)`.
+
+## Review amendment — 2026-11-16
+
+warehouse.export_state (singleton JSONB ledger) is the authoritative completion and
+is written inside the data transaction, after full-row fingerprint and monetary
+read-back. File manifests are derived mirrors, recoverable after a post-commit crash.
+Read-only CLI verification loads database completion first. Legacy file-only entries
+are reconciled exactly against their pinned Gold input; subsequent writes migrate
+metadata without dropping/recreating data tables. The existing POSIX writer lock
+still serializes local exports; distributed multi-writer operation is not claimed.
