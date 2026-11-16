@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-05` hoàn tất — 19/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-06` hoàn tất — 22/46 checklist)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -132,14 +132,14 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-06 — Kiểm thử trượt cửa sổ 30 ngày, multi-dataset coexistence, recovery và regression
 
-- [ ] Viết `spark/jobs/dp4_warehouse/recovery_test.py` kiểm chứng trên môi trường thực:
+- [x] Viết `spark/jobs/dp4_warehouse/recovery_test.py` kiểm chứng trên môi trường thực:
   - **Sliding-window pruning test:** xuất dữ liệu với `run_date = 2026-01-17` (bao phủ toàn bộ đơn `2026-01-01..2026-01-03`), sau đó chạy với `run_date = 2026-02-01` (cửa sổ `[2026-01-03, 2026-02-02)` cắt bỏ ngày `2026-01-01` và `2026-01-02`), xác minh các đơn của `2026-01-01..2026-01-02` bị xóa sạch khỏi `warehouse.fact_*`, rồi khôi phục lại `run_date = 2026-01-17`.
   - **Transactional rollback & recovery test:** tiêm lỗi `fail_after="dimensions"`, `"facts"`, `"completion"`, chứng minh PostgreSQL `warehouse.*` tự động rollback giữ nguyên số dòng đã commit trước đó và `ledger.json` không bị hỏng; chạy lại phục hồi thành công.
-- [ ] Chạy và đối soát toàn diện trên cả 2 dataset cùng tồn tại trong `warehouse.*`:
+- [x] Chạy và đối soát toàn diện trên cả 2 dataset cùng tồn tại trong `warehouse.*`:
   - Small fixture (`186ae107d0793d2ee237`): `375` orders, `375` order_items, `30` returns, `25` customers, `88` products, `88` sellers.
   - Default reference (`b1e64afaff0176de180a`): `15,000` orders, `15,000` order_items, `1,500` returns, `1,000` customers, `100` products, `100` sellers.
   - Tổng cộng trong PostgreSQL `warehouse.*`: `15,375` orders, `15,375` order_items, `1,530` returns, `1,025` customers, `188` products, `188` sellers.
-- [ ] Thực hiện `make restart-core` và `make restart-lakehouse`, sau đó chạy `make verify-warehouse`, `make reconcile-warehouse` cùng toàn bộ chuỗi regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`, `make verify-features`, `make verify-labels`).
+- [x] Thực hiện `make restart-core` và `make restart-lakehouse`, sau đó chạy `make verify-warehouse`, `make reconcile-warehouse` cùng toàn bộ chuỗi regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`, `make verify-features`, `make verify-labels`).
 
 **Đạt khi:** Cả 2 dataset cùng tồn tại trong PostgreSQL `warehouse.*`, vượt qua bài kiểm tra trượt cửa sổ 30 ngày, transactional rollback, và bền vững sau khi restart.
 **Commit gợi ý:** `test(warehouse): verify 30-day window pruning rollback recovery and coexistence`.
