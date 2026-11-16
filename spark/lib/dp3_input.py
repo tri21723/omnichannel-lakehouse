@@ -63,6 +63,8 @@ def read_gold_entities(
     ledger: dict[str, Any],
     run_id: str,
     publication_id: str | None = None,
+    *,
+    include_deleted: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any], str]:
     """Read Gold tables by pinned snapshot ID, verify summaries, and scope by run_id."""
     from pyspark.sql import functions as F
@@ -107,7 +109,7 @@ def read_gold_entities(
 
         # Strictly isolate to the selected dataset run
         scoped = frame.filter(F.col("_dataset_run_id") == run_id)
-        if name == "fact_orders":
+        if name == "fact_orders" and not include_deleted:
             scoped = scoped.filter(~F.coalesce(F.col("is_deleted"), F.lit(False)))
 
         frames[name] = scoped.localCheckpoint(eager=True)

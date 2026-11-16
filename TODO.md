@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01` hoàn tất — 4/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-02` hoàn tất — 8/46 checklist)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -85,10 +85,10 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-02 — Reader Gold publication theo snapshot-id và bộ lọc cửa sổ trượt 30 ngày
 
-- [ ] Tạo `spark/lib/warehouse_input.py` đọc và xác thực `/runtime/gold/publication/ledger.json` (`status == "completed"`, khớp `publication-<sha256>.json`, đủ 8 bảng Gold star schema).
-- [ ] Đọc 8 bảng `lh.gold.{dim_date,dim_channel,dim_customer,dim_product,dim_seller,fact_orders,fact_order_items,fact_returns}` bằng `option("snapshot-id", ...)`, đối soát summary (`rows`, `h1`, `h2`) khớp với ledger trước khi lọc theo `_dataset_run_id`.
-- [ ] Xây dựng hàm tính cửa sổ 30 ngày `compute_export_window(run_date)` trả về `[W_start, W_end)` UTC (`W_start = run_date - 29 days 00:00:00 UTC`, `W_end = run_date + 1 day 00:00:00 UTC`) và lọc các bảng `fact_orders`, `fact_order_items`, `fact_returns` của `_dataset_run_id` theo đúng cửa sổ.
-- [ ] Viết unit tests (`spark/tests/test_warehouse_input.py`) kiểm chứng: từ chối ledger chưa completed/sai digest, tính đúng biên 30 ngày `[run_date - 29 days, run_date + 1 day)`, loại bỏ các dòng ngoài cửa sổ `[W_start, W_end)` và cô lập giữa các `_dataset_run_id`.
+- [x] Tạo `spark/lib/warehouse_input.py` đọc và xác thực `/runtime/gold/publication/ledger.json` (`status == "completed"`, khớp `publication-<sha256>.json`, đủ 8 bảng Gold star schema).
+- [x] Đọc 8 bảng `lh.gold.{dim_date,dim_channel,dim_customer,dim_product,dim_seller,fact_orders,fact_order_items,fact_returns}` bằng `option("snapshot-id", ...)`, đối soát summary (`rows`, `h1`, `h2`) khớp với ledger trước khi lọc theo `_dataset_run_id`.
+- [x] Xây dựng hàm tính cửa sổ 30 ngày `compute_export_window(run_date)` trả về `[W_start, W_end)` UTC (`W_start = run_date - 29 days 00:00:00 UTC`, `W_end = run_date + 1 day 00:00:00 UTC`) và lọc các bảng `fact_orders`, `fact_order_items`, `fact_returns` của `_dataset_run_id` theo đúng cửa sổ.
+- [x] Viết unit tests (`spark/tests/test_warehouse_input.py`) kiểm chứng: từ chối ledger chưa completed/sai digest, tính đúng biên 30 ngày `[run_date - 29 days, run_date + 1 day)`, loại bỏ các dòng ngoài cửa sổ `[W_start, W_end)` và cô lập giữa các `_dataset_run_id`.
 
 **Đạt khi:** `dp4_warehouse` đọc đúng snapshot Gold đã pin và cắt chính xác lát cắt 30 ngày theo `run_date`.
 **Commit gợi ý:** `feat(warehouse): read pinned Gold snapshots and slice 30-day window`.
