@@ -23,7 +23,7 @@ def test_dp3_fields_and_keys_inventory():
     assert DP3_KEYS["feat_product_daily"] == ["product_feature_key"]
     assert DP3_KEYS["lbl_order_return"] == ["order_label_key"]
 
-    assert POLICY == "gold-policy-v1"
+    assert POLICY == "feature-policy-v2"
     assert "_dataset_run_id string" in DP3_AUDIT
     assert "_gold_publication_id string" in DP3_AUDIT
     assert "_record_hash string" in DP3_AUDIT

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-POLICY = "gold-policy-v1"
+POLICY = "feature-policy-v2"
 LABEL_POLICY = "return-label-policy-v2"
 
 DP3_KEYS = {
@@ -55,8 +55,8 @@ def get_channel_currency(channel_col: Any) -> Any:
     from pyspark.sql import functions as F
 
     return (
-        F.when(channel_col.isin("shopee", "lazada", "pos"), F.lit("VND"))
-        .when(channel_col.isin("walmart", "amazon", "tiktok_shop"), F.lit("USD"))
+        F.when(channel_col.isin("lazada", "pos"), F.lit("VND"))
+        .when(channel_col.isin("walmart", "amazon", "tiktok_shop", "shopee"), F.lit("USD"))
         .otherwise(F.lit("USD"))
     )
 

@@ -115,7 +115,12 @@ recompute requested scopes; table schemas and existing snapshots are unchanged.
 
 The existing feature grain has no currency dimension. Before aggregation, eligible
 orders, items and returns must match their configured channel currency (USD for
-Walmart/Amazon/TikTok Shop; VND for Shopee/Lazada/POS). Unsupported channels, NULL
+Walmart/Amazon/TikTok Shop/Shopee; VND for Lazada/POS). Unsupported channels, NULL
 currency and mismatches fail closed, including mixed currencies within a channel.
 Supporting other currencies requires an explicit grain/key migration; amounts are
 never silently relabeled or converted.
+
+Shopee uses USD in the current generator contract (`generators/common/orders.py`);
+the previous DP3 VND mapping was incorrect and is corrected with this guard.
+Feature rows use `feature-policy-v2`, so scopes produced under the old currency
+mapping cannot be skipped even if they already have scoped provenance.

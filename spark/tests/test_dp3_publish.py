@@ -76,6 +76,10 @@ def test_scoped_provenance_does_not_promote_other_tables_or_dates():
     assert not scopes_are_current(run, labels, dates[:1], "B", 14, "incremental")
     assert not scopes_are_current(run, labels, dates[:1], "B", 7, "full")
     assert scopes_are_current(run, features, dates, "B", 7, "full")
+    run["table_date_provenance"]["lh.gold.feat_customer_daily"][dates[0]][
+        "policy"
+    ] = "gold-policy-v1"
+    assert not scopes_are_current(run, features, dates, "B", 7, "full")
     record_scopes(run, labels, dates[:1], "B", 7, "full")
     assert scopes_are_current(run, labels, dates[:1], "B", 7, "full")
     assert not scopes_are_current(run, labels, dates[1:], "A", 14, "incremental")

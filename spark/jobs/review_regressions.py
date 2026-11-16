@@ -47,7 +47,8 @@ def run():
         else:
             raise AssertionError("Overflow was accepted")
         valid = spark.createDataFrame(
-            [("amazon", "USD"), ("shopee", "VND")], "channel string, currency string"
+            [("amazon", "USD"), ("shopee", "USD"), ("lazada", "VND")],
+            "channel string, currency string",
         )
         validate_feature_currency(valid, "fixture")
         for bad in [("amazon", "EUR"), ("amazon", None), ("unknown", "USD")]:
