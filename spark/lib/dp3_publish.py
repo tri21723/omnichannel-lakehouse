@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from spark.lib.bronze import save_state, snapshot, writer_lock
-from spark.lib.dp3_entities import DP3_KEYS, LABEL_POLICY
+from spark.lib.dp3_entities import DP3_KEYS, LABEL_POLICY, POLICY
 from spark.lib.silver_publish import frame_at, summary
 
 ROOT = Path("/runtime/dp3/publication")
@@ -137,24 +137,14 @@ def publish_dp3(
         is_features_publish = any(t.startswith("feat_") for t in table_names)
         is_labels_publish = any(t.startswith("lbl_") for t in table_names)
         req_dates = sorted(str(d) for d in (as_of_dates or []))
-        prior_table_dates = prior_run.get("table_dates", {}) if prior_run else {}
-
-        # Check skip condition if identical publication already completed
+        # Provenance is scoped to each table/date, never the last job for a run.
         if (
             not force
             and fail_after is None
-            and prior_run
-            and prior_run.get("gold_publication_id") == gold_pub_id
-            and (not is_labels_publish or labels_are_current(prior_run, req_dates))
-            and prior_run.get("horizon_days", 14) == horizon_days
             and old.get("status") == "completed"
-            and all(f"lh.gold.{t}" in prior_run.get("tables", []) for t in table_names)
-            and (
-                not req_dates
-                or all(
-                    set(req_dates).issubset(set(prior_table_dates.get(f"lh.gold.{t}", [])))
-                    for t in table_names
-                )
+            and all(f"lh.gold.{t}" in old.get("tables", {}) for t in table_names)
+            and scopes_are_current(
+                prior_run or {}, table_names, req_dates, gold_pub_id, horizon_days, mode
             )
         ):
             verify_dp3(spark, old, target_run_id=run_id, target_tables=table_names)
@@ -197,6 +187,24 @@ def publish_dp3(
                         .count()
                     ):
                         raise ValueError(f"Null or empty key {key} in {name}")
+
+                invalid_provenance = ~F.col("_gold_publication_id").eqNullSafe(
+                    F.lit(gold_pub_id)
+                ) | ~F.col("_policy_version").eqNullSafe(
+                    F.lit(scope_provenance(name, gold_pub_id, horizon_days)["policy"])
+                )
+                if req_dates:
+                    invalid_provenance = (
+                        invalid_provenance
+                        | F.col("as_of_date").isNull()
+                        | (~F.col("as_of_date").cast("string").isin(req_dates))
+                    )
+                if name.startswith("lbl_"):
+                    invalid_provenance = invalid_provenance | ~F.col("horizon_days").eqNullSafe(
+                        F.lit(horizon_days)
+                    )
+                if new_df.filter(invalid_provenance).limit(1).count():
+                    raise ValueError(f"DP3 input provenance mismatch in {name}")
 
                 # Combine with other dataset runs (and other dates if incremental)
                 prior_evidence = old.get("tables", {}).get(table_fqdn)
@@ -265,6 +273,9 @@ def publish_dp3(
                 else:
                     run_table_dates[fqdn] = req_dates
             current["runs"][run_id]["table_dates"] = run_table_dates
+            record_scopes(
+                current["runs"][run_id], table_names, req_dates, gold_pub_id, horizon_days, mode
+            )
 
             current["status"] = "completed"
             current["duration_seconds"] = round(time.monotonic() - started, 3)
@@ -391,3 +402,39 @@ def labels_are_current(prior, dates):
     """Do not skip dates computed under the old endpoint semantics."""
     policies = prior.get("label_policy_dates", {})
     return bool(dates) and all(policies.get(d) == LABEL_POLICY for d in dates)
+
+
+def scope_provenance(name, gold_pub_id, horizon_days):
+    result = {
+        "gold_publication_id": gold_pub_id,
+        "policy": LABEL_POLICY if name.startswith("lbl_") else POLICY,
+    }
+    if name.startswith("lbl_"):
+        result["horizon_days"] = horizon_days
+    return result
+
+
+def scopes_are_current(prior, names, dates, gold_pub_id, horizon_days, mode):
+    """Legacy or partially refreshed scopes must be recomputed."""
+    if not names or not dates:
+        return False
+    scopes = prior.get("table_date_provenance", {})
+    for name in names:
+        actual = scopes.get(f"lh.gold.{name}", {})
+        if mode != "incremental" and set(actual) != set(dates):
+            return False
+        expected = scope_provenance(name, gold_pub_id, horizon_days)
+        if any(actual.get(d) != expected for d in dates):
+            return False
+    return True
+
+
+def record_scopes(run, names, dates, gold_pub_id, horizon_days, mode):
+    scopes = run.setdefault("table_date_provenance", {})
+    for name in names:
+        fqdn = f"lh.gold.{name}"
+        if mode != "incremental":
+            scopes[fqdn] = {}
+        scopes.setdefault(fqdn, {}).update(
+            {d: scope_provenance(name, gold_pub_id, horizon_days) for d in dates}
+        )

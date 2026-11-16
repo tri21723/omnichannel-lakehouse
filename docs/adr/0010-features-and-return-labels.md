@@ -106,3 +106,9 @@ Label rows now record return-label-policy-v2. The publication ledger tracks poli
 per evaluation date, so a job cannot skip dates computed with old semantics, even
 when Gold inputs and horizon are identical. Incremental migration marks only the
 requested dates as upgraded.
+
+Publication skip decisions use `table_date_provenance` per run, table and date,
+including Gold publication, policy and label horizon. Publishing features cannot
+promote labels; incremental refresh cannot promote untouched dates. Full refresh
+requires an exact date set before skipping. Legacy ledgers without scoped provenance
+recompute requested scopes; table schemas and existing snapshots are unchanged.
