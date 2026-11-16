@@ -120,3 +120,7 @@ Read-only CLI verification loads database completion first. Legacy file-only ent
 are reconciled exactly against their pinned Gold input; subsequent writes migrate
 metadata without dropping/recreating data tables. The existing POSIX writer lock
 still serializes local exports; distributed multi-writer operation is not claimed.
+
+Recovery also tolerates malformed file mirrors: the writer queries committed database
+metadata before parsing any file. With no database completion, invalid legacy JSON
+still fails closed; database errors never fall back to potentially stale files.

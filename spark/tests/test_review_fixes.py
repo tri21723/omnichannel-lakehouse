@@ -21,7 +21,8 @@ def test_fingerprint_detects_nonmonetary_change_and_value_swap():
     assert fingerprint(original, spec) != fingerprint(original + [original[0]], spec)
 
 
-def test_postcommit_crash_recovers_from_db_without_rewrite(monkeypatch, tmp_path):
+@pytest.mark.parametrize("mirror", [None, "{broken"])
+def test_postcommit_crash_recovers_from_db_without_rewrite(monkeypatch, tmp_path, mirror):
     import spark.lib.warehouse_content as wc
     import spark.lib.warehouse_publish as wp
 
@@ -55,6 +56,8 @@ def test_postcommit_crash_recovers_from_db_without_rewrite(monkeypatch, tmp_path
     with pytest.raises(RuntimeError, match="after PostgreSQL commit"):
         wp.publish_warehouse(*args, root=tmp_path, fail_after="db_commit")
     assert not (tmp_path / "ledger.json").exists()
+    if mirror is not None:
+        (tmp_path / "ledger.json").write_text(mirror)
     authoritative, _ = wp.load_warehouse_ledger(tmp_path / "ledger.json", spark=args[0])
     assert authoritative == state["ledger"]
     ledger, skipped = wp.publish_warehouse(*args, root=tmp_path)

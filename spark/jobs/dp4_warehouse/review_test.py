@@ -54,6 +54,7 @@ def run():
         ledger, _ = load_warehouse_ledger(spark=spark)
         assert ledger["runs"][run_id]["run_date"] == "2026-01-02"
         verify_warehouse_ledger(spark, ledger, run_id)
+        (ROOT / "ledger.json").write_text("{broken", encoding="utf-8")
         _, skipped = publish(2)
         assert skipped
         conn = writer_connection(spark)

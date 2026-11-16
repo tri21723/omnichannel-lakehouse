@@ -201,11 +201,6 @@ def publish_warehouse(
 
     with writer_lock(root):
         ledger_path = root / "ledger.json"
-        old = (
-            json.loads(ledger_path.read_text(encoding="utf-8"))
-            if ledger_path.exists()
-            else dict(status="pending", runs={})
-        )
 
         from spark.lib.warehouse_content import (
             payload_content,
@@ -221,6 +216,12 @@ def publish_warehouse(
             rollback_close(conn)
         if authoritative is not None:
             old = authoritative
+        else:
+            old = (
+                json.loads(ledger_path.read_text(encoding="utf-8"))
+                if ledger_path.exists()
+                else dict(status="pending", runs={})
+            )
 
         if should_skip_export(
             old,
