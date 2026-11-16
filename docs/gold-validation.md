@@ -95,3 +95,8 @@ Verified via automated test target `make test-gold-recovery`:
 - `make test-gold-dq GOLD_RUN_ID=<run_id>`: Surrogate key hashes, item-to-order rollups, return bounds, multi-currency segregation.
 - `make reconcile-gold GOLD_RUN_ID=<run_id>`: Exact three-way reconciliation against Silver and Bronze totals.
 - `make test-gold-recovery`: Failure injection and atomic recovery suite.
+
+## Review corrections — 2026-11-16
+
+See [review validation](review-4cde-validation.md) for overflow, horizon endpoint,
+transactional completion and full-row reconciliation fixes and their local evidence.

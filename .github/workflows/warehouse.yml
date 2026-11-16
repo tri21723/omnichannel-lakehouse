@@ -22,6 +22,7 @@ jobs:
       - run: sh docker/batch/ci_run.sh make verify-warehouse
       - run: sh docker/batch/ci_run.sh make reconcile-warehouse
       - run: sh docker/batch/ci_run.sh make test-warehouse-dq
+      - run: sh docker/batch/ci_run.sh make test-warehouse-review
       - run: sh docker/batch/ci_run.sh make test-warehouse-recovery
       - run: make restart-core
       - run: make restart-lakehouse

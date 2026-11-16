@@ -60,3 +60,8 @@ Verified via `make test-dp3-dq` on both `186ae107d0793d2ee237` and `b1e64afaff01
 
 - **Recovery (`make test-dp3-recovery`):** Tested three fault injection points (`fail_after="features"`, `fail_after="labels"`, `fail_after="completion"`). In all three cases, `attempt.json` transitioned to `failed`, the prior `/runtime/dp3/publication/ledger.json` was preserved byte-for-byte, and a subsequent clean run recovered atomically to `status = "completed"`.
 - **Restart & Full Regression:** Executed `make restart-lakehouse` followed by read-only verifiers (`make verify-features`, `make verify-labels`) and full regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`). All checks and 138 unit tests in `make check` passed.
+
+## Review corrections — 2026-11-16
+
+See [review validation](review-4cde-validation.md) for overflow, horizon endpoint,
+transactional completion and full-row reconciliation fixes and their local evidence.

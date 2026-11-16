@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 EVENTS = {
+    "review_regressions_passed",
+    "warehouse_review_regressions_passed",
     "silver_published",
     "silver_verified",
     "silver_candidates_validated",
@@ -113,7 +115,7 @@ def safe_events(lines):
             clean["channel"] = item["channel"]
         if item.get("stage") in ("contribution", "quarantine", "completion"):
             clean["stage"] = item["stage"]
-        for name in ("slices", "orders", "channels", "failures", "tables", "horizon_days"):
+        for name in ("slices", "orders", "channels", "failures", "cases", "tables", "horizon_days"):
             if type(item.get(name)) is int:
                 clean[name] = item[name]
         for name in ("entities", "counts"):

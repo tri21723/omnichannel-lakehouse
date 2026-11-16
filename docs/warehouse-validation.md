@@ -55,3 +55,8 @@ Bi-directional reconciliation (`make reconcile-warehouse` and `make test-warehou
    - Passed all `10` orphan foreign-key checks (`0` orphans), zero prohibited PII columns, valid `NUMERIC(18,2)` schemas across monetary columns, and live `trino_ro` `SELECT` success / `DELETE` denial.
 4. **Restart Persistence & Full Regression:**
    - Executed `make restart-core` and `make restart-lakehouse`, followed by `make verify-warehouse`, `make reconcile-warehouse`, `make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`, `make verify-features`, `make verify-labels`, and `make check`. All checks and unit tests passed.
+
+## Review corrections — 2026-11-16
+
+See [review validation](review-4cde-validation.md) for overflow, horizon endpoint,
+transactional completion and full-row reconciliation fixes and their local evidence.

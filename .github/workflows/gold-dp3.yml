@@ -14,6 +14,7 @@ jobs:
           python-version: '3.11'
       - run: make setup check env-silver config-batch
       - run: make build-generator build-batch up-batch
+      - run: sh docker/batch/ci_run.sh make test-review-regressions
       - run: sh docker/batch/ci_run.sh make prepare-silver-fixture
       - run: sh docker/batch/ci_run.sh make integration-silver
       - run: sh docker/batch/ci_run.sh make integration-gold
