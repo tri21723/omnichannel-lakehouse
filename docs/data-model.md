@@ -93,3 +93,10 @@ Three Iceberg tables in `lh.gold`:
 - `lh.gold.lbl_order_return`: Supervised binary classification label `is_returned \in \{0, 1\}` with configurable return observation horizon (`horizon_days`, default 14 days). Right-censored: immature orders (`order_ts + interval horizon_days days > as_of_ts`) carry `is_mature = false` and `is_returned = NULL` to prevent label leakage. Keyed by `order_label_key`. Partitioned by `(as_of_date)`.
 
 Point-in-time correctness enforces dual-timestamp cutoff: `order_ts < as_of_ts` and `return_ts < as_of_ts`. All monetary features preserve `DECIMAL(18,2)` and channel `currency`. Managed by independent publication ledger `/runtime/dp3/publication/ledger.json`. See [ADR-0010](adr/0010-features-and-return-labels.md) and [physical DDL](../sql/iceberg/gold_contract.sql).
+
+## Implemented Warehouse Export contract (Phase 4E)
+
+Eight star-schema tables mirrored into PostgreSQL database `sources`, schema `warehouse.*` (`dim_date`, `dim_channel`, `dim_customer`, `dim_seller`, `dim_product`, `fact_orders`, `fact_order_items`, `fact_returns`) defined in [physical DDL](../sql/postgres/003_warehouse.sql).
+- Facts cover the 30-day UTC sliding window `[run_date - 29 days, run_date + 1 day)` (`fact_returns` further semi-joined to in-window `fact_orders` / `fact_order_items` to preserve strict FK integrity).
+- Composite PKs `(_dataset_run_id, date_key)` and `(_dataset_run_id, channel_key)` enable multi-dataset coexistence with full `FOREIGN KEY`, `NUMERIC(18,2)` `CHECK (>= 0)`, salted PII hashes only, and `SELECT` grants for `trino_ro`.
+- Single-connection driver JDBC synchronization (`spark_writer`) guarantees ACID rollback and records export provenance at `/runtime/warehouse/export/ledger.json`. See [ADR-0011](adr/0011-warehouse-export.md) and [Warehouse validation](warehouse-validation.md).

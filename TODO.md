@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-06` hoàn tất — 22/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Phase 4E hoàn tất 100% (v0.4e-warehouse; sẵn sàng chuyển sang Phase 4F — Data Skew Benchmark)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -146,24 +146,24 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-07 — Makefile, CI, tài liệu và bàn giao sang Phase 4F
 
-- [ ] Mở rộng `Makefile`:
+- [x] Mở rộng `Makefile`:
   - Hỗ trợ `JOB=dp4_warehouse` trong `spark-submit`.
   - Thêm các target: `smoke-warehouse`, `verify-warehouse`, `integration-warehouse`, `integration-warehouse-reference`, `reconcile-warehouse`, `test-warehouse-dq`, `test-warehouse-recovery` (giữ nguyên toàn bộ target cũ).
-- [ ] Cập nhật `docker/batch/ci_events.py` (allowlist các structured event của `dp4_warehouse`) và cập nhật manual workflow `.github/workflows/gold-dp3.yml` (hoặc thêm `.github/workflows/warehouse.yml`) chạy kiểm thử end-to-end với small fixture và `make down` không xóa volume.
-- [ ] Cập nhật `docs/runbook.md`, `docs/data-model.md`, `docs/implementation-status.md`, `README.md`, `docs/features-warehouse-handoff.md` và viết báo cáo bằng chứng `docs/warehouse-validation.md`.
-- [ ] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế, lưu trữ vào `docs/phase4e-checklist.md`, commit theo Conventional Commits và gắn tag `v0.4e-warehouse` khi đạt đủ local DoD.
+- [x] Cập nhật `docker/batch/ci_events.py` (allowlist các structured event của `dp4_warehouse`) và cập nhật manual workflow `.github/workflows/gold-dp3.yml` (hoặc thêm `.github/workflows/warehouse.yml`) chạy kiểm thử end-to-end với small fixture và `make down` không xóa volume.
+- [x] Cập nhật `docs/runbook.md`, `docs/data-model.md`, `docs/implementation-status.md`, `README.md`, `docs/features-warehouse-handoff.md` và viết báo cáo bằng chứng `docs/warehouse-validation.md`.
+- [x] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế, lưu trữ vào `docs/phase4e-checklist.md`, commit theo Conventional Commits và gắn tag `v0.4e-warehouse` khi đạt đủ local DoD.
 
 **Đạt khi:** Đầy đủ công cụ `make`, CI allowlist, runbook, báo cáo kiểm chứng `docs/warehouse-validation.md` và gắn tag `v0.4e-warehouse`.
 **Commit gợi ý:** `docs(warehouse): publish Phase 4E validation evidence and close warehouse export`.
 
 ## 4. Điều kiện đóng Phase 4E
 
-- [ ] 8 bảng `warehouse.{dim_date,dim_channel,dim_customer,dim_product,dim_seller,fact_orders,fact_order_items,fact_returns}` trong PostgreSQL `sources` có đầy đủ khóa chính, khóa ngoại, kiểm tra `NUMERIC(18,2)` và quyền đọc cho `trino_ro`.
-- [ ] Input được pin chặt chẽ từ completed Gold publication ledger (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`; publication của `dp4_warehouse` tách riêng tại `/runtime/warehouse/export/ledger.json`.
-- [ ] Cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC hoạt động chính xác: giữ đúng dữ liệu trong cửa sổ và cắt bỏ sạch dữ liệu trượt ra ngoài cửa sổ.
-- [ ] Ghi transactional nguyên tử bằng یک kết nối JVM JDBC (`spark_writer`): nếu lỗi giữa chừng thì `ROLLBACK` 100%, không để lại dữ liệu dở dang giữa các bảng.
-- [ ] Multi-dataset coexistence (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`), đối soát hai chiều Gold ↔ Postgres khớp từng xu (`0.00`), replay idempotent, recovery và restart persistence đều xanh.
-- [ ] `make check` và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver`/`gold`/`dp3` đều xanh; tài liệu, ADR-0011, DDL và runbook cập nhật đầy đủ.
+- [x] 8 bảng `warehouse.{dim_date,dim_channel,dim_customer,dim_product,dim_seller,fact_orders,fact_order_items,fact_returns}` trong PostgreSQL `sources` có đầy đủ khóa chính, khóa ngoại, kiểm tra `NUMERIC(18,2)` và quyền đọc cho `trino_ro`.
+- [x] Input được pin chặt chẽ từ completed Gold publication ledger (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`; publication của `dp4_warehouse` tách riêng tại `/runtime/warehouse/export/ledger.json`.
+- [x] Cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC hoạt động chính xác: giữ đúng dữ liệu trong cửa sổ và cắt bỏ sạch dữ liệu trượt ra ngoài cửa sổ.
+- [x] Ghi transactional nguyên tử bằng một kết nối JVM JDBC (`spark_writer`): nếu lỗi giữa chừng thì `ROLLBACK` 100%, không để lại dữ liệu dở dang giữa các bảng.
+- [x] Multi-dataset coexistence (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`), đối soát hai chiều Gold ↔ Postgres khớp từng xu (`0.00`), replay idempotent, recovery và restart persistence đều xanh.
+- [x] `make check` và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver`/`gold`/`dp3` đều xanh; tài liệu, ADR-0011, DDL và runbook cập nhật đầy đủ.
 
 ## 5. Quy tắc thực hiện
 

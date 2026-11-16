@@ -73,3 +73,24 @@ def test_dp3_events_preserve_safe_metrics_and_runs():
             "skipped": False,
         }
     ]
+
+
+def test_warehouse_events_preserve_safe_fields_only():
+    event = {
+        "event": "warehouse_exported",
+        "run_id": "186ae107d0793d2ee237",
+        "run_date": "2026-01-17",
+        "export_id": "a" * 64,
+        "skipped": True,
+        "password": "do-not-leak-db-password",
+    }
+    result = list(module.safe_events([json.dumps(event)]))
+    assert result == [
+        {
+            "event": "warehouse_exported",
+            "run_id": "186ae107d0793d2ee237",
+            "run_date": "2026-01-17",
+            "export_id": "a" * 64,
+            "skipped": True,
+        }
+    ]

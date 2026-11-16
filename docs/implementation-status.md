@@ -102,10 +102,20 @@ See [Gold validation](gold-validation.md) and [Features & Warehouse handoff](fea
 See [DP3 validation](dp3-validation.md), [completed checklist](phase4d-checklist.md), and
 [Features & Warehouse handoff](features-warehouse-handoff.md).
 
-## Next: Phase 4E — Data Warehouse Export (`dp4_warehouse`)
+## Phase 4E — Data Warehouse Export (`dp4_warehouse`) complete locally
 
-Per ADR-0003, `dp4_warehouse` exports the 30-day sliding window from pinned `lh.gold` snapshots
-into PostgreSQL `warehouse.*` with transactional idempotency and exact `NUMERIC(18,2)` reconciliation.
+- Local milestone `v0.4e-warehouse`; all lint checks, unit tests, bi-directional reconciliation, sliding-window pruning, transactional rollback, and post-restart regression checks pass.
+- Synchronizes a 30-day UTC sliding window `[run_date - 29 days, run_date + 1 day)` from pinned `lh.gold.*` Iceberg snapshots (`/runtime/gold/publication/ledger.json`) into PostgreSQL schema `warehouse.*` (`dim_date`, `dim_channel`, `dim_customer`, `dim_seller`, `dim_product`, `fact_orders`, `fact_order_items`, `fact_returns`).
+- Physical DDL (`sql/postgres/003_warehouse.sql`) enforces PKs (including multi-run composite keys on `dim_date` and `dim_channel`), foreign keys, `NUMERIC(18,2) >= 0` constraints, indexes, zero clear PII, and `trino_ro` read-only permissions.
+- Single-connection JVM JDBC driver writes as `spark_writer` (`setAutoCommit(False)`) ensure atomic ACID rollback across all 8 tables (`fail_after="dimensions" | "facts" | "completion"`), isolated ledger `/runtime/warehouse/export/ledger.json`, and safe idempotent replay.
+- Multi-dataset coexistence verified across `186ae107d0793d2ee237` (375 orders) and `b1e64afaff0176de180a` (15,000 orders) with `0.00` cent-level monetary discrepancy across all channels/currencies (`USD`, `VND`).
+- Manual CI workflow `.github/workflows/warehouse.yml` and allowlisted events added; hosted CI run not claimed until triggered.
+
+See [Warehouse validation](warehouse-validation.md), [ADR-0011](adr/0011-warehouse-export.md), and [Features & Warehouse handoff](features-warehouse-handoff.md).
+
+## Next: Phase 4F — Performance & Skew Benchmark
+
+Scale benchmarking for skewed keys, partition tuning, and final Phase 4 closure before Phase 5 (Airflow orchestration).
 
 ## Later phases
 

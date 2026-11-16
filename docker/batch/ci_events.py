@@ -44,6 +44,11 @@ EVENTS = {
     "labels_verified",
     "dp3_dq_passed",
     "dp3_recovery_passed",
+    "warehouse_exported",
+    "warehouse_verified",
+    "warehouse_reconciled",
+    "warehouse_dq_passed",
+    "warehouse_recovery_passed",
 }
 ERROR_TYPES = {
     "ValueError",
@@ -95,6 +100,15 @@ def safe_events(lines):
             r"[a-f0-9]{64}", item["input_id"]
         ):
             clean["input_id"] = item["input_id"]
+        for digest_key in ("export_id", "gold_publication_id"):
+            if isinstance(item.get(digest_key), str) and re.fullmatch(
+                r"[a-f0-9]{64}", item[digest_key]
+            ):
+                clean[digest_key] = item[digest_key]
+        if isinstance(item.get("run_date"), str) and re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}", item["run_date"]
+        ):
+            clean["run_date"] = item["run_date"]
         if item.get("channel") in ("walmart", "amazon", "tiktok_shop", "shopee", "lazada"):
             clean["channel"] = item["channel"]
         if item.get("stage") in ("contribution", "quarantine", "completion"):

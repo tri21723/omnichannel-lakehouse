@@ -12,9 +12,10 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 Phase 4B hoàn thành local (`v0.4b-silver`): Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
 Phase 4C hoàn thành local (`v0.4c-gold`): Kimball star schema 8 bảng trong `lh.gold`, đối soát tiền tệ `DECIMAL(18,2)`, multi-dataset coexistence và atomic recovery.
 Phase 4D hoàn thành local (`v0.4d-features`): Feature Store (`feat_customer_daily`, `feat_product_daily`) và Return Labels (`lbl_order_return`) trong `lh.gold` với point-in-time dual-timestamp cutoff và maturity right-censoring.
-Data Warehouse export (Phase 4E) là giai đoạn tiếp theo.
+Phase 4E hoàn thành local (`v0.4e-warehouse`): Downstream Data Warehouse Export (`dp4_warehouse`) đồng bộ cửa sổ trượt 30 ngày sang PostgreSQL `warehouse.*` bằng một giao dịch JDBC nguyên tử (`spark_writer`), giữ nguyên vẹn ràng buộc PK/FK, `NUMERIC(18,2)` và quyền đọc `trino_ro`.
+Tiếp theo là Phase 4F (benchmark data skew quy mô lớn và đóng Phase 4).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -137,6 +138,23 @@ Xuất bản `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily` và `lh
 với ledger độc lập tại `/runtime/dp3/publication/ledger.json`. Đảm bảo point-in-time cutoff kép
 (`order_ts < as_of_ts` và `return_ts < as_of_ts`) và maturity censoring (`is_mature = false` → `is_returned IS NULL`).
 Xem [ADR-0010](docs/adr/0010-features-and-return-labels.md) và [DP3 validation](docs/dp3-validation.md).
+
+## Chạy Data Warehouse Export (Phase 4E)
+
+```sh
+make smoke-warehouse
+make verify-warehouse
+make integration-warehouse
+make reconcile-warehouse
+make test-warehouse-dq
+make test-warehouse-recovery
+```
+
+Đồng bộ cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC của 8 bảng Gold
+từ snapshot đã pin sang PostgreSQL database `sources`, schema `warehouse.*` trong một
+giao dịch JDBC nguyên tử (`spark_writer`), bảo toàn `NUMERIC(18,2)`, PII hash và quyền đọc
+cho `trino_ro` cùng ledger độc lập `/runtime/warehouse/export/ledger.json`. Xem
+[ADR-0011](docs/adr/0011-warehouse-export.md) và [Warehouse validation](docs/warehouse-validation.md).
 
 ## Kiến trúc và source
 

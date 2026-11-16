@@ -324,3 +324,24 @@ Point-in-time feature cutoffs enforce `order_ts < as_of_ts` and `return_ts < as_
 sets `is_returned` and all return label metrics to `NULL`, never `0`).
 See [ADR-0010](adr/0010-features-and-return-labels.md), [DP3 validation](dp3-validation.md),
 and `.github/workflows/gold-dp3.yml`.
+
+## Downstream Data Warehouse Export (Phase 4E)
+
+```sh
+make smoke-warehouse
+make verify-warehouse
+make integration-warehouse
+make reconcile-warehouse
+make test-warehouse-dq
+make test-warehouse-recovery
+```
+
+`dp4_warehouse` reads completed `/runtime/gold/publication/ledger.json` snapshots strictly
+read-only (`snapshot-id` pinned), slices facts to `[run_date - 29 days, run_date + 1 day)` UTC,
+and replaces all 8 `warehouse.*` tables for `_dataset_run_id` inside one PostgreSQL transaction
+via JVM JDBC on the driver using role `spark_writer`. Spark workers never hold DB write passwords.
+Export state is stored separately at `/runtime/warehouse/export/ledger.json`. Both small fixture
+(`186ae107d0793d2ee237`) and default reference (`b1e64afaff0176de180a`) coexist in PostgreSQL
+`warehouse.*` with full PK/FK enforcement and `SELECT` access for `trino_ro`.
+See [ADR-0011](adr/0011-warehouse-export.md), [Warehouse validation](warehouse-validation.md),
+and `.github/workflows/warehouse.yml`.

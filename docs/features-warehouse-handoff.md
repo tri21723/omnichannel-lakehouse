@@ -38,21 +38,21 @@ This document specifies the input contracts, schemas, point-in-time correctness,
 
 ---
 
-## 2. Phase 4E: Data Warehouse Export (`dp4_warehouse`)
+## 2. Phase 4E: Data Warehouse Export (`dp4_warehouse`) — Completed (`v0.4e-warehouse`)
 
 ### 2.1 Scope & Architecture
 - **Source:** `lh.gold` Iceberg tables (pinned from `/runtime/gold/publication/ledger.json`).
-- **Target:** PostgreSQL database `sources`, schema `warehouse.*` serving reporting and BI layers.
-- Per ADR-0003, `dp4_warehouse` performs read-only export from Gold; it never writes back to Iceberg.
+- **Target:** PostgreSQL database `sources`, schema `warehouse.*` (`sql/postgres/003_warehouse.sql`) serving reporting, BI layers, and Phase 6 Trino federated queries (`trino_ro` `SELECT`).
+- Per ADR-0003 & ADR-0011, `dp4_warehouse` performs read-only export from Gold; it never writes back to Iceberg.
 
-### 2.2 30-Day Sliding Window
+### 2.2 30-Day Sliding Window & FK Integrity
 - For a scheduled run at `run_date` (UTC), the export window is defined as:
   $$[\text{run\_date} - 29\text{ days},\, \text{run\_date} + 1\text{ day}) \quad \text{UTC}$$
-- Fact records (`fact_orders`, `fact_order_items`, `fact_returns`) within this 30-day window are selected, and any rows outside the window for that run are removed atomically.
-- Referenced dimension tables (`dim_customer`, `dim_product`, `dim_seller`, `dim_channel`, `dim_date`) are synchronized transactionally.
+- Fact records (`fact_orders`, `fact_order_items`, `fact_returns`) within this 30-day window are selected (with `fact_returns` semi-joined against in-window `fact_orders` and `fact_order_items` so parent FKs remain valid), and any rows outside the window for that run are pruned atomically.
+- Referenced dimension tables (`dim_customer`, `dim_product`, `dim_seller`, `dim_channel`, `dim_date`) for the run are synchronized transactionally using composite PKs `(_dataset_run_id, date_key)` / `(_dataset_run_id, channel_key)` for coexistence.
 
 ### 2.3 Idempotency and Atomic Publication
-- **Transactional Replace:** Inside a single PostgreSQL transaction (`BEGIN ... COMMIT`), replace the target slice for the selected `_dataset_run_id` and enforce exact `NUMERIC(18,2)` reconciliation against `lh.gold.*`.
+- **Transactional Replace:** Inside a single driver-side JVM JDBC PostgreSQL transaction (`BEGIN ... COMMIT`, role `spark_writer`), replace the 8-table slice for `_dataset_run_id`, verify counts, and enforce exact `NUMERIC(18,2)` reconciliation against `lh.gold.*`. See [Warehouse validation](warehouse-validation.md).
 
 ---
 

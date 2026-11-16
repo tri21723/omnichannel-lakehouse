@@ -131,8 +131,9 @@ SILVER_ARGS ?=
 GOLD_ARGS ?=
 FEATURES_ARGS ?=
 LABELS_ARGS ?=
-spark-submit: ## Submit smoke, dp1_bronze, dp2_silver, dp2_gold, dp3_features or dp3_return_labels
-	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp3_return_labels) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_return_labels/main.py $(LABELS_ARGS) ;; dp3_features) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/main.py $(FEATURES_ARGS) ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver|dp2_gold|dp3_features|dp3_return_labels'; exit 2 ;; esac
+WAREHOUSE_ARGS ?=
+spark-submit: ## Submit smoke, dp1_bronze, dp2_silver, dp2_gold, dp3_features, dp3_return_labels or dp4_warehouse
+	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp4_warehouse) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/main.py $(WAREHOUSE_ARGS) ;; dp3_return_labels) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_return_labels/main.py $(LABELS_ARGS) ;; dp3_features) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/main.py $(FEATURES_ARGS) ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver|dp2_gold|dp3_features|dp3_return_labels|dp4_warehouse'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
@@ -274,3 +275,25 @@ test-dp3-dq: ## Check surrogate key formats, non-negative metrics, censoring and
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/dq_test.py --run-id $(DP3_RUN_ID)
 test-dp3-recovery: ## Verify partial publish failure points and ledger preservation for DP3
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/recovery_test.py --run-id $(DP3_RUN_ID)
+
+.PHONY: smoke-warehouse verify-warehouse integration-warehouse integration-warehouse-reference reconcile-warehouse test-warehouse-dq test-warehouse-recovery
+WAREHOUSE_RUN_ID ?= 186ae107d0793d2ee237
+smoke-warehouse: ## Export 30-day Gold slice to PostgreSQL warehouse.* on the small fixture
+	$(MAKE) spark-submit JOB=dp4_warehouse WAREHOUSE_ARGS='--run-id $(WAREHOUSE_RUN_ID) --mode full'
+verify-warehouse: ## Verify committed PostgreSQL warehouse.* ledger and constraints read-only
+	$(MAKE) spark-submit JOB=dp4_warehouse WAREHOUSE_ARGS='--verify'
+integration-warehouse: ## Export and verify both small fixture and default reference datasets in warehouse.*
+	$(MAKE) spark-submit JOB=dp4_warehouse WAREHOUSE_ARGS='--run-id 186ae107d0793d2ee237 --mode full'
+	$(MAKE) spark-submit JOB=dp4_warehouse WAREHOUSE_ARGS='--run-id b1e64afaff0176de180a --mode full'
+	$(MAKE) verify-warehouse
+	$(MAKE) reconcile-warehouse
+integration-warehouse-reference: ## Export and verify default reference dataset into warehouse.* (15000 orders)
+	$(MAKE) spark-submit JOB=dp4_warehouse WAREHOUSE_ARGS='--run-id b1e64afaff0176de180a --mode full'
+	$(MAKE) spark-submit JOB=dp4_warehouse WAREHOUSE_ARGS='--verify --run-id b1e64afaff0176de180a'
+reconcile-warehouse: ## Reconcile Gold Iceberg pinned slices with PostgreSQL warehouse.*
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/reconcile.py
+test-warehouse-dq: ## Verify FK integrity, NUMERIC(18,2) reconciliation, PII guard and trino_ro permissions
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/dq_test.py --run-id $(WAREHOUSE_RUN_ID)
+	$(COMPOSE) run --rm --no-deps --entrypoint /bin/sh postgres-init -c 'export PGUSER=trino_ro PGPASSWORD="$$TRINO_RO_DB_PASSWORD"; psql -X -v ON_ERROR_STOP=1 -d sources -c "SELECT count(*) FROM warehouse.fact_orders" >/dev/null; if psql -X -v ON_ERROR_STOP=1 -d sources -c "DELETE FROM warehouse.fact_orders WHERE false" >/dev/null 2>&1; then echo "ERROR: trino_ro can write warehouse"; exit 1; fi'
+test-warehouse-recovery: ## Verify 30-day window pruning, JDBC rollback recovery and dataset isolation
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/recovery_test.py --run-id $(WAREHOUSE_RUN_ID)
