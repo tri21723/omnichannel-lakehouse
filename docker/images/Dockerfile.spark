@@ -9,4 +9,5 @@ RUN set -eu; for artifact in iceberg-spark-runtime-3.5_2.12 iceberg-aws-bundle; 
     printf '%s  %s\n' "$(cat /tmp/jar.sha512)" "/opt/spark/jars/$artifact-1.9.2.jar" | sha512sum -c -; done
 RUN curl -fsSL https://repo.maven.apache.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar -o /opt/spark/jars/postgresql-42.7.5.jar
 COPY spark /app/spark
+COPY sql /app/sql
 WORKDIR /app

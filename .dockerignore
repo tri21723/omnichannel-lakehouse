@@ -9,4 +9,6 @@ generators/**/*.pyc
 !spark/
 !spark/**
 spark/**/__pycache__/
+!sql/
+!sql/**
 !docker/images/Dockerfile.spark

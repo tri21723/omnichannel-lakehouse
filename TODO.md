@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-02` hoàn tất — 8/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-03` hoàn tất — 12/46 checklist)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -95,13 +95,13 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-03 — Transactional JVM JDBC Writer (`spark_writer`) và job `dp4_warehouse`
 
-- [ ] Tạo `spark/lib/warehouse_jdbc.py` quản lý kết nối JVM JDBC (`user="spark_writer"`, `SPARK_WRITER_DB_PASSWORD`, `WAREHOUSE_JDBC_URL`, `setAutoCommit(False)`, timezone `UTC`) và khởi tạo schema/bảng từ `sql/postgres/003_warehouse.sql`.
-- [ ] Thực thi thay thế nguyên tử (transactional slice replacement) cho `_dataset_run_id` bên trong một giao dịch duy nhất:
+- [x] Tạo `spark/lib/warehouse_jdbc.py` quản lý kết nối JVM JDBC (`user="spark_writer"`, `SPARK_WRITER_DB_PASSWORD`, `WAREHOUSE_JDBC_URL`, `setAutoCommit(False)`, timezone `UTC`) và khởi tạo schema/bảng từ `sql/postgres/003_warehouse.sql`.
+- [x] Thực thi thay thế nguyên tử (transactional slice replacement) cho `_dataset_run_id` bên trong một giao dịch duy nhất:
   - Xóa dữ liệu cũ của `_dataset_run_id` theo thứ tự khóa ngoại ngược (`fact_returns` → `fact_order_items` → `fact_orders` → `dim_product` / `dim_customer` / `dim_seller` / `dim_channel` / `dim_date`) hoặc xóa các dòng ngoài cửa sổ / upsert idempotent.
   - Ghi batch (`PreparedStatement.addBatch` / `executeBatch`) theo thứ tự khóa ngoại xuôi (`dim_*` trước, `fact_orders` → `fact_order_items` → `fact_returns` sau), giữ chính xác kiểu `BigDecimal` (`NUMERIC(18,2)`), `Timestamp` UTC, `Date`, `Boolean`.
   - Chỉ gọi `conn.commit()` sau khi cả 8 bảng đã ghi và kiểm tra số dòng thành công; nếu có bất kỳ lỗi nào thì `conn.rollback()` ngay lập tức.
-- [ ] Tạo entrypoint `spark/jobs/dp4_warehouse/main.py` hỗ trợ CLI: `--run-id`, `--run-date` (tùy chọn; mặc định lấy ngày lớn nhất của run trong Gold), `--publication-id`, `--mode full|incremental`, `--force`, `--verify`.
-- [ ] Viết unit tests (`spark/tests/test_warehouse_jdbc.py`) kiểm chứng thứ tự bảng FK, ánh xạ kiểu dữ liệu `DECIMAL(18,2)` / `TIMESTAMPTZ`, và hành vi rollback khi xảy ra ngoại lệ trước `commit()`.
+- [x] Tạo entrypoint `spark/jobs/dp4_warehouse/main.py` hỗ trợ CLI: `--run-id`, `--run-date` (tùy chọn; mặc định lấy ngày lớn nhất của run trong Gold), `--publication-id`, `--mode full|incremental`, `--force`, `--verify`.
+- [x] Viết unit tests (`spark/tests/test_warehouse_jdbc.py`) kiểm chứng thứ tự bảng FK, ánh xạ kiểu dữ liệu `DECIMAL(18,2)` / `TIMESTAMPTZ`, và hành vi rollback khi xảy ra ngoại lệ trước `commit()`.
 
 **Đạt khi:** `dp4_warehouse` đồng bộ cả 8 bảng sang PostgreSQL `warehouse.*` trong một giao dịch ACID duy nhất bằng role `spark_writer`.
 **Commit gợi ý:** `feat(warehouse): export 30-day Gold star schema to Postgres transactionally`.
