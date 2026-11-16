@@ -70,8 +70,8 @@ def compute_order_return_labels(
     # Join orders with aggregated returns
     joined = orders.join(ret_aggs, on="order_key", how="left")
 
-    # Maturity condition: order_ts + INTERVAL horizon_days DAYS <= as_of_ts
-    is_mature_col = (F.col("order_ts") + F.expr(f"INTERVAL {horizon_days} DAYS")) <= F.lit(as_of_ts)
+    # Closed horizon requires a cutoff strictly beyond its final observable instant.
+    is_mature_col = (F.col("order_ts") + F.expr(f"INTERVAL {horizon_days} DAYS")) < F.lit(as_of_ts)
 
     result = joined.select(
         F.sha2(

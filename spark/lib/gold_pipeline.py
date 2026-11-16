@@ -8,6 +8,28 @@ from spark.lib.gold_entities import (
 )
 
 
+def validate_fact_numbers(df, name):
+    """Fail closed on decimal cast overflow and invalid aggregates, including ANSI-disabled Spark."""
+    from pyspark.sql import functions as F
+
+    fields = {
+        "fact_order_items": [
+            "qty",
+            "unit_price",
+            "discount",
+            "gross_line_amount",
+            "net_line_amount",
+        ],
+        "fact_orders": ["item_count", "total_qty", "gross_amount", "discount_amount", "net_amount"],
+        "fact_returns": ["refund_amount"],
+    }[name]
+    invalid = F.lit(False)
+    for field in fields:
+        invalid = invalid | F.col(field).isNull() | (F.col(field) < 0)
+    if df.filter(invalid).limit(1).count():
+        raise ValueError(f"Gold numeric overflow or invalid amount in {name}")
+
+
 def build_dimensions(spark, silver_frames, run_id, pub_id, snapshots):
     """Build the five Gold dimensions."""
     from pyspark.sql import functions as F
@@ -234,6 +256,7 @@ def build_facts(spark, silver_frames, dims, run_id, pub_id, snapshots):
         F.lit(item_snap).alias("_silver_snapshot"),
         F.lit(POLICY).alias("_policy_version"),
     )
+    validate_fact_numbers(fact_order_items, "fact_order_items")
     fact_order_items = rehash_gold(fact_order_items, "fact_order_items")
 
     # 2. Prepare fact_orders
@@ -288,6 +311,7 @@ def build_facts(spark, silver_frames, dims, run_id, pub_id, snapshots):
         F.lit(order_snap).alias("_silver_snapshot"),
         F.lit(POLICY).alias("_policy_version"),
     )
+    validate_fact_numbers(fact_orders, "fact_orders")
     fact_orders = rehash_gold(fact_orders, "fact_orders")
 
     # 3. Prepare fact_returns
@@ -367,6 +391,7 @@ def build_facts(spark, silver_frames, dims, run_id, pub_id, snapshots):
         F.lit(ret_snap).alias("_silver_snapshot"),
         F.lit(POLICY).alias("_policy_version"),
     )
+    validate_fact_numbers(fact_returns, "fact_returns")
     fact_returns = rehash_gold(fact_returns, "fact_returns")
 
     return {

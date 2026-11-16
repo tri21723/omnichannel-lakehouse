@@ -239,6 +239,11 @@ def verify_gold(spark, ledger, target_run_id=None):
         schema = spark.table(table_fqdn).schema
         frame = frame_at(spark, table_fqdn, evidence, schema)
 
+        if name.startswith("fact_"):
+            from spark.lib.gold_pipeline import validate_fact_numbers
+
+            validate_fact_numbers(frame, name)
+
         # Content summary match
         if summary(frame) != evidence["content"]:
             raise ValueError(f"Snapshot summary mismatch on {table_fqdn}")

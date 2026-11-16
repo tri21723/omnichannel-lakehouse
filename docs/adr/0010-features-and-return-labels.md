@@ -64,7 +64,7 @@ The return observation horizon $H$ is configurable via `--horizon-days` (default
 
 ### Maturity condition
 An order is mature as of $T_{\text{as\_of}}$ if and only if:
-$$\text{order\_ts} + \text{INTERVAL } H \text{ DAYS} \le T_{\text{as\_of}}$$
+$$\text{order\_ts} + \text{INTERVAL } H \text{ DAYS} < T_{\text{as\_of}}$$
 
 ### Right-censoring policy (ADR-0003)
 - When $\text{is\_mature} = \text{false}$:
@@ -97,3 +97,7 @@ All tables are Iceberg v2 format with ZSTD-compressed Parquet, partitioned by `a
 
 Idempotency and recomputation are managed via `MERGE INTO` scoped by `(_dataset_run_id, as_of_date)`
 (or entire `_dataset_run_id` during full backfills), preserving records of coexisting runs.
+
+Boundary clarification (2026-11-16): the return horizon is closed, while events at
+the cutoff are excluded. Maturity therefore requires horizon_end < as_of_ts. At
+equality labels remain NULL until a later cutoff can observe the endpoint.
