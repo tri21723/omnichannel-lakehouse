@@ -16,6 +16,18 @@ def _to_date(val: str | date) -> date:
     return val
 
 
+def validate_feature_currency(frame: Any, name: str) -> None:
+    """Current feature grain supports exactly the configured native channel currency."""
+    from pyspark.sql import functions as F
+
+    supported = F.col("channel").isin("walmart", "amazon", "tiktok_shop", "shopee", "lazada", "pos")
+    invalid = (~F.coalesce(supported, F.lit(False))) | (
+        ~F.col("currency").eqNullSafe(get_channel_currency(F.col("channel")))
+    )
+    if frame.filter(invalid).limit(1).count():
+        raise ValueError(f"Unsupported or mixed feature currency in {name}")
+
+
 def compute_customer_daily_features(
     spark: Any,
     frames: dict[str, Any],
@@ -38,6 +50,8 @@ def compute_customer_daily_features(
     orders = frames["fact_orders"].filter(
         (F.col("order_ts") < F.lit(as_of_ts)) & (~F.coalesce(F.col("is_deleted"), F.lit(False)))
     )
+
+    validate_feature_currency(orders, "fact_orders")
 
     # Recency, frequency, monetary aggregations per (channel, customer_id)
     order_aggs = orders.groupBy("channel", "customer_id").agg(
@@ -79,6 +93,8 @@ def compute_customer_daily_features(
         & (F.col("order_ts") < F.lit(as_of_ts))
         & (F.col("return_ts") < F.lit(as_of_ts))
     )
+
+    validate_feature_currency(valid_returns_30d, "fact_returns")
 
     return_aggs = valid_returns_30d.groupBy("channel", "customer_id").agg(
         F.countDistinct("order_key").cast(IntegerType()).alias("returned_orders_30d"),
@@ -190,6 +206,9 @@ def compute_product_daily_features(
         .filter(F.col("order_ts") < F.lit(as_of_ts))
     )
 
+    validate_feature_currency(orders, "fact_orders")
+    validate_feature_currency(items, "fact_order_items")
+
     item_aggs = items.groupBy("channel", "product_id").agg(
         F.countDistinct(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("order_key")))
         .cast(IntegerType())
@@ -245,6 +264,8 @@ def compute_product_daily_features(
         )
         .filter((F.col("order_ts") < F.lit(as_of_ts)) & (F.col("return_ts") < F.lit(as_of_ts)))
     )
+
+    validate_feature_currency(returns, "fact_returns")
 
     return_aggs = returns.groupBy("channel", "product_key").agg(
         F.count(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("return_key")))

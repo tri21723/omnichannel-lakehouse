@@ -112,3 +112,10 @@ including Gold publication, policy and label horizon. Publishing features cannot
 promote labels; incremental refresh cannot promote untouched dates. Full refresh
 requires an exact date set before skipping. Legacy ledgers without scoped provenance
 recompute requested scopes; table schemas and existing snapshots are unchanged.
+
+The existing feature grain has no currency dimension. Before aggregation, eligible
+orders, items and returns must match their configured channel currency (USD for
+Walmart/Amazon/TikTok Shop; VND for Shopee/Lazada/POS). Unsupported channels, NULL
+currency and mismatches fail closed, including mixed currencies within a channel.
+Supporting other currencies requires an explicit grain/key migration; amounts are
+never silently relabeled or converted.

@@ -3,6 +3,7 @@
 import logging
 
 from spark.lib.bronze import event
+from spark.lib.dp3_features import validate_feature_currency
 from spark.lib.dp3_labels import compute_order_return_labels
 from spark.lib.gold_pipeline import validate_fact_numbers
 from spark.lib.session import get_spark
@@ -45,7 +46,19 @@ def run():
             pass
         else:
             raise AssertionError("Overflow was accepted")
-        event("review_regressions_passed", cases=3)
+        valid = spark.createDataFrame(
+            [("amazon", "USD"), ("shopee", "VND")], "channel string, currency string"
+        )
+        validate_feature_currency(valid, "fixture")
+        for bad in [("amazon", "EUR"), ("amazon", None), ("unknown", "USD")]:
+            mixed = valid.union(spark.createDataFrame([bad], valid.schema))
+            try:
+                validate_feature_currency(mixed, "fixture")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"Unsupported currency accepted: {bad}")
+        event("review_regressions_passed", cases=7)
     finally:
         spark.stop()
 
