@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-15**. Trạng thái: **Đã rà soát và chốt kế hoạch chi tiết; chưa bắt đầu triển khai (0/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01` hoàn tất — 4/46 checklist)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -68,17 +68,17 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-01 — Baseline Gold/Postgres, ADR-0011, physical DDL và cấu hình kết nối
 
-- [ ] Chạy kiểm tra baseline: `make check`, `make smoke-core`, `make verify-gold`, `make verify-features`, `make verify-labels`.
-- [ ] Soạn thảo `docs/adr/0011-warehouse-export.md` chốt các quyết định thiết kế cho `dp4_warehouse`:
+- [x] Chạy kiểm tra baseline: `make check`, `make smoke-core`, `make verify-gold`, `make verify-features`, `make verify-labels`.
+- [x] Soạn thảo `docs/adr/0011-warehouse-export.md` chốt các quyết định thiết kế cho `dp4_warehouse`:
   - Ranh giới đọc bất biến từ `/runtime/gold/publication/ledger.json` theo `snapshot-id` và ledger riêng tại `/runtime/warehouse/export/ledger.json`.
   - Định nghĩa chính xác cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC cho `fact_orders`, `fact_order_items`, `fact_returns` và cách đồng bộ 5 bảng `dim_*`.
   - Cơ chế ghi transactional qua một kết nối JVM JDBC duy nhất trên driver bằng role `spark_writer` (`conn.setAutoCommit(False)`), đảm bảo rollback 100% nếu bất kỳ bảng nào lỗi.
   - Thiết kế khóa chính/khóa ngoại vật lý trong PostgreSQL `warehouse.*` hỗ trợ multi-dataset coexistence (`_dataset_run_id`).
-- [ ] Viết `sql/postgres/003_warehouse.sql` định nghĩa DDL idempotent (`CREATE TABLE IF NOT EXISTS warehouse.<table_name>`) cho 8 bảng:
+- [x] Viết `sql/postgres/003_warehouse.sql` định nghĩa DDL idempotent (`CREATE TABLE IF NOT EXISTS warehouse.<table_name>`) cho 8 bảng:
   - `warehouse.dim_date`, `warehouse.dim_channel`, `warehouse.dim_customer`, `warehouse.dim_product`, `warehouse.dim_seller`
   - `warehouse.fact_orders`, `warehouse.fact_order_items`, `warehouse.fact_returns`
   - Đầy đủ `PRIMARY KEY`, `FOREIGN KEY`, `CHECK` constraints cho các cột tiền tệ `NUMERIC(18,2) >= 0`, và indexes trên `(_dataset_run_id, order_ts)`, `(_dataset_run_id, return_ts)`, `(channel, currency)`.
-- [ ] Cập nhật `docker/compose.batch.yml` (chỉ thêm `SPARK_WRITER_DB_PASSWORD` và `WAREHOUSE_JDBC_URL` vào service `spark-submit`, không thêm vào workers) và `.env.example` (nếu cần), kèm unit test kiểm tra cấu hình môi trường.
+- [x] Cập nhật `docker/compose.batch.yml` (chỉ thêm `SPARK_WRITER_DB_PASSWORD` và `WAREHOUSE_JDBC_URL` vào service `spark-submit`, không thêm vào workers) và `.env.example` (nếu cần), kèm unit test kiểm tra cấu hình môi trường.
 
 **Đạt khi:** ADR-0011, DDL `sql/postgres/003_warehouse.sql` (pass `sqlfluff`) và cấu hình driver JDBC sẵn sàng.
 **Commit gợi ý:** `docs(adr): define Phase 4E warehouse export contract and Postgres DDL`.
