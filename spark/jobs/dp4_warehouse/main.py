@@ -11,12 +11,29 @@ from spark.lib.warehouse_input import (
     resolve_run_date,
     slice_warehouse_window,
 )
-from spark.lib.warehouse_jdbc import collect_slice_payload, replace_run_slice
+from spark.lib.warehouse_publish import (
+    ROOT as WAREHOUSE_ROOT,
+)
+from spark.lib.warehouse_publish import (
+    load_warehouse_ledger,
+    publish_warehouse,
+    verify_warehouse_ledger,
+)
 
 
 def run_job(spark, args):
     if getattr(args, "verify", False):
-        raise NotImplementedError("Warehouse read-only --verify is completed in P4E-05")
+        ledger, export_id = load_warehouse_ledger(WAREHOUSE_ROOT / "ledger.json")
+        verified_runs = verify_warehouse_ledger(
+            spark, ledger, target_run_id=getattr(args, "run_id", None)
+        )
+        event(
+            "warehouse_verified",
+            export_id=export_id,
+            runs=verified_runs,
+            target_run_id=getattr(args, "run_id", None),
+        )
+        return ledger
 
     frames, _snapshots, _run_meta, gold_pub_id = read_gold_star_schema(
         spark,
@@ -26,31 +43,31 @@ def run_job(spark, args):
     )
     resolved_date = resolve_run_date(frames, getattr(args, "run_date", None))
     sliced, w_start, w_end = slice_warehouse_window(frames, resolved_date)
-    payload, monetary = collect_slice_payload(sliced)
-    row_counts = replace_run_slice(
+
+    ledger, skipped = publish_warehouse(
         spark,
-        payload,
+        sliced,
         args.run_id,
+        gold_pub_id,
+        resolved_date,
+        w_start,
+        w_end,
+        root=WAREHOUSE_ROOT,
         fail_after=getattr(args, "fail_after", None),
+        force=getattr(args, "force", False),
+        mode=args.mode,
     )
-    summary_payload = {
-        "run_id": args.run_id,
-        "gold_publication_id": gold_pub_id,
-        "run_date": resolved_date.isoformat(),
-        "window_start": w_start.isoformat(),
-        "window_end": w_end.isoformat(),
-        "mode": args.mode,
-        "row_counts": row_counts,
-        "monetary": monetary,
-    }
+    run_entry = ledger["runs"][args.run_id]
+    counts = {name.split(".", 1)[1]: meta["rows"] for name, meta in run_entry["tables"].items()}
     event(
         "warehouse_exported",
         run_id=args.run_id,
         gold_publication_id=gold_pub_id,
         run_date=resolved_date.isoformat(),
-        row_counts=row_counts,
+        skipped=skipped,
+        row_counts=counts,
     )
-    return summary_payload
+    return ledger
 
 
 def build_parser() -> argparse.ArgumentParser:

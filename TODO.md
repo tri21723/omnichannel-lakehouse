@@ -1,6 +1,6 @@
 # TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
 
-Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-03` hoàn tất — 12/46 checklist)**.
+Cập nhật: **2026-11-16**. Trạng thái: **Đang triển khai Phase 4E (`P4E-01`..`P4E-04` hoàn tất — 17/46 checklist)**.
 
 Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
 [AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
@@ -108,13 +108,13 @@ Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không p
 
 ### P4E-04 — Export ledger `/runtime/warehouse/export`, skip idempotent và fault recovery
 
-- [ ] Tạo `spark/lib/warehouse_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/warehouse/export`, quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `export-<sha256>.json`.
-- [ ] Lưu đầy đủ thông tin đối soát trong `ledger.json`: `status`, `runs[<run_id>]` (`gold_publication_id`, `run_date`, `window_start`, `window_end`, `tables`, `updated_at`), và thống kê số dòng / tổng tiền theo từng bảng trong `warehouse.*`.
-- [ ] Nếu gặp đúng tổ hợp `(_dataset_run_id, _gold_publication_id, run_date)` đã `completed` và kiểm tra read-back từ PostgreSQL `warehouse.*` khớp 100% với ledger, cho phép skip an toàn (`skipped=True`).
-- [ ] Hỗ trợ tiêm lỗi (`fail_after="dimensions" | "facts" | "completion"`) để kiểm thử:
+- [x] Tạo `spark/lib/warehouse_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/warehouse/export`, quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `export-<sha256>.json`.
+- [x] Lưu đầy đủ thông tin đối soát trong `ledger.json`: `status`, `runs[<run_id>]` (`gold_publication_id`, `run_date`, `window_start`, `window_end`, `tables`, `updated_at`), và thống kê số dòng / tổng tiền theo từng bảng trong `warehouse.*`.
+- [x] Nếu gặp đúng tổ hợp `(_dataset_run_id, _gold_publication_id, run_date)` đã `completed` và kiểm tra read-back từ PostgreSQL `warehouse.*` khớp 100% với ledger, cho phép skip an toàn (`skipped=True`).
+- [x] Hỗ trợ tiêm lỗi (`fail_after="dimensions" | "facts" | "completion"`) để kiểm thử:
   - Khi lỗi tại `dimensions` hoặc `facts`: giao dịch PostgreSQL được `ROLLBACK` hoàn toàn (trạng thái các bảng `warehouse.*` trong PostgreSQL giữ nguyên như trước khi chạy), `attempt.json` ghi `failed`, `ledger.json` giữ nguyên từng byte.
   - Khi chạy lại không tiêm lỗi: phục hồi và commit thành công.
-- [ ] Viết unit tests (`spark/tests/test_warehouse_publish.py`) cho cơ chế lock, skip idempotent, phát hiện thay đổi `_gold_publication_id` / `run_date`, và bảo toàn ledger khi lỗi.
+- [x] Viết unit tests (`spark/tests/test_warehouse_publish.py`) cho cơ chế lock, skip idempotent, phát hiện thay đổi `_gold_publication_id` / `run_date`, và bảo toàn ledger khi lỗi.
 
 **Đạt khi:** Quá trình export sang PostgreSQL có ledger độc lập, idempotent khi chạy lại và rollback sạch sẽ khi gặp lỗi giữa chừng.
 **Commit gợi ý:** `feat(warehouse): manage export ledger idempotent skip and transactional rollback`.
