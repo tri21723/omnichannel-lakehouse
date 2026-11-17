@@ -63,11 +63,13 @@ def test_load_dp3_publication_success(tmp_path):
 def test_scoped_provenance_does_not_promote_other_tables_or_dates():
     from spark.lib.dp3_publish import record_scopes, scopes_are_current
 
-    run = {}
+    run = {"table_dates": {}}
     labels = ["lbl_order_return"]
     features = ["feat_customer_daily", "feat_product_daily"]
     dates = ["2026-01-01", "2026-01-02"]
+    run["table_dates"]["lh.gold.lbl_order_return"] = dates
     record_scopes(run, labels, dates, "A", 14, "full")
+    run["table_dates"].update({f"lh.gold.{t}": dates for t in features})
     record_scopes(run, features, dates, "B", 14, "full")
     assert not scopes_are_current(run, labels, dates, "B", 14, "full")
     record_scopes(run, labels, dates[:1], "B", 7, "incremental")
@@ -80,6 +82,7 @@ def test_scoped_provenance_does_not_promote_other_tables_or_dates():
         "policy"
     ] = "gold-policy-v1"
     assert not scopes_are_current(run, features, dates, "B", 7, "full")
+    run["table_dates"]["lh.gold.lbl_order_return"] = dates[:1]
     record_scopes(run, labels, dates[:1], "B", 7, "full")
     assert scopes_are_current(run, labels, dates[:1], "B", 7, "full")
     assert not scopes_are_current(run, labels, dates[1:], "A", 14, "incremental")
@@ -115,3 +118,17 @@ def test_publish_uses_scoped_skip_guard(monkeypatch, tmp_path, stale):
         assert skipped
         verified.assert_called_once()
         spark.sql.assert_not_called()
+
+
+def test_legacy_incremental_migration_cannot_skip_full_replacement():
+    from spark.lib.dp3_publish import record_scopes, scopes_are_current
+
+    name = "feat_customer_daily"
+    dates = ["2026-01-01", "2026-01-02"]
+    run = {"table_dates": {f"lh.gold.{name}": dates}}
+    record_scopes(run, [name], dates[1:], "B", 14, "incremental")
+    assert scopes_are_current(run, [name], dates[1:], "B", 14, "incremental")
+    assert not scopes_are_current(run, [name], dates[1:], "B", 14, "full")
+    run["table_dates"][f"lh.gold.{name}"] = dates[1:]
+    record_scopes(run, [name], dates[1:], "B", 14, "full")
+    assert scopes_are_current(run, [name], dates[1:], "B", 14, "full")

@@ -124,3 +124,7 @@ Shopee uses USD in the current generator contract (`generators/common/orders.py`
 the previous DP3 VND mapping was incorrect and is corrected with this guard.
 Feature rows use `feature-policy-v2`, so scopes produced under the old currency
 mapping cannot be skipped even if they already have scoped provenance.
+
+Full-mode skip requires both recorded table dates and scoped provenance dates to
+exactly match the request. Partially migrated legacy dates still count as retained
+data and must be removed by a real full replacement. Missing date inventory fails closed.

@@ -421,7 +421,10 @@ def scopes_are_current(prior, names, dates, gold_pub_id, horizon_days, mode):
     scopes = prior.get("table_date_provenance", {})
     for name in names:
         actual = scopes.get(f"lh.gold.{name}", {})
-        if mode != "incremental" and set(actual) != set(dates):
+        if mode != "incremental" and (
+            set(actual) != set(dates)
+            or set(prior.get("table_dates", {}).get(f"lh.gold.{name}", [])) != set(dates)
+        ):
             return False
         expected = scope_provenance(name, gold_pub_id, horizon_days)
         if any(actual.get(d) != expected for d in dates):
