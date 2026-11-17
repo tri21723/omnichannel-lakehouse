@@ -2,8 +2,8 @@
 
 from typing import Any
 
-POLICY = "feature-policy-v3"
-LABEL_POLICY = "return-label-policy-v2"
+POLICY = "feature-policy-v4"
+LABEL_POLICY = "return-label-policy-v3"
 
 DP3_KEYS = {
     "feat_customer_daily": ["customer_feature_key"],

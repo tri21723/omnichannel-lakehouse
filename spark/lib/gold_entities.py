@@ -1,6 +1,6 @@
 """Gold schema definitions, surrogate keys and deterministic hashing."""
 
-POLICY = "gold-policy-v1"
+POLICY = "gold-policy-v2"
 
 CHANNELS = {
     "walmart": ("Walmart", "batch_jdbc"),

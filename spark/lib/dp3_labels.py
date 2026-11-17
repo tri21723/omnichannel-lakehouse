@@ -7,6 +7,7 @@ from spark.lib.dp3_entities import (
     LABEL_POLICY,
     rehash_dp3,
 )
+from spark.lib.numeric import checked_int
 
 
 def _to_date(val: str | date) -> date:
@@ -61,7 +62,7 @@ def compute_order_return_labels(
     # Aggregate returns to order grain (order_key) to avoid Cartesian fan-out
     ret_aggs = valid_returns.groupBy("order_key").agg(
         F.min("return_ts").alias("first_return_ts"),
-        F.count("return_key").cast(IntegerType()).alias("return_line_count"),
+        checked_int(F.count("return_key")).alias("return_line_count"),
         F.coalesce(F.sum("refund_amount"), F.lit(0))
         .cast(DecimalType(18, 2))
         .alias("horizon_refund_amount"),

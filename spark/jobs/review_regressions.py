@@ -10,6 +10,7 @@ from spark.lib.dp3_features import (
 )
 from spark.lib.dp3_labels import compute_order_return_labels
 from spark.lib.gold_pipeline import validate_fact_numbers
+from spark.lib.numeric import checked_int
 from spark.lib.session import get_spark
 
 
@@ -62,9 +63,56 @@ def check_feature_numbers(spark):
     )
     row = compute_customer_daily_features(spark, normal, "fixture", "pin", "2026-01-03").first()
     assert row.lifetime_net_amount == 12 and row.spend_30d == 12 and row.aov_30d == 6
+    three_orders = normal["fact_orders"].unionByName(
+        normal["fact_orders"].limit(1).withColumn("order_key", F.lit("third"))
+    )
+    quantity_frames = dict(
+        normal,
+        fact_orders=three_orders,
+        fact_order_items=three_orders.selectExpr(
+            "*",
+            "'p' product_id",
+            "2000000000 qty",
+            "cast(0 as decimal(18,2)) gross_line_amount",
+            "cast(0 as decimal(18,2)) net_line_amount",
+            "cast(0 as decimal(18,2)) discount",
+        ),
+    )
+    try:
+        compute_product_daily_features(
+            spark, quantity_frames, "fixture", "pin", "2026-01-03"
+        ).collect()
+    except Exception as exc:
+        assert "nonnegative INT range" in str(exc)
+    else:
+        raise AssertionError("Positive-wrapping quantity overflow accepted")
     empty = dict(normal, fact_orders=normal["fact_orders"].limit(0))
     row = compute_customer_daily_features(spark, empty, "fixture", "pin", "2026-01-03").first()
     assert row.lifetime_order_count == 0 and row.spend_30d == 0 and row.aov_30d is None
+
+
+def check_int_bounds(spark):
+    for ansi in ("false", "true"):
+        spark.conf.set("spark.sql.ansi.enabled", ansi)
+        valid = spark.sql("SELECT 0L n UNION ALL SELECT 2147483647L n")
+        assert sorted(r.n for r in valid.select(checked_int(valid.n).alias("n")).collect()) == [
+            0,
+            2147483647,
+        ]
+        for sql in (
+            "SELECT -1L n",
+            "SELECT 2147483648L n",
+            "SELECT cast(NULL as bigint) n",
+            "SELECT sum(2000000000L) n FROM range(3)",
+        ):
+            frame = spark.sql(sql)
+            try:
+                frame.select(checked_int(frame.n)).collect()
+            except Exception as exc:
+                assert "nonnegative INT range" in str(exc)
+            else:
+                raise AssertionError("Invalid INT narrowing accepted")
+    spark.conf.set("spark.sql.ansi.enabled", "false")
 
 
 def run():
@@ -118,7 +166,8 @@ def run():
             else:
                 raise AssertionError(f"Unsupported currency accepted: {bad}")
         check_feature_numbers(spark)
-        event("review_regressions_passed", cases=11)
+        check_int_bounds(spark)
+        event("review_regressions_passed", cases=22)
     finally:
         spark.stop()
 

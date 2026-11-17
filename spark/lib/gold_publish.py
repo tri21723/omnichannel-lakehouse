@@ -118,6 +118,7 @@ def publish_gold(
             and fail_after is None
             and prior_run
             and prior_run.get("silver_publication_id") == silver_pub_id
+            and prior_run.get("policy_version") == POLICY
             and old.get("status") == "completed"
         ):
             verify_gold(spark, old, target_run_id=run_id)

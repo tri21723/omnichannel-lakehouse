@@ -8,6 +8,7 @@ from spark.lib.dp3_entities import (
     get_channel_currency,
     rehash_dp3,
 )
+from spark.lib.numeric import checked_int
 
 
 def _to_date(val: str | date) -> date:
@@ -71,16 +72,16 @@ def compute_customer_daily_features(
     order_aggs = orders.groupBy("channel", "customer_id").agg(
         F.max("order_ts").alias("last_order_ts"),
         F.datediff(F.lit(eval_date), F.to_date(F.max("order_ts"))).alias("days_since_last_order"),
-        F.count("order_key").cast(IntegerType()).alias("lifetime_order_count"),
+        checked_int(F.count("order_key")).alias("lifetime_order_count"),
         F.coalesce(F.sum("net_amount"), F.lit(0))
         .cast("decimal(18,2)")
         .alias("lifetime_net_amount"),
-        F.count(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("order_key")))
-        .cast(IntegerType())
-        .alias("orders_7d"),
-        F.count(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("order_key")))
-        .cast(IntegerType())
-        .alias("orders_30d"),
+        checked_int(F.count(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("order_key")))).alias(
+            "orders_7d"
+        ),
+        checked_int(F.count(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("order_key")))).alias(
+            "orders_30d"
+        ),
         F.coalesce(
             F.sum(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("net_amount"))),
             F.lit(0),
@@ -113,7 +114,7 @@ def compute_customer_daily_features(
     validate_feature_currency(valid_returns_30d, "fact_returns")
 
     return_aggs = valid_returns_30d.groupBy("channel", "customer_id").agg(
-        F.countDistinct("order_key").cast(IntegerType()).alias("returned_orders_30d"),
+        checked_int(F.countDistinct("order_key")).alias("returned_orders_30d"),
         F.coalesce(F.sum("refund_amount"), F.lit(0))
         .cast("decimal(18,2)")
         .alias("refund_amount_30d"),
@@ -228,18 +229,18 @@ def compute_product_daily_features(
     validate_feature_currency(items, "fact_order_items")
 
     item_aggs = items.groupBy("channel", "product_id").agg(
-        F.countDistinct(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("order_key")))
-        .cast(IntegerType())
-        .alias("orders_7d"),
-        F.countDistinct(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("order_key")))
-        .cast(IntegerType())
-        .alias("orders_30d"),
-        F.coalesce(F.sum(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("qty"))), F.lit(0))
-        .cast(IntegerType())
-        .alias("units_sold_7d"),
-        F.coalesce(F.sum(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("qty"))), F.lit(0))
-        .cast(IntegerType())
-        .alias("units_sold_30d"),
+        checked_int(
+            F.countDistinct(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("order_key")))
+        ).alias("orders_7d"),
+        checked_int(
+            F.countDistinct(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("order_key")))
+        ).alias("orders_30d"),
+        checked_int(
+            F.coalesce(F.sum(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("qty"))), F.lit(0))
+        ).alias("units_sold_7d"),
+        checked_int(
+            F.coalesce(F.sum(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("qty"))), F.lit(0))
+        ).alias("units_sold_30d"),
         F.coalesce(
             F.sum(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("gross_line_amount"))),
             F.lit(0),
@@ -288,12 +289,12 @@ def compute_product_daily_features(
     validate_feature_currency(returns, "fact_returns")
 
     return_aggs = returns.groupBy("channel", "product_key").agg(
-        F.count(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("return_key")))
-        .cast(IntegerType())
-        .alias("return_count_7d"),
-        F.count(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("return_key")))
-        .cast(IntegerType())
-        .alias("return_count_30d"),
+        checked_int(F.count(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("return_key")))).alias(
+            "return_count_7d"
+        ),
+        checked_int(F.count(F.when(F.col("order_ts") >= F.lit(ts_30d), F.col("return_key")))).alias(
+            "return_count_30d"
+        ),
         F.coalesce(
             F.sum(F.when(F.col("order_ts") >= F.lit(ts_7d), F.col("refund_amount"))),
             F.lit(0),

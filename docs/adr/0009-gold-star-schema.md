@@ -109,3 +109,8 @@ Gold publication is controlled by a POSIX file lock and managed under `/runtime/
     read-back verification passes.
 - Verification prior to ledger publication confirms schema, surrogate key uniqueness, FK integrity,
   monetary reconciliation, and PII protection.
+
+Count/quantity narrowing amendment (2026-11-17): Gold policy v2 checks item_count
+and total_qty before narrowing aggregates to INT, rejecting positive wraparound
+as well as negative overflow. Gold skip now requires the matching policy_version;
+old run scopes recompute when requested. Physical column types remain unchanged.

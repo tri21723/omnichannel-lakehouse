@@ -134,3 +134,9 @@ aggregation, before LEFT JOIN/default filling. In particular, DECIMAL(18,2) cast
 overflow with ANSI disabled is an error rather than a zero-valued feature. Empty
 activity still produces zero metrics and NULL AOV. Existing v2 scopes recompute
 when requested; no table schema change is required.
+
+Count/quantity narrowing amendment (2026-11-17): feature policy v4 and label policy
+v3 check count and quantity aggregates in their wide type before INT narrowing.
+The shared guard accepts only [0, 2147483647], failing explicitly for NULL or
+out-of-range values independently of ANSI mode. Schemas retain INT. Prior scopes
+recompute when requested through the existing per-table/date policy comparison.

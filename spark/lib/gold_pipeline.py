@@ -6,6 +6,7 @@ from spark.lib.gold_entities import (
     channel_key,
     rehash_gold,
 )
+from spark.lib.numeric import checked_int
 
 
 def validate_fact_numbers(df, name):
@@ -262,8 +263,8 @@ def build_facts(spark, silver_frames, dims, run_id, pub_id, snapshots):
     # 2. Prepare fact_orders
     # Aggregate items to order level
     line_aggs = fact_order_items.groupBy("channel", "order_id").agg(
-        F.count("*").cast(IntegerType()).alias("item_count"),
-        F.sum("qty").cast(IntegerType()).alias("total_qty"),
+        checked_int(F.count("*")).alias("item_count"),
+        checked_int(F.sum("qty")).alias("total_qty"),
         F.sum("gross_line_amount").cast("decimal(18,2)").alias("gross_amount"),
         F.sum("discount").cast("decimal(18,2)").alias("discount_amount"),
         F.sum("net_line_amount").cast("decimal(18,2)").alias("net_amount"),
