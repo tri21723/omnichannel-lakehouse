@@ -87,9 +87,10 @@ def markdown(meta: dict, rows: list[dict], plans: dict) -> str:
         f"{meta['retried_artifacts']}.",
         "",
         "| Dataset | Workload | Variant | ok/total | Query s median (min–max) | Speedup vs B0 "
+        "| Paired speedup median (min–max) "
         "| Shuffle-stage task max/median | Slowest shuffle task s | Shuffle write MiB "
         "| Spill MiB (mem/disk) | Final plan |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         plan = plans.get((r["dataset"], r["workload"], r["variant"]), {})
@@ -98,6 +99,8 @@ def markdown(meta: dict, rows: list[dict], plans: dict) -> str:
             f"| {r['dataset']} | {r['workload']} | {r['variant']} | "
             f"{r['ok_trials']}/{r['trials']} | {fmt(r['query_s_median'])} "
             f"({fmt(r['query_s_min'])}–{fmt(r['query_s_max'])}) | {fmt(r['speedup_vs_b0'])} | "
+            f"{fmt(r['paired_speedup_median'])} "
+            f"({fmt(r['paired_speedup_min'])}–{fmt(r['paired_speedup_max'])}) | "
             f"{fmt(r['shuffle_task_ratio_median'])} | {secs(r['max_shuffle_task_ms_median'])} | "
             f"{mib(r['shuffle_bytes_written_median'])} | "
             f"{mib(r['memory_bytes_spilled_median'])}/{mib(r['disk_bytes_spilled_median'])} | "

@@ -249,3 +249,22 @@ def test_plan_features_use_final_tree_only():
     assert "BatchScan" not in plan_tree(FORMATTED_AQE)
     not_final = plan_features("AdaptiveSparkPlan\n+- BroadcastExchange (2)\n\n(1) Exchange")
     assert not_final["broadcast_exchange"] and not not_final["shuffle_exchange"]
+
+
+def test_paired_speedup_cancels_round_level_drift():
+    # Round 1 is twice as slow for every variant (host drift); the paired ratio stays 2.0.
+    trials = [
+        trial("B0", 0, 10.0),
+        trial("B2", 0, 5.0),
+        trial("B0", 1, 20.0),
+        trial("B2", 1, 10.0),
+        trial("B0", 2, 30.0),
+        trial("B2", 2, 6.0, status="error", correct=False),
+    ]
+    rows = {r["variant"]: r for r in bs.summarize_trials(trials)}
+
+    assert rows["B2"]["paired_rounds"] == 2
+    assert rows["B2"]["paired_speedup_median"] == 2.0
+    assert rows["B2"]["paired_speedup_min"] == 2.0 and rows["B2"]["paired_speedup_max"] == 2.0
+    assert rows["B0"]["paired_speedup_median"] == 1.0
+    assert rows["B2"]["speedup_vs_b0"] == round(20.0 / 7.5, 3)

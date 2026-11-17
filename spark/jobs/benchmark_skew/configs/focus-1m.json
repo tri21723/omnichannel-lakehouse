@@ -1,0 +1,10 @@
+{
+  "experiment_id": "focus-1m",
+  "description": "Skewed 1M join only, 7 repetitions: resolves round-level host drift seen in matrix-1m",
+  "datasets": ["l1m_skew80"],
+  "workloads": ["w1_join_agg"],
+  "variants": ["B0", "B1", "B1T", "B2", "B3", "P0"],
+  "repetitions": 7,
+  "warmups": 1,
+  "timeout_seconds": 1800
+}

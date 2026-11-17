@@ -314,8 +314,29 @@ def summarize_trials(trials: list[dict[str, Any]]) -> list[dict[str, Any]]:
     baseline = {
         (r["dataset"], r["workload"]): r["query_s_median"] for r in rows if r["variant"] == "B0"
     }
+    # Paired speedup: B0 / variant inside the same measured round, which cancels host drift
+    # that affects a whole round (the round order is rotated, so B0 is not always first).
+    round_query: dict[tuple[str, str, int], dict[str, float]] = {}
+    for (dataset, workload, variant), group in by_cell.items():
+        for t in group:
+            if t.get("status") == "ok" and t.get("correct") is True:
+                round_query.setdefault((dataset, workload, t["repetition"]), {})[variant] = t[
+                    "timings"
+                ]["query_s"]
     for row in rows:
         base = baseline.get((row["dataset"], row["workload"]))
         mine = row["query_s_median"]
         row["speedup_vs_b0"] = round(base / mine, 3) if base and mine else None
+        paired = sorted(
+            times["B0"] / times[row["variant"]]
+            for (dataset, workload, _), times in round_query.items()
+            if dataset == row["dataset"]
+            and workload == row["workload"]
+            and "B0" in times
+            and times.get(row["variant"])
+        )
+        row["paired_rounds"] = len(paired)
+        row["paired_speedup_median"] = round(statistics.median(paired), 3) if paired else None
+        row["paired_speedup_min"] = round(paired[0], 3) if paired else None
+        row["paired_speedup_max"] = round(paired[-1], 3) if paired else None
     return rows
