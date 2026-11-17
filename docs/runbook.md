@@ -392,3 +392,11 @@ continues to use zero amounts and NULL AOV. Requested v2 scopes recompute under 
 
 A full DP3 refresh also checks the retained `table_dates` inventory. After partial
 legacy migration, dates without provenance still prevent an incorrect full skip.
+
+### Count/quantity exceeds nonnegative INT range
+
+The count/quantity aggregate exceeds the published INT contract (or is NULL).
+The job checks the wide value before casting and aborts, including when ANSI is
+false. Check source quantities/counts; supporting larger metrics requires an explicit
+BIGINT schema migration. Do not disable the guard. Gold v2, feature v4 and label v3
+scopes recompute on request; other dates/runs retain their historical snapshots.

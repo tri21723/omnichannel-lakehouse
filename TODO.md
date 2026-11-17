@@ -192,3 +192,10 @@ Bằng chứng: [review validation](docs/review-4cde-validation.md).
 - [x] Kiểm tra overflow aggregate customer/product trước khi thay NULL bằng 0; feature policy v3.
 - [x] `make check`: 165 tests; `make test-review-regressions`: 11 ca Spark trên image mới.
 - [x] Features policy v3 publish/replay trên fixture nhỏ ngày `2026-01-03`: `skipped=false` rồi `skipped=true`, read-back đạt.
+
+## Count/quantity review fix (2026-11-17)
+
+- [x] Guard giới hạn INT trước cast cho Gold item_count/total_qty, DP3 counts/units và label return_line_count.
+- [x] Tăng policy để scope cũ tính lại khi được yêu cầu; Gold skip kiểm tra policy_version.
+- [x] `make check`: 165 tests; Spark regression: 22 ca trên image mới, bao gồm positive wraparound và hai ANSI modes.
+- [x] Features policy v4 publish/replay trên fixture nhỏ ngày `2026-01-03`: `skipped=false` rồi `skipped=true`, read-back đạt.

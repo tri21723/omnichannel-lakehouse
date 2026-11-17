@@ -110,3 +110,24 @@ Policy-v3 Iceberg integration passed on run `186ae107d0793d2ee237`, date
 `2026-01-03`, incremental mode: first publish `skipped=false`, identical replay
 `skipped=true`, including read-back verification. Other dates/runs are preserved
 and migrate only when requested; this is not a full historical backfill.
+
+## Count/quantity INT narrowing — 2026-11-17
+
+Shared `checked_int` checks wide nonnegative aggregates against 2147483647 before
+narrowing. It covers Gold item_count/total_qty, customer/product feature counts and
+units, and label return_line_count. Positive wraparound cannot pass validation.
+The output schema stays INT; out-of-range/NULL aggregates fail explicitly in either
+ANSI mode. Gold policy v2, feature policy v4 and label policy v3 prevent old scopes
+from skipping recomputation when requested. Gold skip now checks policy_version.
+
+Validation: `make check` passed lint and 165 tests. Rebuilt image passed 22 real
+Spark regression cases, including product feature aggregation of three quantities
+of 2 billion, boundary values 0/INT_MAX, and rejection of NULL, -1, INT_MAX+1 and
+sum=6 billion under both ANSI modes. Expected Spark task errors are caught by the
+regression; the final success event confirms all assertions passed. No historical
+backfill or new hosted CI result is claimed.
+
+Feature policy-v4 integration passed for run `186ae107d0793d2ee237`, date
+`2026-01-03`, incremental mode: first publication `skipped=false`; identical replay
+`skipped=true` with read-back verification. This migrates only the requested feature
+scope; Gold/label scopes migrate when their jobs are requested.
