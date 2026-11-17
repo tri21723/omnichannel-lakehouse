@@ -1,0 +1,60 @@
+{
+  "datasets": [
+    {
+      "name": "s15k_control",
+      "source_run": "b1e64afaff0176de180a",
+      "factor": 1,
+      "hot_share": 0.0,
+      "description": "smoke: default reference lines, uniform over p01..p19"
+    },
+    {
+      "name": "s15k_skew80",
+      "source_run": "b1e64afaff0176de180a",
+      "factor": 1,
+      "hot_share": 0.8,
+      "description": "smoke: default reference lines, 80% on hot product p00"
+    },
+    {
+      "name": "m105k_control",
+      "source_run": "b1e64afaff0176de180a",
+      "factor": 7,
+      "hot_share": 0.0,
+      "description": "medium: 7x synthetic amplification, uniform"
+    },
+    {
+      "name": "m105k_skew80",
+      "source_run": "b1e64afaff0176de180a",
+      "factor": 7,
+      "hot_share": 0.8,
+      "description": "medium: 7x synthetic amplification, 80% hot"
+    },
+    {
+      "name": "l1m_control",
+      "source_run": "b1e64afaff0176de180a",
+      "factor": 67,
+      "hot_share": 0.0,
+      "description": "large: 67x synthetic amplification (~1.0M lines), uniform"
+    },
+    {
+      "name": "l1m_skew80",
+      "source_run": "b1e64afaff0176de180a",
+      "factor": 67,
+      "hot_share": 0.8,
+      "description": "large: 67x synthetic amplification (~1.0M lines), 80% hot"
+    },
+    {
+      "name": "ci_control",
+      "source_run": "186ae107d0793d2ee237",
+      "factor": 40,
+      "hot_share": 0.0,
+      "description": "CI: small fixture (375 lines) x40, hot share 0.0"
+    },
+    {
+      "name": "ci_skew80",
+      "source_run": "186ae107d0793d2ee237",
+      "factor": 40,
+      "hot_share": 0.8,
+      "description": "CI: small fixture (375 lines) x40, hot share 0.8"
+    }
+  ]
+}

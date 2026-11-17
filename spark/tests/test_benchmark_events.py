@@ -80,6 +80,8 @@ def test_skewed_stage_reports_duration_ratio_and_shuffle_totals():
     assert stage0["shuffle_remote_bytes_read"] == 300
     assert stage0["shuffle_bytes_written"] == 210
     assert summary["totals"]["worst_max_median_ratio"] == 9.0
+    assert summary["totals"]["worst_shuffle_stage_ratio"] == 9.0
+    assert summary["totals"]["max_shuffle_task_ms"] == 900
     assert summary["totals"]["successful_tasks"] == 3
 
 
@@ -195,3 +197,21 @@ def test_file_reader_rejects_compressed_logs(tmp_path):
 
     with pytest.raises(ValueError, match="compressed"):
         summarize_event_log(tmp_path / "app-1.zstd")
+
+
+def test_shuffle_stage_ratio_ignores_input_scan_stages():
+    scan = [
+        task(
+            0,
+            i,
+            d,
+            metrics={"Shuffle Read Metrics": {"Remote Bytes Read": 0, "Local Bytes Read": 0}},
+        )
+        for i, d in enumerate((100, 100, 5000))
+    ]
+    join = [task(1, i, d) for i, d in enumerate((100, 200, 400))]
+    summary = summarize_events(lines(app() + scan + [stage(0, tasks=3)] + join + [stage(1)]))
+
+    assert summary["totals"]["worst_max_median_ratio"] == 50.0
+    assert summary["totals"]["worst_shuffle_stage_ratio"] == 2.0
+    assert summary["totals"]["max_shuffle_task_ms"] == 400

@@ -1,0 +1,11 @@
+{
+  "experiment_id": "smoke",
+  "description": "CI/local smoke: 15k lines, control vs skew, one repetition, no warm-up",
+  "datasets": ["s15k_control", "s15k_skew80"],
+  "workloads": ["w1_join_agg", "w2_agg"],
+  "variants": ["B0", "B1T", "B2", "B3"],
+  "w2_variants": ["B0", "B1T"],
+  "repetitions": 1,
+  "warmups": 0,
+  "timeout_seconds": 600
+}

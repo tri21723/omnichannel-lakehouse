@@ -1,0 +1,10 @@
+{
+  "experiment_id": "matrix-100k",
+  "description": "Medium scale (~105k lines): join workload, all optimization directions",
+  "datasets": ["m105k_control", "m105k_skew80"],
+  "workloads": ["w1_join_agg"],
+  "variants": ["B0", "B1", "B1T", "B2", "B3", "B4_64", "P0"],
+  "repetitions": 3,
+  "warmups": 1,
+  "timeout_seconds": 1200
+}

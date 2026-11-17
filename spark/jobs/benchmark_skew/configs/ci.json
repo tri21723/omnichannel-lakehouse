@@ -1,0 +1,25 @@
+{
+  "experiment_id": "ci",
+  "description": "Hosted CI smoke on the small fixture (15k amplified lines); no timing thresholds",
+  "datasets": [
+    "ci_control",
+    "ci_skew80"
+  ],
+  "workloads": [
+    "w1_join_agg",
+    "w2_agg"
+  ],
+  "variants": [
+    "B0",
+    "B1T",
+    "B2",
+    "B3"
+  ],
+  "w2_variants": [
+    "B0",
+    "B1T"
+  ],
+  "repetitions": 1,
+  "warmups": 0,
+  "timeout_seconds": 900
+}

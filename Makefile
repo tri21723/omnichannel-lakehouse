@@ -305,3 +305,25 @@ test-review-regressions: ## Real Spark regressions for label horizon endpoint an
 .PHONY: test-warehouse-review
 test-warehouse-review: ## Test committed DB metadata recovery and full-row corruption detection on owned fixture
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/review_test.py
+
+.PHONY: benchmark-dataset verify-benchmark-dataset benchmark-preflight benchmark-skew verify-benchmark report-benchmark test-benchmark
+SPARK_IMAGE := omnichannel/spark:3.5.5-iceberg1.9.2
+BENCH_CONFIG ?= smoke
+BENCH_DATASETS ?=
+BENCH_ARGS ?=
+BENCH_ENV = -e BENCH_COMMIT=$$(git rev-parse HEAD)$$(test -z "$$(git status --porcelain -- spark sql)" || echo -dirty) -e BENCH_IMAGE_ID=$$(docker image inspect --format '{{.Id}}' $(SPARK_IMAGE))
+BENCH_RUN = $(BATCH) run --rm --no-deps --name omnichannel-spark-driver $(BENCH_ENV)
+benchmark-dataset: ## Build pinned skew datasets from Gold (BENCH_DATASETS=a,b; BENCH_ARGS=--force)
+	$(BENCH_RUN) spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/benchmark_skew/dataset.py --datasets '$(BENCH_DATASETS)' $(BENCH_ARGS)
+verify-benchmark-dataset: ## Re-check pinned benchmark datasets and ground truth read-only
+	$(BENCH_RUN) spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/benchmark_skew/dataset.py --mode verify --datasets '$(BENCH_DATASETS)'
+benchmark-preflight: ## Check datasets/disk for BENCH_CONFIG without running trials
+	$(BENCH_RUN) --entrypoint python spark-submit /app/spark/jobs/benchmark_skew/run.py --config $(BENCH_CONFIG) --preflight-only
+benchmark-skew: ## Run skew benchmark BENCH_CONFIG=smoke|matrix-100k|matrix-1m (BENCH_ARGS=--resume)
+	$(BENCH_RUN) --entrypoint python spark-submit /app/spark/jobs/benchmark_skew/run.py --config $(BENCH_CONFIG) $(BENCH_ARGS)
+verify-benchmark: ## Fail unless every trial of BENCH_CONFIG is ok, correct and has metrics
+	$(BENCH_RUN) --entrypoint python spark-submit /app/spark/jobs/benchmark_skew/run.py --config $(BENCH_CONFIG) --verify
+report-benchmark: ## Export redacted summary CSV/JSON/Markdown of BENCH_CONFIG to docs/benchmarks
+	$(BENCH_RUN) -v "$(CURDIR)/docs/benchmarks:/out" --entrypoint python spark-submit /app/spark/jobs/benchmark_skew/report.py --experiment $$(python3 -c "import json;print(json.load(open('spark/jobs/benchmark_skew/configs/$(BENCH_CONFIG).json'))['experiment_id'])") --out /out
+test-benchmark: ## Real-Spark correctness tests for salting/broadcast/AQE variants (no tables)
+	$(BENCH_RUN) spark-submit /opt/spark/bin/spark-submit /app/spark/jobs/benchmark_skew/salting_test.py

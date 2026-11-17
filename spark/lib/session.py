@@ -5,7 +5,8 @@ import os
 from pathlib import Path
 
 
-def get_spark(catalog_suffix=""):
+def get_spark(catalog_suffix="", app_name="lakehouse-smoke", extra_conf=None):
+    """Build the shared session; ``extra_conf`` overrides defaults (benchmark variants)."""
     from pyspark.sql import SparkSession
 
     warehouse = json.loads(Path("/runtime/catalog.json").read_text())["warehouse_name"]
@@ -31,7 +32,8 @@ def get_spark(catalog_suffix=""):
         "spark.sql.catalog.lh.client.region": os.environ["AWS_DEFAULT_REGION"],
         "spark.redaction.regex": "(?i)secret|password|token|access.key",
     }
-    builder = SparkSession.builder.appName("lakehouse-smoke")
+    settings.update(extra_conf or {})
+    builder = SparkSession.builder.appName(app_name)
     for key, value in settings.items():
         builder = builder.config(key, value)
     spark = builder.getOrCreate()

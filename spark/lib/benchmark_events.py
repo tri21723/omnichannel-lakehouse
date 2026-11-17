@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -173,11 +174,81 @@ def _stage_summary(stage: _StageAttempt) -> dict:
     return summary
 
 
-def summarize_events(lines: Iterable[str]) -> dict:
-    """Return an allowlisted, JSON-serializable summary of one Spark event log."""
+SQL_START = "org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionStart"
+SQL_AQE_UPDATE = "org.apache.spark.sql.execution.ui.SparkListenerSQLAdaptiveExecutionUpdate"
+PLAN_MARKERS = {
+    "sort_merge_join": re.compile(r"\bSortMergeJoin\b"),
+    "broadcast_hash_join": re.compile(r"\bBroadcastHashJoin\b"),
+    "shuffled_hash_join": re.compile(r"\bShuffledHashJoin\b"),
+    "broadcast_exchange": re.compile(r"\bBroadcastExchange\b"),
+    "shuffle_exchange": re.compile(r"(?<!Broadcast)\bExchange\b"),
+    "skew_join": re.compile(r"skew=true"),
+    "aqe_shuffle_read": re.compile(r"\bAQEShuffleRead\b"),
+    "adaptive": re.compile(r"\bAdaptiveSparkPlan\b"),
+}
+
+
+def _job_stage_filter(events: list[dict], job_description: str) -> tuple[set[int], int]:
+    stage_ids: set[int] = set()
+    jobs = 0
+    for event in events:
+        if event.get("Event") != "SparkListenerJobStart":
+            continue
+        props = event.get("Properties") or {}
+        if props.get("spark.job.description") != job_description:
+            continue
+        jobs += 1
+        for stage_id in event.get("Stage IDs") or []:
+            value = _int_or_none(stage_id)
+            if value is not None:
+                stage_ids.add(value)
+    return stage_ids, jobs
+
+
+def query_plans(lines: Iterable[str], description: str) -> list[dict]:
+    """Initial and final (last AQE update) physical plans of SQL executions with a description."""
+    events, _, _ = _read_lines(lines)
+    plans: dict[int, dict] = {}
+    for event in events:
+        kind = event.get("Event")
+        execution_id = _int_or_none(event.get("executionId"))
+        if execution_id is None:
+            continue
+        if kind == SQL_START and event.get("description") == description:
+            text = event.get("physicalPlanDescription") or ""
+            plans[execution_id] = {"execution_id": execution_id, "initial": text, "final": text}
+        elif kind == SQL_AQE_UPDATE and execution_id in plans:
+            plans[execution_id]["final"] = event.get("physicalPlanDescription") or ""
+    return [plans[key] for key in sorted(plans)]
+
+
+def plan_tree(text: str) -> str:
+    """Operator tree of an explain string: drop the formatted node details and, for an
+    AQE plan, keep only the ``Final Plan`` (or the whole tree when not yet final)."""
+    tree = text.split("\n\n(", 1)[0]
+    if "== Final Plan ==" in tree:
+        tree = tree.split("== Final Plan ==", 1)[1].split("== Initial Plan ==", 1)[0]
+    return tree
+
+
+def plan_features(text: str) -> dict[str, bool]:
+    """Booleans for operators present in the (final) operator tree of a plan string."""
+    tree = plan_tree(text)
+    return {name: bool(pattern.search(tree)) for name, pattern in PLAN_MARKERS.items()}
+
+
+def summarize_events(lines: Iterable[str], job_description: str | None = None) -> dict:
+    """Return an allowlisted, JSON-serializable summary of one Spark event log.
+
+    With ``job_description``, only stages of jobs carrying that ``spark.job.description``
+    are summarized (e.g. the timed query, excluding setup and verification jobs).
+    """
     events, malformed, truncated = _read_lines(lines)
     stages: dict[tuple[int, int], _StageAttempt] = {}
     app_start = app_end = None
+    allowed_stages, matched_jobs = (
+        _job_stage_filter(events, job_description) if job_description else (None, None)
+    )
 
     def stage_for(stage_id: Any, attempt: Any) -> _StageAttempt | None:
         sid, att = _int_or_none(stage_id), _int_or_none(attempt)
@@ -234,6 +305,8 @@ def summarize_events(lines: Iterable[str]) -> dict:
                 )
             )
 
+    if allowed_stages is not None:
+        stages = {key: value for key, value in stages.items() if key[0] in allowed_stages}
     stage_summaries = [_stage_summary(stages[key]) for key in sorted(stages)]
     completed = [s for s in stage_summaries if s["status"] == "completed"]
     totals: dict[str, Any] = {
@@ -250,6 +323,17 @@ def summarize_events(lines: Iterable[str]) -> dict:
         totals[name] = None if not values or None in values else sum(values)
     ratios = [s["max_median_ratio"] for s in completed if s["max_median_ratio"] is not None]
     totals["worst_max_median_ratio"] = max(ratios) if ratios else None
+    # Skew shows up in stages that read shuffle data (join/aggregate), not in input scans.
+    shuffle_stages = [
+        s
+        for s in completed
+        if (s["shuffle_remote_bytes_read"] or 0) + (s["shuffle_local_bytes_read"] or 0) > 0
+    ]
+    shuffle_ratios = [s["max_median_ratio"] for s in shuffle_stages if s["max_median_ratio"]]
+    totals["worst_shuffle_stage_ratio"] = max(shuffle_ratios) if shuffle_ratios else None
+    task_max = [s["task_duration_ms"]["max"] for s in shuffle_stages]
+    task_max = [value for value in task_max if value is not None]
+    totals["max_shuffle_task_ms"] = max(task_max) if task_max else None
 
     complete = (
         malformed == 0
@@ -263,6 +347,8 @@ def summarize_events(lines: Iterable[str]) -> dict:
         "events_read": len(events),
         "malformed_lines": malformed,
         "truncated_tail": truncated,
+        "job_description": job_description,
+        "matched_jobs": matched_jobs,
         "application": {
             "start_ms": app_start,
             "end_ms": app_end,
@@ -275,10 +361,18 @@ def summarize_events(lines: Iterable[str]) -> dict:
     }
 
 
-def summarize_event_log(path: str | Path) -> dict:
-    """Summarize an uncompressed event log file (ADR-0012 requires compress=false)."""
-    path = Path(path)
+def _open_log(path: Path):
     if path.suffix.lower() in COMPRESSED_SUFFIXES:
         raise ValueError(f"compressed event log not supported: {path.name}")
-    with path.open(encoding="utf-8", errors="replace") as handle:
-        return summarize_events(handle)
+    return path.open(encoding="utf-8", errors="replace")
+
+
+def summarize_event_log(path: str | Path, job_description: str | None = None) -> dict:
+    """Summarize an uncompressed event log file (ADR-0012 requires compress=false)."""
+    with _open_log(Path(path)) as handle:
+        return summarize_events(handle, job_description)
+
+
+def event_log_plans(path: str | Path, description: str) -> list[dict]:
+    with _open_log(Path(path)) as handle:
+        return query_plans(handle, description)
