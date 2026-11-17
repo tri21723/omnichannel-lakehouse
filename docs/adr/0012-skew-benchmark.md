@@ -9,15 +9,42 @@
 
 ## 1. Input and isolation
 
-- Input is one completed Gold publication (`/runtime/gold/publication/ledger.json`) read by
-  exact Iceberg `snapshot-id`, filtered to one `_dataset_run_id`. The experiment pins the
-  publication and snapshot IDs once; every trial of that experiment reads the same snapshots.
-- The benchmark never writes Gold/DP3/warehouse tables or ledgers. Optional materialized
-  output goes to `lh.benchmark.skew_<experiment>_<variant>` (namespace `benchmark`, created
-  on demand), never to `bronze`/`silver`/`gold`. Artifacts go under
-  `/runtime/benchmark/<experiment_id>/` and are not committed except redacted summaries.
+- Source is one completed Gold publication (`/runtime/gold/publication/ledger.json`) read by
+  exact Iceberg `snapshot-id` and verified against its ledger content hash, filtered to one
+  `_dataset_run_id` (default reference `b1e64afaff0176de180a`, 15,000 order lines).
+- Benchmark datasets are derived from that pinned input once (`make benchmark-dataset`) into
+  `lh.benchmark.items_<dataset>` / `products_<dataset>`. Their snapshot IDs and content hashes
+  are recorded in `/runtime/benchmark/datasets/<dataset>.json`; every trial reads exactly those
+  snapshots and the build skips when spec and Gold publication are unchanged.
+- The benchmark never writes Gold/DP3/warehouse tables or ledgers. Per-variant results go to
+  `lh.benchmark.res_<experiment>_<dataset>_<workload>_<variant>` and the B0 reference to
+  `lh.benchmark.ref_<experiment>_<dataset>_<workload>`. Artifacts go under
+  `/runtime/benchmark/experiments/<experiment_id>/` (trials, event logs, plans, logs) and are
+  not committed; only the redacted summary exported by `make report-benchmark` is.
 - Code lives in `spark/jobs/benchmark_skew/`; reusable helpers in `spark/lib/benchmark_*.py`;
-  configs in `spark/jobs/benchmark_skew/configs/`; reports in `docs/benchmarks/`.
+  configs (JSON, validated against allowlists) in `spark/jobs/benchmark_skew/configs/`;
+  reports in `docs/benchmarks/`.
+
+### Why synthetic amplification
+
+End-to-end ingestion (generator → Bronze → Silver → Gold) of 1M orders does not fit the local
+budget: on this host (4 CPU, ~11.7 GiB for Docker) the 15k default reference already takes
+~2 min for Gold and ~15 min for the warehouse export. The benchmark targets Spark join and
+aggregate behaviour, so lines of the pinned Gold run are replicated `factor` times with new
+deterministic keys (`sha2(key || ':' || replica)`) and reassigned to products: a line goes to
+`p00` when `xxhash64(order_key) mod 1e6 < hot_share * 1e6`, otherwise to
+`p01 + xxhash64(order_key, 'cold') mod 19`, mirroring the generator semantics in §2.
+Money and quantity come from the source line, dimension rows are the run's real
+`dim_product` rows. Reports call these datasets "synthetic amplification", never
+"1M orders ingested end-to-end". Ground truth checked at build and verify time:
+rows = source rows × factor, one line per order, no unmatched product, per-channel hot share
+within tolerance of the spec.
+
+| Dataset | Factor | Hot share | Purpose |
+|---|---|---|---|
+| `s15k_control` / `s15k_skew80` | 1 | 0 / 0.8 | smoke and CI |
+| `m105k_control` / `m105k_skew80` | 7 | 0 / 0.8 | medium scale |
+| `l1m_control` / `l1m_skew80` | 67 | 0 / 0.8 | large scale (~1.0M lines) |
 
 ## 2. Data shape (from the generator)
 
@@ -56,7 +83,9 @@ GROUP BY f.channel, f.currency, p.category, p.seller_id
 - `dim_product` must be unique on `(product_key, _dataset_run_id)`; the job checks this
   before every trial and fails otherwise (salting replication must not create fan-out).
 - Inner join semantics: fact rows with NULL/unknown `product_key` are counted separately
-  as `unmatched_lines` and must be 0 for Gold v2; they are not silently dropped.
+  as `unmatched_lines` and must be 0 for the benchmark datasets; they are not silently dropped.
+- Output money columns are cast to `DECIMAL(38,2)` in every variant so that the one-step and
+  two-step (salted) aggregates have an identical schema.
 
 **W2 — skew aggregate only.** Same aggregation grouped by
 `channel, currency, seller_id` directly on `fact_order_items` (no join), to separate
@@ -71,11 +100,14 @@ Monetary sums stay DECIMAL (no float); `avg_net_per_order` is computed in the re
 | ID | Change vs B0 | Notes |
 |---|---|---|
 | B0 | baseline: `spark.sql.adaptive.enabled=false`, `autoBroadcastJoinThreshold=-1`, shuffle partitions 16 | must show a SortMergeJoin + Exchange in the executed plan |
-| B1 | AQE on + `skewJoin.enabled=true` (broadcast still off) | record whether final plan contains skew-split partitions |
+| B1 | AQE on + `skewJoin.enabled=true`, default thresholds (256 MB, factor 5), coalescing off | record whether final plan contains `skew=true` |
+| B1T | B1 with thresholds sized for local data (`skewedPartitionThresholdInBytes=4m`, factor 2, advisory 4m) | shows whether AQE can split once thresholds fit the data |
 | B2 | broadcast `dim_product` (hint), AQE off | record dim size; skip with reason if over budget |
 | B3 | salting, AQE off, broadcast off | see §5 |
-| B4 | shuffle partitions 16 / 32 / 64, AQE off, broadcast off | repartition cost stays inside measured time |
-| P0 | current production settings (AQE default on, default broadcast threshold) | reference only |
+| B4_32 / B4_64 | shuffle partitions 32 / 64 (B0 is the 16 point), AQE off, broadcast off | partition change stays inside measured time |
+| P0 | current production session (`spark/lib/session.py`: Spark 3.5 defaults, AQE on, 10 MB broadcast, 16 partitions) | reference only |
+
+W2 (no join) runs B0, B1, B1T, B4_32, B4_64 and P0; broadcast and salting do not apply.
 
 Each variant changes one dimension from B0. A combined variant is allowed only in the final
 round from variants that individually helped, and is labelled as such.
@@ -108,10 +140,13 @@ not deleted.
 - One Spark application per trial, same resources as production (2 executors × 1 core × 1g,
   driver as in `spark/lib/session.py`). Variant settings are applied at session build and
   recorded from `spark.conf` after start (effective config).
-- Phases timed separately: `setup` (session + pin/read plan), `query` (action that fully
-  materializes W1/W2 into the benchmark sink), `verify` (correctness gate). Speedup uses
-  `query` only; startup is reported, not compared.
-- Materialization writes all output columns (no bare `count()`), identical across variants.
+- Phases timed separately: `setup` (session + pinned reads + dimension uniqueness check),
+  `query` (full materialization of W1/W2 into Spark's `noop` sink, job description
+  `bench:query`), `verify` (result table write + correctness gate). Speedup uses `query`
+  only; startup is reported, not compared. Event-log metrics are limited to `bench:query` jobs.
+- The `noop` sink computes every output column (no bare `count()`) without sink I/O noise,
+  identically across variants. The verify phase re-executes the same plan into
+  `lh.benchmark.res_*`, which is what the gate compares.
 - Order: 1 warm-up (discarded, recorded) + ≥ 3 measured repetitions per cell; variant order is
   rotated per repetition. No other Spark job runs concurrently. OS/page cache is not controlled
   and is stated as a caveat; no trial is called "cold".
@@ -122,7 +157,7 @@ not deleted.
 ## 8. Event-log metrics rules
 
 - Event logging is enabled only for benchmark applications (`spark.eventLog.enabled=true`,
-  `spark.eventLog.compress=false`, dir under `/runtime/benchmark/<experiment>/eventlogs`).
+  `spark.eventLog.compress=false`, dir under `/runtime/benchmark/experiments/<experiment>/eventlogs`).
 - Successful work = tasks whose end reason is `Success`, from stage attempts that completed
   without failure. Failed, killed and speculative-loser attempts are counted as overhead and
   never added to successful-work metrics.

@@ -400,3 +400,39 @@ The job checks the wide value before casting and aborts, including when ANSI is
 false. Check source quantities/counts; supporting larger metrics requires an explicit
 BIGINT schema migration. Do not disable the guard. Gold v2, feature v4 and label v3
 scopes recompute on request; other dates/runs retain their historical snapshots.
+
+## Skew benchmark (Phase 4F)
+
+Run sequentially on core + batch only; no other Spark job may run at the same time.
+After code changes run `make build-batch` (job code is copied into the Spark image).
+
+```sh
+make test-benchmark                                   # real-Spark variant correctness
+make benchmark-dataset BENCH_DATASETS=l1m_control,l1m_skew80   # empty = all datasets
+make verify-benchmark-dataset BENCH_DATASETS=l1m_control,l1m_skew80
+make benchmark-preflight BENCH_CONFIG=matrix-1m
+make benchmark-skew BENCH_CONFIG=matrix-1m            # BENCH_ARGS=--resume to continue
+make verify-benchmark BENCH_CONFIG=matrix-1m
+make report-benchmark BENCH_CONFIG=matrix-1m          # writes docs/benchmarks/skew-*.{json,csv,md}
+```
+
+Configs live in `spark/jobs/benchmark_skew/configs/` (`smoke`, `matrix-100k`, `matrix-1m`,
+`ci`); datasets in `configs/datasets.json`. Datasets read the completed Gold publication by
+pinned snapshot and are recorded in `/runtime/benchmark/datasets/<name>.json`; rebuilding with
+an unchanged spec and Gold publication is skipped. Trials write
+`/runtime/benchmark/experiments/<id>/{trials,eventlogs,plans,logs}`; a re-run keeps earlier
+artifacts as `*.attemptN.json`. Results go to `lh.benchmark.res_*` / `ref_*`, never to Gold.
+
+- `dataset manifest missing` in preflight: run `make benchmark-dataset` for that config.
+- `ground truth check failed`: the amplified rows, one-line-per-order or hot share differ from
+  the spec (e.g. a channel without `p00`); fix the spec or the pinned Gold input, do not relax
+  the tolerance.
+- `no B0 reference`: the first B0 trial of a dataset/workload failed; inspect its log under
+  `logs/` and rerun with `BENCH_ARGS=--resume`.
+- `correctness_failed`: the variant output differs from B0; it is excluded from speedup but
+  kept. Compare `res_*` with `ref_*` before changing any tuning.
+- `timeout` or `benchmark_budget_exceeded`: lower the scale or raise `timeout_seconds` within
+  the ADR-0012 budget; record the failed cell in the report instead of deleting it.
+- Disk retention: event logs and result tables are local evidence. Remove an experiment
+  directory only after its report is committed, and never expire Gold snapshots pinned by
+  `/runtime/benchmark/datasets/*.json` or the Gold/DP3/warehouse ledgers.
