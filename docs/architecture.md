@@ -9,6 +9,11 @@ Nhãn luồng (B/S/C/Q/O/G/I) khớp bảng §4.2 trong [plan](plan.md). Port th
 Sơ đồ mô tả kiến trúc đích; trạng thái triển khai xem
 [implementation status](implementation-status.md).
 
+Logo lấy từ [Simple Icons](https://simpleicons.org) v13.21.0 (CC0), nhúng inline để
+GitHub render được; nhãn hiệu thuộc chủ sở hữu tương ứng. Debezium, DataHub và
+Lakekeeper không có trong bộ icon nên giữ dạng chữ; biểu tượng Iceberg là hình vẽ
+chung, không phải logo chính thức.
+
 ## Bản rút gọn (Mermaid)
 
 Dùng để chỉnh nhanh khi thay đổi luồng; khi đổi kiến trúc, cập nhật cả
