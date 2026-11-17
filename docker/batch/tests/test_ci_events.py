@@ -94,3 +94,37 @@ def test_warehouse_events_preserve_safe_fields_only():
             "skipped": True,
         }
     ]
+
+
+def test_benchmark_events_keep_counts_but_drop_paths_and_details():
+    lines = [
+        json.dumps(
+            {
+                "event": "benchmark_progress",
+                "done": 3,
+                "total": 12,
+                "status": "ok",
+                "query_s": 9.5,
+                "trial": "/runtime/private/path",
+                "details": ["s3://secret"],
+            }
+        ),
+        json.dumps(
+            {
+                "event": "benchmark_dataset_built",
+                "dataset": "l1m_skew80",
+                "rows": 1005000,
+                "keys": 100,
+                "per_channel_rows": {"amazon": 1},
+            }
+        ),
+        json.dumps({"event": "benchmark_verified", "experiment": "../x", "problems": 0}),
+        json.dumps({"event": "benchmark_trial_finished", "status": "leaked", "correct": True}),
+    ]
+    result = list(module.safe_events(lines))
+    assert result == [
+        {"event": "benchmark_progress", "done": 3, "total": 12, "status": "ok", "query_s": 9.5},
+        {"event": "benchmark_dataset_built", "dataset": "l1m_skew80", "rows": 1005000, "keys": 100},
+        {"event": "benchmark_verified", "problems": 0},
+        {"event": "benchmark_trial_finished", "correct": True},
+    ]

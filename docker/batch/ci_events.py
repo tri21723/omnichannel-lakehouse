@@ -51,7 +51,17 @@ EVENTS = {
     "warehouse_reconciled",
     "warehouse_dq_passed",
     "warehouse_recovery_passed",
+    "benchmark_salting_tests_passed",
+    "benchmark_dataset_built",
+    "benchmark_dataset_skipped",
+    "benchmark_dataset_verified",
+    "benchmark_preflight_ok",
+    "benchmark_progress",
+    "benchmark_trial_finished",
+    "benchmark_finished",
+    "benchmark_verified",
 }
+BENCHMARK_STATUSES = {"ok", "error", "timeout", "correctness_failed"}
 ERROR_TYPES = {
     "ValueError",
     "RuntimeError",
@@ -113,9 +123,34 @@ def safe_events(lines):
             clean["run_date"] = item["run_date"]
         if item.get("channel") in ("walmart", "amazon", "tiktok_shop", "shopee", "lazada"):
             clean["channel"] = item["channel"]
+        for key in ("dataset", "experiment"):
+            if isinstance(item.get(key), str) and re.fullmatch(
+                r"[a-z0-9][a-z0-9_-]{0,47}", item[key]
+            ):
+                clean[key] = item[key]
+        if item.get("status") in BENCHMARK_STATUSES:
+            clean["status"] = item["status"]
+        for key in ("query_s",):
+            if type(item.get(key)) in (int, float):
+                clean[key] = item[key]
+        if type(item.get("correct")) is bool:
+            clean["correct"] = item["correct"]
         if item.get("stage") in ("contribution", "quarantine", "completion"):
             clean["stage"] = item["stage"]
-        for name in ("slices", "orders", "channels", "failures", "cases", "tables", "horizon_days"):
+        for name in (
+            "slices",
+            "orders",
+            "channels",
+            "failures",
+            "cases",
+            "tables",
+            "horizon_days",
+            "done",
+            "total",
+            "problems",
+            "keys",
+            "distinct_orders",
+        ):
             if type(item.get(name)) is int:
                 clean[name] = item[name]
         for name in ("entities", "counts"):

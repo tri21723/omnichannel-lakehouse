@@ -1,0 +1,39 @@
+name: Skew benchmark smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  benchmark-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-silver config-batch
+      - run: make build-generator build-batch up-batch
+      # Gold for the small fixture is the pinned input; the smoke datasets amplify it.
+      - run: sh docker/batch/ci_run.sh make prepare-silver-fixture
+      - run: sh docker/batch/ci_run.sh make integration-silver
+      - run: sh docker/batch/ci_run.sh make smoke-gold
+      - run: sh docker/batch/ci_run.sh make verify-gold
+      - run: sh docker/batch/ci_run.sh make test-benchmark
+      - run: >-
+          sh docker/batch/ci_run.sh make benchmark-dataset
+          BENCH_DATASETS=ci_control,ci_skew80
+      - run: sh docker/batch/ci_run.sh make benchmark-skew BENCH_CONFIG=ci
+      # Correctness and metric completeness gate the run; wall-clock time never does.
+      - run: sh docker/batch/ci_run.sh make verify-benchmark BENCH_CONFIG=ci
+      - run: make report-benchmark BENCH_CONFIG=ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skew-benchmark-ci-summary
+          path: |
+            docs/benchmarks/skew-ci.json
+            docs/benchmarks/skew-ci.csv
+            docs/benchmarks/skew-ci.md
+          retention-days: 14
+      - if: always()
+        run: make down
