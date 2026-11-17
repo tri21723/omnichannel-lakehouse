@@ -185,3 +185,10 @@ Sau 4E: **Phase 4F** (benchmark data skew & đóng toàn bộ Phase 4) → **Pha
 
 Bằng chứng: [review validation](docs/review-4cde-validation.md).
 - [x] Publish/replay Iceberg thật cho features và labels trên fixture nhỏ ngày `2026-01-03`: lần đầu `skipped=false`, replay `skipped=true` cho cả hai.
+
+## Review fixes (2026-11-17)
+
+- [x] Full DP3 skip kiểm tra cả ngày retained trong ledger cũ để không giữ thừa ngày sau full refresh.
+- [x] Kiểm tra overflow aggregate customer/product trước khi thay NULL bằng 0; feature policy v3.
+- [x] `make check`: 165 tests; `make test-review-regressions`: 11 ca Spark trên image mới.
+- [x] Features policy v3 publish/replay trên fixture nhỏ ngày `2026-01-03`: `skipped=false` rồi `skipped=true`, read-back đạt.

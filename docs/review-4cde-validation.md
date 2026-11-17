@@ -88,3 +88,25 @@ Real Iceberg publish/replay also passed for run `186ae107d0793d2ee237`, evaluati
 Only this requested date/run was migrated by the integration check. Other historical
 feature/label dates remain preserved and recompute when requested under the new
 provenance/policy rules; this is not a claim of a complete historical backfill.
+
+## Legacy full refresh and feature overflow — 2026-11-17
+
+- Full-mode skip checks both retained `table_dates` and `table_date_provenance`.
+  Regression starts with legacy dates A/B, migrates B incrementally, and confirms a
+  full request for B must replace A/B rather than skip. After replacement, replay
+  can skip. Missing date inventory also fails closed for full-mode skip.
+- Feature policy v3 validates numeric aggregates before joins/default filling in
+  customer orders/returns and product items/returns. DECIMAL cast overflow under
+  ANSI=false raises an error; a missing activity group still gets zero metrics.
+  Existing v2 scopes recompute when requested, without a physical schema change.
+
+Validation: `make check` passed lint and 165 tests. After `make build-batch`,
+`make test-review-regressions` passed 11 real Spark cases, including two valid
+6e15 orders overflowing customer/product monetary sums, normal customer totals
+(12, AOV 6), and empty activity (zero spend, NULL AOV). The synthetic tests publish
+no tables. These are local results.
+
+Policy-v3 Iceberg integration passed on run `186ae107d0793d2ee237`, date
+`2026-01-03`, incremental mode: first publish `skipped=false`, identical replay
+`skipped=true`, including read-back verification. Other dates/runs are preserved
+and migrate only when requested; this is not a full historical backfill.
