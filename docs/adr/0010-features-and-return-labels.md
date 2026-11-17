@@ -128,3 +128,9 @@ mapping cannot be skipped even if they already have scoped provenance.
 Full-mode skip requires both recorded table dates and scoped provenance dates to
 exactly match the request. Partially migrated legacy dates still count as retained
 data and must be removed by a real full replacement. Missing date inventory fails closed.
+
+Feature policy v3 rejects NULL/negative numeric aggregates immediately after
+aggregation, before LEFT JOIN/default filling. In particular, DECIMAL(18,2) cast
+overflow with ANSI disabled is an error rather than a zero-valued feature. Empty
+activity still produces zero metrics and NULL AOV. Existing v2 scopes recompute
+when requested; no table schema change is required.

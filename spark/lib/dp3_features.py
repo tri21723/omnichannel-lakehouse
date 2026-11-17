@@ -28,6 +28,20 @@ def validate_feature_currency(frame: Any, name: str) -> None:
         raise ValueError(f"Unsupported or mixed feature currency in {name}")
 
 
+def validate_feature_aggregates(frame: Any, name: str) -> None:
+    """Reject invalid aggregate casts before joins can replace NULL with zero."""
+    from functools import reduce
+    from operator import or_
+
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import NumericType
+
+    numeric = [f.name for f in frame.schema if isinstance(f.dataType, NumericType)]
+    invalid = reduce(or_, (F.col(c).isNull() | (F.col(c) < 0) for c in numeric))
+    if frame.filter(invalid).limit(1).count():
+        raise ValueError(f"Feature numeric overflow or invalid aggregate in {name}")
+
+
 def compute_customer_daily_features(
     spark: Any,
     frames: dict[str, Any],
@@ -81,6 +95,8 @@ def compute_customer_daily_features(
         .alias("spend_30d"),
     )
 
+    validate_feature_aggregates(order_aggs, "customer orders")
+
     # Returns within dual-timestamp boundary (order_ts < as_of_ts AND return_ts < as_of_ts)
     # for orders placed in the 30-day window
     returns = frames["fact_returns"].join(
@@ -102,6 +118,8 @@ def compute_customer_daily_features(
         .cast("decimal(18,2)")
         .alias("refund_amount_30d"),
     )
+
+    validate_feature_aggregates(return_aggs, "customer returns")
 
     # Base customers from dim_customer
     dim_cust = frames["dim_customer"].select(
@@ -254,6 +272,8 @@ def compute_product_daily_features(
         .alias("discount_amount_30d"),
     )
 
+    validate_feature_aggregates(item_aggs, "product items")
+
     # Returns within dual-timestamp boundary (order_ts < as_of_ts AND return_ts < as_of_ts)
     returns = (
         frames["fact_returns"]
@@ -287,6 +307,8 @@ def compute_product_daily_features(
         .cast("decimal(18,2)")
         .alias("refund_amount_30d"),
     )
+
+    validate_feature_aggregates(return_aggs, "product returns")
 
     # Base products from dim_product
     dim_prod = frames["dim_product"].select(

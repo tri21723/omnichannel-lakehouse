@@ -2,7 +2,7 @@
 
 from typing import Any
 
-POLICY = "feature-policy-v2"
+POLICY = "feature-policy-v3"
 LABEL_POLICY = "return-label-policy-v2"
 
 DP3_KEYS = {

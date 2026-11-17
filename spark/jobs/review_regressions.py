@@ -3,10 +3,68 @@
 import logging
 
 from spark.lib.bronze import event
-from spark.lib.dp3_features import validate_feature_currency
+from spark.lib.dp3_features import (
+    compute_customer_daily_features,
+    compute_product_daily_features,
+    validate_feature_currency,
+)
 from spark.lib.dp3_labels import compute_order_return_labels
 from spark.lib.gold_pipeline import validate_fact_numbers
 from spark.lib.session import get_spark
+
+
+def check_feature_numbers(spark):
+    orders = spark.sql(
+        """SELECT cast(id as string) order_key, 'amazon' channel,
+        'c' customer_id, timestamp '2026-01-01 12:00:00' order_ts,
+        false is_deleted, 'USD' currency,
+        cast(6000000000000000 as decimal(18,2)) net_amount FROM range(2)"""
+    )
+    frames = {
+        "fact_orders": orders,
+        "fact_returns": spark.createDataFrame(
+            [],
+            "order_key string, channel string, "
+            "return_key string, product_key string, return_ts timestamp, "
+            "refund_amount decimal(18,2), currency string",
+        ),
+        "fact_order_items": orders.selectExpr(
+            "*",
+            "'p' product_id",
+            "1 qty",
+            "net_amount gross_line_amount",
+            "net_amount net_line_amount",
+            "cast(0 as decimal(18,2)) discount",
+        ),
+        "dim_customer": spark.createDataFrame(
+            [("ck", "amazon", "c")], "customer_key string, channel string, customer_id string"
+        ),
+        "dim_product": spark.createDataFrame(
+            [("pk", "sk", "amazon", "p", "s")],
+            "product_key string, seller_key string, channel string, "
+            "product_id string, seller_id string",
+        ),
+        "dim_channel": spark.createDataFrame(
+            [("ch", "amazon")], "channel_key string, channel string"
+        ),
+    }
+    for compute in (compute_customer_daily_features, compute_product_daily_features):
+        try:
+            compute(spark, frames, "fixture", "pin", "2026-01-03").collect()
+        except ValueError as exc:
+            assert "numeric overflow" in str(exc)
+        else:
+            raise AssertionError("Feature monetary overflow accepted")
+    from pyspark.sql import functions as F
+
+    normal = dict(
+        frames, fact_orders=orders.withColumn("net_amount", F.lit(6).cast("decimal(18,2)"))
+    )
+    row = compute_customer_daily_features(spark, normal, "fixture", "pin", "2026-01-03").first()
+    assert row.lifetime_net_amount == 12 and row.spend_30d == 12 and row.aov_30d == 6
+    empty = dict(normal, fact_orders=normal["fact_orders"].limit(0))
+    row = compute_customer_daily_features(spark, empty, "fixture", "pin", "2026-01-03").first()
+    assert row.lifetime_order_count == 0 and row.spend_30d == 0 and row.aov_30d is None
 
 
 def run():
@@ -59,7 +117,8 @@ def run():
                 pass
             else:
                 raise AssertionError(f"Unsupported currency accepted: {bad}")
-        event("review_regressions_passed", cases=7)
+        check_feature_numbers(spark)
+        event("review_regressions_passed", cases=11)
     finally:
         spark.stop()
 

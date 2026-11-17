@@ -381,3 +381,14 @@ Warehouse retry reads `warehouse.export_state` before the file mirror, including
 `ledger.json` is invalid JSON. Rerun the same export to verify DB evidence and repair
 the mirror. If database lookup fails, resolve that error first; stale files are not
 used as a fallback for database errors.
+
+### Feature aggregate overflow (policy v3)
+
+`Feature numeric overflow or invalid aggregate` aborts feature computation before
+publication. Check sums against the DECIMAL(18,2) limit; a valid individual order
+can still overflow a customer/product total. Correct the input or design an explicit
+precision migration; do not replace the failed aggregate with zero. Empty activity
+continues to use zero amounts and NULL AOV. Requested v2 scopes recompute under v3.
+
+A full DP3 refresh also checks the retained `table_dates` inventory. After partial
+legacy migration, dates without provenance still prevent an incorrect full skip.
