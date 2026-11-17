@@ -1,6 +1,6 @@
 # TODO — Phase 4F: Performance & Data Skew Benchmark
 
-Cập nhật: **2026-11-17**. Trạng thái: **đã lập kế hoạch, chưa triển khai 4F**.
+Cập nhật: **2026-11-17**. Trạng thái: **đang triển khai 4F**.
 
 Mục tiêu: xây dựng benchmark có thể chạy lại trên Docker local, đo hiệu quả xử lý
 skew bằng số liệu trước/sau, chứng minh kết quả dữ liệu không đổi, và đóng Phase 4
@@ -45,24 +45,29 @@ Lịch sử: [Phase 4E](docs/phase4e-checklist.md),
 
 ### P4F-01 — Chuẩn hóa baseline và chốt đầu vào
 
-- [ ] Kiểm tra git sạch, image đúng source, Docker core/batch healthy; ghi commit,
+- [x] Kiểm tra git sạch, image đúng source, Docker core/batch healthy; ghi commit,
   image ID, CPU/RAM cấp cho Docker, disk trống, số worker/executor/core/memory thực tế.
-- [ ] Chạy `make check`, `make test-review-regressions`; lưu bằng chứng theo commit.
-- [ ] Xác nhận source manifests, Bronze/Silver completed publications cho small/default;
+- [x] Chạy `make check`, `make test-review-regressions`; lưu bằng chứng theo commit.
+- [x] Xác nhận source manifests, Bronze/Silver completed publications cho small/default;
   nếu mismatch thì xử lý trước khi đo, không ghi đè dữ liệu để che sai lệch.
-- [ ] Chạy Gold cho **cả hai dataset trước**, chốt publication cuối, rồi chạy toàn bộ
+- [x] Chạy Gold cho **cả hai dataset trước**, chốt publication cuối, rồi chạy toàn bộ
   dates features/labels cần làm baseline trên cùng Gold publication. Không xen kẽ
   cập nhật Gold giữa các phép so sánh downstream.
-- [ ] Xuất warehouse cho hai dataset từ Gold đã chốt; ghi run-date/window cụ thể.
-- [ ] Chạy verify/reconcile/DQ tương ứng cho Gold, DP3 và warehouse; kiểm tra currency,
+- [x] Xuất warehouse cho hai dataset từ Gold đã chốt; ghi run-date/window cụ thể.
+- [x] Chạy verify/reconcile/DQ tương ứng cho Gold, DP3 và warehouse; kiểm tra currency,
   keys, số dòng, censoring và tổng tiền theo channel/currency.
-- [ ] Replay cùng tham số: xác nhận skip/read-back, không nhân đôi hoặc mất scope khác.
-- [ ] Ghi manifest baseline: run IDs, publication IDs, table snapshot IDs, policy versions,
+- [x] Replay cùng tham số: xác nhận skip/read-back, không nhân đôi hoặc mất scope khác.
+- [x] Ghi manifest baseline: run IDs, publication IDs, table snapshot IDs, policy versions,
   evaluation dates, horizon, warehouse window, counts và checksum bằng chứng.
-- [ ] Chặn benchmark nếu snapshot thiếu, policy không đúng, input còn pending/failed
+- [x] Chặn benchmark nếu snapshot thiếu, policy không đúng, input còn pending/failed
   hoặc kết quả đối soát không đạt.
 
 **Đạt khi:** baseline nhất quán và có thể truy về đúng input. Giữ các snapshot được pin.
+**Bằng chứng (2026-11-17, commit `a084f56`, image `sha256:4f7711b0…`):** Gold publication
+`332aa290…` (policy v2) cho cả hai dataset; DP3 features v4/labels v3 và warehouse
+(run_date 2026-01-17, cửa sổ `[2025-12-19, 2026-01-18)`) cùng pin publication đó.
+verify/reconcile/DQ Gold, DP3, warehouse và 22 regression đạt; replay 5 job đều `skipped`,
+hash ledger không đổi. Manifest: [`docs/benchmarks/baseline-4f.json`](docs/benchmarks/baseline-4f.json).
 **Commit gợi ý:** `test(batch): establish current-policy baseline for skew benchmarks`.
 
 ### P4F-02 — Chốt thiết kế và workload

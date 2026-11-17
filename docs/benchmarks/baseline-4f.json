@@ -1,0 +1,374 @@
+{
+  "captured": {
+    "checks_passed": [
+      "make check (175 tests)",
+      "verify-gold x2",
+      "reconcile-gold x2",
+      "test-gold-dq default",
+      "verify-features x2",
+      "verify-labels x2",
+      "test-dp3-dq default",
+      "verify-warehouse",
+      "reconcile-warehouse",
+      "test-warehouse-dq default",
+      "test-review-regressions (22 cases)"
+    ],
+    "date_utc": "2026-11-17",
+    "docker": {
+      "cpus": 4,
+      "engine": "29.5.2",
+      "memory_bytes": 12544249856
+    },
+    "free_disk_gib_host_root": 917,
+    "replay": {
+      "all_skipped": true,
+      "jobs": [
+        "dp2_gold small",
+        "dp2_gold default",
+        "dp3_features small",
+        "dp3_return_labels small",
+        "dp4_warehouse small"
+      ],
+      "ledger_sha256_unchanged": true
+    },
+    "source_commit": "a084f5632e15a438f2635e584f4be6ff24647456",
+    "spark": {
+      "cores_max": 2,
+      "driver_mem_limit": "1536MiB",
+      "executor_cores": 1,
+      "executor_memory": "1g",
+      "shuffle_partitions": 16,
+      "worker_mem_limit": "2.5GiB",
+      "workers": 2
+    },
+    "spark_image_id": "sha256:4f7711b0606aab8bf49e1ebc066c2005cd48ff9fd9289266a622f5982dbc3db9"
+  },
+  "dp3": {
+    "ledger_sha256": "011ba719eddb289a0a04ba10aa4b8ec710b62e2b63a80b856948e89a79201a6b",
+    "runs": {
+      "186ae107d0793d2ee237": {
+        "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+        "horizon_days": 14,
+        "label_policies": [
+          "return-label-policy-v3"
+        ],
+        "provenance_policies": [
+          "lh.gold.feat_customer_daily:feature-policy-v4",
+          "lh.gold.feat_product_daily:feature-policy-v4",
+          "lh.gold.lbl_order_return:return-label-policy-v3"
+        ],
+        "table_dates": {
+          "lh.gold.feat_customer_daily": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03"
+          ],
+          "lh.gold.feat_product_daily": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03"
+          ],
+          "lh.gold.lbl_order_return": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03",
+            "2026-01-18"
+          ]
+        }
+      },
+      "b1e64afaff0176de180a": {
+        "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+        "horizon_days": 14,
+        "label_policies": [
+          "return-label-policy-v3"
+        ],
+        "provenance_policies": [
+          "lh.gold.feat_customer_daily:feature-policy-v4",
+          "lh.gold.feat_product_daily:feature-policy-v4",
+          "lh.gold.lbl_order_return:return-label-policy-v3"
+        ],
+        "table_dates": {
+          "lh.gold.feat_customer_daily": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03"
+          ],
+          "lh.gold.feat_product_daily": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03"
+          ],
+          "lh.gold.lbl_order_return": [
+            "2026-01-01",
+            "2026-01-02",
+            "2026-01-03",
+            "2026-01-18"
+          ]
+        }
+      }
+    },
+    "status": "completed",
+    "tables": {
+      "lh.gold.feat_customer_daily": {
+        "h1": "1771246950342710481901",
+        "h2": "1768044124781059410555",
+        "rows": "3075",
+        "snapshot": 523059940860276232
+      },
+      "lh.gold.feat_product_daily": {
+        "h1": "310984213164807865014",
+        "h2": "319930610361492020846",
+        "rows": "564",
+        "snapshot": 4891789707853062737
+      },
+      "lh.gold.lbl_order_return": {
+        "h1": "26645674585758703044448",
+        "h2": "26546938666190732560647",
+        "rows": "46125",
+        "snapshot": 7209166116988907226
+      }
+    }
+  },
+  "gold": {
+    "ledger_sha256": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+    "publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+    "runs": {
+      "186ae107d0793d2ee237": {
+        "policy_version": "gold-policy-v2",
+        "silver_publication_id": "7abd65660a49b1665e6304c10d025e3f79d9bf26e0066f01004ddf773b4fe512"
+      },
+      "b1e64afaff0176de180a": {
+        "policy_version": "gold-policy-v2",
+        "silver_publication_id": "7abd65660a49b1665e6304c10d025e3f79d9bf26e0066f01004ddf773b4fe512"
+      }
+    },
+    "status": "completed",
+    "tables": {
+      "lh.gold.dim_channel": {
+        "h1": "6329303966726524461",
+        "h2": "7399357323055010294",
+        "rows": "10",
+        "snapshot": 6715921929190713252
+      },
+      "lh.gold.dim_customer": {
+        "h1": "591205135993892003432",
+        "h2": "581770568712157314488",
+        "rows": "1025",
+        "snapshot": 9118073375152285514
+      },
+      "lh.gold.dim_date": {
+        "h1": "17955360988871079567",
+        "h2": "19597511775035802443",
+        "rows": "32",
+        "snapshot": 6711179325059763171
+      },
+      "lh.gold.dim_product": {
+        "h1": "108229547955631422084",
+        "h2": "106582272853152539031",
+        "rows": "188",
+        "snapshot": 3718755364572395066
+      },
+      "lh.gold.dim_seller": {
+        "h1": "105649116272820498393",
+        "h2": "111576258528943087338",
+        "rows": "188",
+        "snapshot": 2506725760628875181
+      },
+      "lh.gold.fact_order_items": {
+        "h1": "8925631823141830061764",
+        "h2": "8833462484742146608026",
+        "rows": "15375",
+        "snapshot": 743584683849987710
+      },
+      "lh.gold.fact_orders": {
+        "h1": "8873313371359434656892",
+        "h2": "8892004982778907007939",
+        "rows": "15375",
+        "snapshot": 7158385993297961283
+      },
+      "lh.gold.fact_returns": {
+        "h1": "873955627601588421458",
+        "h2": "903672746445864275654",
+        "rows": "1530",
+        "snapshot": 4000005261555412504
+      }
+    }
+  },
+  "schema_version": 1,
+  "warehouse": {
+    "ledger_sha256": "62b2e92f5ddabd9161c06ad001620c93d4c69304bff89c5ca601b6a21b7c4750",
+    "runs": {
+      "186ae107d0793d2ee237": {
+        "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+        "mode": "full",
+        "monetary": {
+          "fact_order_items": {
+            "amazon|USD": {
+              "gross_line_amount": "20379.33",
+              "net_line_amount": "20379.33"
+            },
+            "lazada|VND": {
+              "gross_line_amount": "472120000.00",
+              "net_line_amount": "472120000.00"
+            },
+            "shopee|USD": {
+              "gross_line_amount": "17496.90",
+              "net_line_amount": "17496.90"
+            },
+            "tiktok_shop|USD": {
+              "gross_line_amount": "21625.30",
+              "net_line_amount": "21625.30"
+            },
+            "walmart|USD": {
+              "gross_line_amount": "19025.93",
+              "net_line_amount": "19025.93"
+            }
+          },
+          "fact_orders": {
+            "amazon|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "20379.33",
+              "net_amount": "20379.33"
+            },
+            "lazada|VND": {
+              "discount_amount": "0.00",
+              "gross_amount": "472120000.00",
+              "net_amount": "472120000.00"
+            },
+            "shopee|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "17496.90",
+              "net_amount": "17496.90"
+            },
+            "tiktok_shop|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "21625.30",
+              "net_amount": "21625.30"
+            },
+            "walmart|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "19025.93",
+              "net_amount": "19025.93"
+            }
+          },
+          "fact_returns": {
+            "amazon|USD": {
+              "refund_amount": "1178.74"
+            },
+            "lazada|VND": {
+              "refund_amount": "35250750.00"
+            },
+            "shopee|USD": {
+              "refund_amount": "893.68"
+            },
+            "tiktok_shop|USD": {
+              "refund_amount": "840.28"
+            },
+            "walmart|USD": {
+              "refund_amount": "1183.01"
+            }
+          }
+        },
+        "rows": {
+          "warehouse.dim_channel": 5,
+          "warehouse.dim_customer": 25,
+          "warehouse.dim_date": 15,
+          "warehouse.dim_product": 88,
+          "warehouse.dim_seller": 88,
+          "warehouse.fact_order_items": 375,
+          "warehouse.fact_orders": 375,
+          "warehouse.fact_returns": 30
+        },
+        "run_date": "2026-01-17",
+        "window_end": "2026-01-18T00:00:00+00:00",
+        "window_start": "2025-12-19T00:00:00+00:00"
+      },
+      "b1e64afaff0176de180a": {
+        "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+        "mode": "full",
+        "monetary": {
+          "fact_order_items": {
+            "amazon|USD": {
+              "gross_line_amount": "750463.24",
+              "net_line_amount": "750463.24"
+            },
+            "lazada|VND": {
+              "gross_line_amount": "18890249250.00",
+              "net_line_amount": "18890249250.00"
+            },
+            "shopee|USD": {
+              "gross_line_amount": "740954.86",
+              "net_line_amount": "740954.86"
+            },
+            "tiktok_shop|USD": {
+              "gross_line_amount": "748669.24",
+              "net_line_amount": "748669.24"
+            },
+            "walmart|USD": {
+              "gross_line_amount": "758926.04",
+              "net_line_amount": "758926.04"
+            }
+          },
+          "fact_orders": {
+            "amazon|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "750463.24",
+              "net_amount": "750463.24"
+            },
+            "lazada|VND": {
+              "discount_amount": "0.00",
+              "gross_amount": "18890249250.00",
+              "net_amount": "18890249250.00"
+            },
+            "shopee|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "740954.86",
+              "net_amount": "740954.86"
+            },
+            "tiktok_shop|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "748669.24",
+              "net_amount": "748669.24"
+            },
+            "walmart|USD": {
+              "discount_amount": "0.00",
+              "gross_amount": "758926.04",
+              "net_amount": "758926.04"
+            }
+          },
+          "fact_returns": {
+            "amazon|USD": {
+              "refund_amount": "75185.52"
+            },
+            "lazada|VND": {
+              "refund_amount": "1985094000.00"
+            },
+            "shopee|USD": {
+              "refund_amount": "75255.59"
+            },
+            "tiktok_shop|USD": {
+              "refund_amount": "72616.35"
+            },
+            "walmart|USD": {
+              "refund_amount": "78478.17"
+            }
+          }
+        },
+        "rows": {
+          "warehouse.dim_channel": 5,
+          "warehouse.dim_customer": 1000,
+          "warehouse.dim_date": 17,
+          "warehouse.dim_product": 100,
+          "warehouse.dim_seller": 100,
+          "warehouse.fact_order_items": 15000,
+          "warehouse.fact_orders": 15000,
+          "warehouse.fact_returns": 1500
+        },
+        "run_date": "2026-01-17",
+        "window_end": "2026-01-18T00:00:00+00:00",
+        "window_start": "2025-12-19T00:00:00+00:00"
+      }
+    },
+    "status": "completed"
+  }
+}
