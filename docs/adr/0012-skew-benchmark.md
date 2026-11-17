@@ -1,7 +1,6 @@
 # ADR-0012: Skew benchmark workload and measurement protocol (Phase 4F)
 
-- Status: Proposed (draft). Workload, equivalence and metric rules are fixed here;
-  resource numbers and dataset scales are confirmed after P4F-01 baseline and P4F-03 preflight.
+- Status: Accepted (Phase 4F complete, 2026-11-18). Results: [skew benchmark](../benchmarks/skew.md).
 - Context: Gold (ADR-0009) is published from a seeded generator whose hot product/seller
   share is configurable (`skew_top_seller_share`, ADR-0005). Phase 4F must show, with
   repeatable measurements, whether AQE, broadcast, salting or partition tuning help on
@@ -168,16 +167,32 @@ not deleted.
 - Raw event logs and plans can contain SQL and config values; reports only export allowlisted
   numeric fields and redacted config keys (`spark.redaction.regex` plus an explicit allowlist).
 
-## 9. Resource budget (to confirm in P4F-01)
+## 9. Resource budget (confirmed)
 
-- Docker host observed at planning time: 4 CPU, ~11.7 GiB RAM; Spark workers 2.5 GiB limit each.
-- Per-trial timeout: 15 min (smoke), 45 min (largest scale). Event logs + output per experiment:
-  ≤ 2 GiB. Stop increasing scale when a trial exceeds timeout, OOMs, or free disk < 10 GiB;
-  record the failed cell instead of dropping it.
-- Planned scales (total orders): 15k smoke, 100k medium, 1M large if preflight allows.
+- Docker host: 4 CPU, ~11.7 GiB RAM (WSL2); Spark workers 2.5 GiB limit each; driver 1.5 GiB.
+- Trial timeouts as configured: 600 s (smoke), 900 s (ci), 1200 s (100k), 1800 s (1M). Trial
+  wall time (Spark start-up + setup + query + verify) averaged 59–68 s, max 155 s; no trial
+  timed out, spilled or failed. Artifacts: matrix-1m 540 MiB, focus-1m 197 MiB.
+- Experiment budget ≤ 2 GiB of artifacts and ≥ 10 GiB free disk (checked by preflight and
+  after every trial). Scales reached: 15k, 105k and 1,005,000 amplified lines; 1M fitted, so no
+  scale was dropped.
+- Wall time: matrix-1m 112 trials ≈ 2 h 13 min; focus-1m 48 trials ≈ 50 min.
 
 ## 10. Consequences
 
 - Production defaults change only if a variant shows a measured gain with a passing gate,
   through a follow-up ADR update and config change, with replay/recovery evidence.
 - A "no improvement" result is a valid outcome when the method and limits are documented.
+
+### Decision (2026-11-18)
+
+- Keep `spark/lib/session.py` defaults for all pipeline jobs (P0: AQE on, 10 MB broadcast,
+  16 shuffle partitions). P0 was the only setting consistently faster than B0 on the 1M join
+  (paired 1.25× over 7 rounds); AQE skew-join tuning, broadcast alone, salting and more
+  partitions did not give a reproducible gain. No pipeline code or config changes, so no
+  replay/rollback of production jobs is required.
+- Benchmark code stays as a reusable, manual tool (`make benchmark-*`, CI workflow
+  `benchmark.yml` without wall-clock thresholds). Revisit when executors > hot keys, hot
+  partitions exceed hundreds of MB, or a dimension no longer fits the broadcast threshold.
+- Speedup conclusions use the per-round paired ratio; plain median ratios are reported but
+  can be biased by host drift (observed in matrix-1m).

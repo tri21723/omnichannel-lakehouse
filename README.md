@@ -15,9 +15,11 @@ Phase 4B hoàn thành local (`v0.4b-silver`): Silver 5 entity/5 kênh, HMAC PII,
 Phase 4C hoàn thành local (`v0.4c-gold`): Kimball star schema 8 bảng trong `lh.gold`, đối soát tiền tệ `DECIMAL(18,2)`, multi-dataset coexistence và atomic recovery.
 Phase 4D hoàn thành local (`v0.4d-features`): Feature Store (`feat_customer_daily`, `feat_product_daily`) và Return Labels (`lbl_order_return`) trong `lh.gold` với point-in-time dual-timestamp cutoff và maturity right-censoring.
 Phase 4E hoàn thành local (`v0.4e-warehouse`): Downstream Data Warehouse Export (`dp4_warehouse`) đồng bộ cửa sổ trượt 30 ngày sang PostgreSQL `warehouse.*` bằng một giao dịch JDBC nguyên tử (`spark_writer`), giữ nguyên vẹn ràng buộc PK/FK, `NUMERIC(18,2)` và quyền đọc `trino_ro`.
-Tiếp theo là Phase 4F (benchmark data skew quy mô lớn và đóng Phase 4).
+Phase 4F hoàn thành local (`v0.4f-benchmark`): benchmark skew có kiểm soát (AQE, broadcast, salting,
+partition) trên dataset tới ~1M dòng, 240 trial đều đúng kết quả; giữ cấu hình Spark production
+vì không biến thể nào nhanh hơn ổn định. Phase 4 đã đóng; tiếp theo là Phase 5 (Airflow).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -157,6 +159,22 @@ từ snapshot đã pin sang PostgreSQL database `sources`, schema `warehouse.*` 
 giao dịch JDBC nguyên tử (`spark_writer`), bảo toàn `NUMERIC(18,2)`, PII hash và quyền đọc
 cho `trino_ro` cùng ledger độc lập `/runtime/warehouse/export/ledger.json`. Xem
 [ADR-0011](docs/adr/0011-warehouse-export.md) và [Warehouse validation](docs/warehouse-validation.md).
+
+## Benchmark data skew (Phase 4F)
+
+```sh
+make test-benchmark
+make benchmark-dataset
+make verify-benchmark-dataset
+make benchmark-skew BENCH_CONFIG=smoke      # matrix-100k | matrix-1m | focus-1m | ci
+make verify-benchmark BENCH_CONFIG=smoke
+make report-benchmark BENCH_CONFIG=smoke
+```
+
+Dataset benchmark được nhân bản tất định từ Gold đã pin (`lh.benchmark.*`, không phải ingestion
+end-to-end), mỗi trial là một Spark application riêng, so sánh với B0 bằng `exceptAll` và tổng
+DECIMAL. Không ghi Gold/ledger nghiệp vụ. Xem [kết quả](docs/benchmarks/skew.md),
+[ADR-0012](docs/adr/0012-skew-benchmark.md) và [runbook](docs/runbook.md).
 
 ## Kiến trúc và source
 

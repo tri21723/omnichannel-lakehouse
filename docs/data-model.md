@@ -100,3 +100,11 @@ Eight star-schema tables mirrored into PostgreSQL database `sources`, schema `wa
 - Facts cover the 30-day UTC sliding window `[run_date - 29 days, run_date + 1 day)` (`fact_returns` further semi-joined to in-window `fact_orders` / `fact_order_items` to preserve strict FK integrity).
 - Composite PKs `(_dataset_run_id, date_key)` and `(_dataset_run_id, channel_key)` enable multi-dataset coexistence with full `FOREIGN KEY`, `NUMERIC(18,2)` `CHECK (>= 0)`, salted PII hashes only, and `SELECT` grants for `trino_ro`.
 - Single-connection driver JDBC synchronization (`spark_writer`) guarantees ACID rollback and commits export provenance to `warehouse.export_state` with a recoverable mirror at `/runtime/warehouse/export/ledger.json`. See [ADR-0011](adr/0011-warehouse-export.md) and [Warehouse validation](warehouse-validation.md).
+
+## Benchmark namespace (Phase 4F)
+
+`lh.benchmark` holds benchmark-only tables: `items_<dataset>` / `products_<dataset>` (amplified,
+pinned copies of Gold `fact_order_items` / `dim_product` columns, scoped by
+`_dataset_run_id = bench_<dataset>`), and per-experiment results `res_*` / `ref_*`. They are not
+part of the published Silver/Gold contract and are never read by pipeline jobs. See
+[ADR-0012](adr/0012-skew-benchmark.md).

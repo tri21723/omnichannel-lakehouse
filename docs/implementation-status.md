@@ -113,15 +113,34 @@ See [DP3 validation](dp3-validation.md), [completed checklist](phase4d-checklist
 
 See [Warehouse validation](warehouse-validation.md), [ADR-0011](adr/0011-warehouse-export.md), and [Features & Warehouse handoff](features-warehouse-handoff.md).
 
-## Next: Phase 4F — Performance & Skew Benchmark
+## Phase 4F — Performance & Skew Benchmark complete locally
 
-Scale benchmarking for skewed keys, partition tuning, and final Phase 4 closure before Phase 5 (Airflow orchestration).
+- Local milestone `v0.4f-benchmark`; Phase 4 closed. Baseline: Gold publication `332aa290…`
+  (policy v2), DP3 features v4 / labels v3 and warehouse export all pinned to it; verify,
+  reconcile, DQ, 22 regressions and same-parameter replay (all skipped, ledgers unchanged) pass
+  ([baseline manifest](benchmarks/baseline-4f.json)).
+- Harness `spark/jobs/benchmark_skew/` + `spark/lib/benchmark_*.py`: pinned datasets by deterministic
+  synthetic amplification (15k / 105k / 1.005M lines, control vs 80% hot key), one Spark
+  application per trial, `noop` materialization, event-log metrics (task skew, shuffle, spill,
+  retries), physical-plan evidence, correctness gate vs B0, redacted reports.
+- 240 trials across smoke, ci, matrix-100k, matrix-1m and focus-1m: all ok and correct, no spill
+  or task failure. AQE skew join (tuned), broadcast alone, salting and more partitions gave no
+  reproducible gain; the production session (AQE + broadcast) was consistently fastest
+  (paired 1.25× vs B0 on the 1M join), so production config is unchanged.
+- Manual CI workflow `.github/workflows/benchmark.yml` with allowlisted events; hosted run not claimed.
+
+See [skew benchmark](benchmarks/skew.md), [ADR-0012](adr/0012-skew-benchmark.md),
+[checklist](phase4f-checklist.md) and [Phase 5 handoff](phase5-handoff.md).
+
+## Next: Phase 5 — Airflow orchestration
+
+Not started. Operational contract for DAGs: [Phase 5 handoff](phase5-handoff.md).
 
 ## Later phases
 
 Airflow, Trino, streaming, CDC capture, governance and AWS are not implemented.
 Their placeholder Make targets fail explicitly. Later components need compatibility
-verification. No cloud resources were provisioned. Million-row benchmarks, parallel
+verification. No cloud resources were provisioned. Parallel
 JDBC partitions, snapshot expiry, compaction and orphan cleanup remain deferred.
 
 ## Hosted CI update — 2026-11-13
