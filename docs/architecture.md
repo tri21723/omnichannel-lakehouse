@@ -9,10 +9,15 @@ Nhãn luồng (B/S/C/Q/O/G/I) khớp bảng §4.2 trong [plan](plan.md). Port th
 Sơ đồ mô tả kiến trúc đích; trạng thái triển khai xem
 [implementation status](implementation-status.md).
 
-Logo lấy từ [Simple Icons](https://simpleicons.org) v13.21.0 (CC0), nhúng inline để
-GitHub render được; nhãn hiệu thuộc chủ sở hữu tương ứng. Debezium, DataHub và
-Lakekeeper không có trong bộ icon nên giữ dạng chữ; biểu tượng Iceberg là hình vẽ
-chung, không phải logo chính thức.
+Logo được nhúng trực tiếp trong SVG để GitHub render được; nhãn hiệu thuộc chủ sở hữu
+tương ứng và chỉ dùng để nhận diện công nghệ:
+
+- [Simple Icons](https://simpleicons.org) v13.21.0 (CC0): Airflow, Docker, MinIO,
+  PostgreSQL, Spark, Trino, DBeaver, Kafka, Flink, Terraform, Ansible.
+- Logo chính thức từ repo dự án (nhúng dạng data URI): DataHub
+  (`datahub-project/datahub`), Debezium (`debezium/debezium.github.io`, cắt phần biểu tượng),
+  Apache Iceberg (`apache/iceberg`, `iceberg-logo-icon.png`), Lakekeeper
+  (`lakekeeper/lakekeeper`).
 
 ## Bản rút gọn (Mermaid)
 
