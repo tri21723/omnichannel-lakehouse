@@ -1,0 +1,13 @@
+dataset,workload,variant,trials,ok_trials,failed_trials,statuses,query_s_median,query_s_min,query_s_max,shuffle_task_ratio_median,max_shuffle_task_ms_median,shuffle_bytes_written_median,shuffle_remote_bytes_read_median,shuffle_local_bytes_read_median,memory_bytes_spilled_median,disk_bytes_spilled_median,failed_tasks_median,speedup_vs_b0,paired_rounds,paired_speedup_median,paired_speedup_min,paired_speedup_max
+s15k_control,w1_join_agg,B0,1,1,0,ok,9.295,9.295,9.295,5.82,1100,2883923,1386547,1497376,0,0,0,1.0,1,1.0,1.0,1.0
+s15k_control,w1_join_agg,B1T,1,1,0,ok,9.553,9.553,9.553,7.081,1055,2883814,1244893,1638921,0,0,0,0.973,1,0.973,0.973,0.973
+s15k_control,w1_join_agg,B2,1,1,0,ok,9.218,9.218,9.218,3.847,827,1766090,766785,999305,0,0,0,1.008,1,1.008,1.008,1.008
+s15k_control,w1_join_agg,B3,1,1,0,ok,12.815,12.815,12.815,6.141,1322,3996810,1850631,2146179,0,0,0,0.725,1,0.725,0.725,0.725
+s15k_control,w2_agg,B0,1,1,0,ok,9.035,9.035,9.035,4.478,936,1556712,699083,857629,0,0,0,1.0,1,1.0,1.0,1.0
+s15k_control,w2_agg,B1T,1,1,0,ok,8.723,8.723,8.723,3.975,646,1556751,688637,868114,0,0,0,1.036,1,1.036,1.036,1.036
+s15k_skew80,w1_join_agg,B0,1,1,0,ok,8.561,8.561,8.561,6.0,507,2813546,10993,2802553,0,0,0,1.0,1,1.0,1.0,1.0
+s15k_skew80,w1_join_agg,B1T,1,1,0,ok,10.176,10.176,10.176,5.021,1067,2812833,1306318,1506515,0,0,0,0.841,1,0.841,0.841,0.841
+s15k_skew80,w1_join_agg,B2,1,1,0,ok,8.488,8.488,8.488,3.578,581,1602106,701663,900443,0,0,0,1.009,1,1.009,1.009,1.009
+s15k_skew80,w1_join_agg,B3,1,1,0,ok,9.825,9.825,9.825,6.206,512,3293756,59182,3234574,0,0,0,0.871,1,0.871,0.871,0.871
+s15k_skew80,w2_agg,B0,1,1,0,ok,8.529,8.529,8.529,3.552,627,1522627,720584,802043,0,0,0,1.0,1,1.0,1.0,1.0
+s15k_skew80,w2_agg,B1T,1,1,0,ok,8.295,8.295,8.295,5.526,887,1522959,678723,844236,0,0,0,1.028,1,1.028,1.028,1.028

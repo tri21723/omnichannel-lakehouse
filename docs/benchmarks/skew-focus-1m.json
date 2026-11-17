@@ -1,0 +1,379 @@
+{
+  "cells": [
+    {
+      "dataset": "l1m_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1903,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 7,
+      "paired_rounds": 7,
+      "paired_speedup_max": 1.0,
+      "paired_speedup_median": 1.0,
+      "paired_speedup_min": 1.0,
+      "query_s_max": 14.28,
+      "query_s_median": 13.027,
+      "query_s_min": 10.202,
+      "shuffle_bytes_written_median": 162867682,
+      "shuffle_local_bytes_read_median": 145270156,
+      "shuffle_remote_bytes_read_median": 17597223,
+      "shuffle_task_ratio_median": 13.31,
+      "speedup_vs_b0": 1.0,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 7,
+      "variant": "B0",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "l1m_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 2084,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 7,
+      "paired_rounds": 7,
+      "paired_speedup_max": 0.995,
+      "paired_speedup_median": 0.939,
+      "paired_speedup_min": 0.835,
+      "query_s_max": 15.195,
+      "query_s_median": 13.203,
+      "query_s_min": 12.213,
+      "shuffle_bytes_written_median": 162869878,
+      "shuffle_local_bytes_read_median": 123487863,
+      "shuffle_remote_bytes_read_median": 39382015,
+      "shuffle_task_ratio_median": 14.118,
+      "speedup_vs_b0": 0.987,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 7,
+      "variant": "B1",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "l1m_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 2118,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 7,
+      "paired_rounds": 7,
+      "paired_speedup_max": 0.951,
+      "paired_speedup_median": 0.796,
+      "paired_speedup_min": 0.505,
+      "query_s_max": 20.21,
+      "query_s_median": 16.37,
+      "query_s_min": 13.778,
+      "shuffle_bytes_written_median": 163036584,
+      "shuffle_local_bytes_read_median": 118182538,
+      "shuffle_remote_bytes_read_median": 44868983,
+      "shuffle_task_ratio_median": 13.878,
+      "speedup_vs_b0": 0.796,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 7,
+      "variant": "B1T",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "l1m_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1166,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 7,
+      "paired_rounds": 7,
+      "paired_speedup_max": 1.175,
+      "paired_speedup_median": 0.963,
+      "paired_speedup_min": 0.751,
+      "query_s_max": 18.639,
+      "query_s_median": 12.095,
+      "query_s_min": 10.589,
+      "shuffle_bytes_written_median": 88606736,
+      "shuffle_local_bytes_read_median": 47082262,
+      "shuffle_remote_bytes_read_median": 41524605,
+      "shuffle_task_ratio_median": 3.969,
+      "speedup_vs_b0": 1.077,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 7,
+      "variant": "B2",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "l1m_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1575,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 7,
+      "paired_rounds": 7,
+      "paired_speedup_max": 0.883,
+      "paired_speedup_median": 0.807,
+      "paired_speedup_min": 0.649,
+      "query_s_max": 18.913,
+      "query_s_median": 15.845,
+      "query_s_min": 13.235,
+      "shuffle_bytes_written_median": 173496325,
+      "shuffle_local_bytes_read_median": 150011524,
+      "shuffle_remote_bytes_read_median": 23484865,
+      "shuffle_task_ratio_median": 6.325,
+      "speedup_vs_b0": 0.822,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 7,
+      "variant": "B3",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "l1m_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 2114,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 7,
+      "paired_rounds": 7,
+      "paired_speedup_max": 1.396,
+      "paired_speedup_median": 1.248,
+      "paired_speedup_min": 0.888,
+      "query_s_max": 14.531,
+      "query_s_median": 10.231,
+      "query_s_min": 9.65,
+      "shuffle_bytes_written_median": 88489112,
+      "shuffle_local_bytes_read_median": 71914529,
+      "shuffle_remote_bytes_read_median": 16574627,
+      "shuffle_task_ratio_median": 1.235,
+      "speedup_vs_b0": 1.273,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 7,
+      "variant": "P0",
+      "workload": "w1_join_agg"
+    }
+  ],
+  "commit": "db8dd559e5c846bd56c028923dac9e5cb7615207",
+  "config_hash": "ebc4aac9fcb6ca084dc67269a9e2aced2ca2745a0f3d3e4b8124c0fb9bb4c575",
+  "datasets": {
+    "l1m_skew80": {
+      "distribution": {
+        "distinct_orders": 1005000,
+        "keys": 100,
+        "max_lines_per_order": 1,
+        "max_median_ratio": 75.96,
+        "max_rows_per_key": 160957,
+        "median_rows_per_key": 2119,
+        "per_channel_keys": {
+          "amazon": 20,
+          "lazada": 20,
+          "shopee": 20,
+          "tiktok_shop": 20,
+          "walmart": 20
+        },
+        "per_channel_rows": {
+          "amazon": 201000,
+          "lazada": 201000,
+          "shopee": 201000,
+          "tiktok_shop": 201000,
+          "walmart": 201000
+        },
+        "per_channel_top_share": {
+          "amazon": 0.8008,
+          "lazada": 0.7994,
+          "shopee": 0.8002,
+          "tiktok_shop": 0.8001,
+          "walmart": 0.8001
+        },
+        "rows": 1005000,
+        "top_key_share": 0.1602
+      },
+      "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+      "kind": "synthetic_amplification",
+      "spec": {
+        "description": "large: 67x synthetic amplification (~1.0M lines), 80% hot",
+        "factor": 67,
+        "hot_share": 0.8,
+        "name": "l1m_skew80",
+        "source_run": "b1e64afaff0176de180a"
+      }
+    }
+  },
+  "effective_conf": {
+    "B0": {
+      "spark.app.id": "app-20261117172153-0270",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B1": {
+      "spark.app.id": "app-20261117172302-0271",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.coalescePartitions.enabled": "false",
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.adaptive.skewJoin.enabled": "true",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B1T": {
+      "spark.app.id": "app-20261117172406-0272",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.advisoryPartitionSizeInBytes": "4m",
+      "spark.sql.adaptive.coalescePartitions.enabled": "false",
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.adaptive.skewJoin.enabled": "true",
+      "spark.sql.adaptive.skewJoin.skewedPartitionFactor": "2",
+      "spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes": "4m",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B2": {
+      "spark.app.id": "app-20261117172515-0273",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B3": {
+      "spark.app.id": "app-20261117172627-0274",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "P0": {
+      "spark.app.id": "app-20261117172744-0275",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.shuffle.partitions": "16"
+    }
+  },
+  "environment": {
+    "cpu_count": 4,
+    "free_disk_bytes": 989425401856
+  },
+  "experiment": {
+    "datasets": [
+      "l1m_skew80"
+    ],
+    "description": "Skewed 1M join only, 7 repetitions: resolves round-level host drift seen in matrix-1m",
+    "experiment_id": "focus-1m",
+    "repetitions": 7,
+    "timeout_seconds": 1800,
+    "variants": [
+      "B0",
+      "B1",
+      "B1T",
+      "B2",
+      "B3",
+      "P0"
+    ],
+    "w2_variants": [
+      "B0",
+      "B1",
+      "B1T",
+      "P0"
+    ],
+    "warmups": 1,
+    "workloads": [
+      "w1_join_agg"
+    ]
+  },
+  "image_id": "sha256:d19acf3fdfccbdf5f6aa6da60a5445111a6cfd21d88949e0adabb3b40366ec61",
+  "plans": {
+    "l1m_skew80|w1_join_agg|B0": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "l1m_skew80|w1_join_agg|B1": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "l1m_skew80|w1_join_agg|B1T": {
+      "aqe_shuffle_read": true,
+      "broadcast_hash_join": false,
+      "skew_join": true,
+      "sort_merge_join": true
+    },
+    "l1m_skew80|w1_join_agg|B2": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": true,
+      "skew_join": false,
+      "sort_merge_join": false
+    },
+    "l1m_skew80|w1_join_agg|B3": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "l1m_skew80|w1_join_agg|P0": {
+      "aqe_shuffle_read": true,
+      "broadcast_hash_join": true,
+      "skew_join": false,
+      "sort_merge_join": false
+    }
+  },
+  "schema_version": 1,
+  "trials": {
+    "planned": 48,
+    "recorded": 48,
+    "retried_artifacts": 0,
+    "statuses": {
+      "ok": 48
+    }
+  },
+  "variants": {
+    "B0": "baseline: AQE off, broadcast off, 16 partitions",
+    "B1": "AQE + skew join, default skew thresholds (256MB / factor 5)",
+    "B1T": "AQE + skew join, thresholds tuned to local data size",
+    "B2": "broadcast hint on dim_product",
+    "B3": "salting N=8 on order_key, two-step agg",
+    "P0": "production session defaults (AQE default on, 10MB broadcast)"
+  }
+}

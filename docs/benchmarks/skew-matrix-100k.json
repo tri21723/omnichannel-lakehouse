@@ -1,0 +1,701 @@
+{
+  "cells": [
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1906,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.0,
+      "paired_speedup_median": 1.0,
+      "paired_speedup_min": 1.0,
+      "query_s_max": 14.232,
+      "query_s_median": 13.318,
+      "query_s_min": 11.065,
+      "shuffle_bytes_written_median": 18322711,
+      "shuffle_local_bytes_read_median": 9552989,
+      "shuffle_remote_bytes_read_median": 8769867,
+      "shuffle_task_ratio_median": 7.033,
+      "speedup_vs_b0": 1.0,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B0",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 2334,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 0.941,
+      "paired_speedup_median": 0.736,
+      "paired_speedup_min": 0.635,
+      "query_s_max": 22.401,
+      "query_s_median": 15.031,
+      "query_s_min": 14.16,
+      "shuffle_bytes_written_median": 18322846,
+      "shuffle_local_bytes_read_median": 9643613,
+      "shuffle_remote_bytes_read_median": 8678580,
+      "shuffle_task_ratio_median": 5.854,
+      "speedup_vs_b0": 0.886,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B1",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 2228,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.241,
+      "paired_speedup_median": 0.873,
+      "paired_speedup_min": 0.721,
+      "query_s_max": 19.745,
+      "query_s_median": 12.67,
+      "query_s_min": 10.728,
+      "shuffle_bytes_written_median": 18322928,
+      "shuffle_local_bytes_read_median": 10435126,
+      "shuffle_remote_bytes_read_median": 7887390,
+      "shuffle_task_ratio_median": 8.287,
+      "speedup_vs_b0": 1.051,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B1T",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 676,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.409,
+      "paired_speedup_median": 1.16,
+      "paired_speedup_min": 0.981,
+      "query_s_max": 14.505,
+      "query_s_median": 9.535,
+      "query_s_min": 9.455,
+      "shuffle_bytes_written_median": 10557247,
+      "shuffle_local_bytes_read_median": 5635726,
+      "shuffle_remote_bytes_read_median": 4921396,
+      "shuffle_task_ratio_median": 3.83,
+      "speedup_vs_b0": 1.397,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B2",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1783,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.066,
+      "paired_speedup_median": 0.835,
+      "paired_speedup_min": 0.701,
+      "query_s_max": 20.303,
+      "query_s_median": 13.247,
+      "query_s_min": 12.491,
+      "shuffle_bytes_written_median": 21602013,
+      "shuffle_local_bytes_read_median": 12000230,
+      "shuffle_remote_bytes_read_median": 9601544,
+      "shuffle_task_ratio_median": 8.56,
+      "speedup_vs_b0": 1.005,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B3",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 966,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 0.977,
+      "paired_speedup_median": 0.758,
+      "paired_speedup_min": 0.681,
+      "query_s_max": 20.898,
+      "query_s_median": 14.59,
+      "query_s_min": 13.637,
+      "shuffle_bytes_written_median": 19304297,
+      "shuffle_local_bytes_read_median": 10354071,
+      "shuffle_remote_bytes_read_median": 8950839,
+      "shuffle_task_ratio_median": 13.32,
+      "speedup_vs_b0": 0.913,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B4_64",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_control",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1537,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.456,
+      "paired_speedup_median": 1.265,
+      "paired_speedup_min": 1.152,
+      "query_s_max": 11.562,
+      "query_s_median": 11.25,
+      "query_s_min": 7.6,
+      "shuffle_bytes_written_median": 10441633,
+      "shuffle_local_bytes_read_median": 5231568,
+      "shuffle_remote_bytes_read_median": 5210065,
+      "shuffle_task_ratio_median": 1.107,
+      "speedup_vs_b0": 1.184,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "P0",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 476,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.0,
+      "paired_speedup_median": 1.0,
+      "paired_speedup_min": 1.0,
+      "query_s_max": 12.288,
+      "query_s_median": 9.689,
+      "query_s_min": 8.907,
+      "shuffle_bytes_written_median": 17909521,
+      "shuffle_local_bytes_read_median": 17898570,
+      "shuffle_remote_bytes_read_median": 10951,
+      "shuffle_task_ratio_median": 6.919,
+      "speedup_vs_b0": 1.0,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B0",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1894,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 0.947,
+      "paired_speedup_median": 0.785,
+      "paired_speedup_min": 0.713,
+      "query_s_max": 12.97,
+      "query_s_median": 12.495,
+      "query_s_min": 12.343,
+      "shuffle_bytes_written_median": 17909471,
+      "shuffle_local_bytes_read_median": 8703751,
+      "shuffle_remote_bytes_read_median": 9205384,
+      "shuffle_task_ratio_median": 8.57,
+      "speedup_vs_b0": 0.775,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B1",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1912,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 0.954,
+      "paired_speedup_median": 0.707,
+      "paired_speedup_min": 0.681,
+      "query_s_max": 14.225,
+      "query_s_median": 12.879,
+      "query_s_min": 12.599,
+      "shuffle_bytes_written_median": 17908944,
+      "shuffle_local_bytes_read_median": 8804142,
+      "shuffle_remote_bytes_read_median": 9104891,
+      "shuffle_task_ratio_median": 8.937,
+      "speedup_vs_b0": 0.752,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B1T",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1164,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.01,
+      "paired_speedup_median": 0.897,
+      "paired_speedup_min": 0.731,
+      "query_s_max": 12.18,
+      "query_s_median": 12.165,
+      "query_s_min": 10.806,
+      "shuffle_bytes_written_median": 9927351,
+      "shuffle_local_bytes_read_median": 5896918,
+      "shuffle_remote_bytes_read_median": 4030489,
+      "shuffle_task_ratio_median": 5.087,
+      "speedup_vs_b0": 0.796,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B2",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 710,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 0.851,
+      "paired_speedup_median": 0.813,
+      "paired_speedup_min": 0.682,
+      "query_s_max": 15.109,
+      "query_s_median": 13.053,
+      "query_s_min": 11.385,
+      "shuffle_bytes_written_median": 19877191,
+      "shuffle_local_bytes_read_median": 19817975,
+      "shuffle_remote_bytes_read_median": 59216,
+      "shuffle_task_ratio_median": 6.132,
+      "speedup_vs_b0": 0.742,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B3",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 988,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 0.777,
+      "paired_speedup_median": 0.748,
+      "paired_speedup_min": 0.501,
+      "query_s_max": 17.765,
+      "query_s_median": 16.438,
+      "query_s_min": 12.469,
+      "shuffle_bytes_written_median": 18993298,
+      "shuffle_local_bytes_read_median": 10696656,
+      "shuffle_remote_bytes_read_median": 8295850,
+      "shuffle_task_ratio_median": 8.624,
+      "speedup_vs_b0": 0.589,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "B4_64",
+      "workload": "w1_join_agg"
+    },
+    {
+      "dataset": "m105k_skew80",
+      "disk_bytes_spilled_median": 0,
+      "failed_tasks_median": 0,
+      "failed_trials": 0,
+      "max_shuffle_task_ms_median": 1396,
+      "memory_bytes_spilled_median": 0,
+      "ok_trials": 3,
+      "paired_rounds": 3,
+      "paired_speedup_max": 1.417,
+      "paired_speedup_median": 1.042,
+      "paired_speedup_min": 0.878,
+      "query_s_max": 10.14,
+      "query_s_median": 9.298,
+      "query_s_min": 8.67,
+      "shuffle_bytes_written_median": 9807257,
+      "shuffle_local_bytes_read_median": 5204553,
+      "shuffle_remote_bytes_read_median": 4602704,
+      "shuffle_task_ratio_median": 1.061,
+      "speedup_vs_b0": 1.042,
+      "statuses": [
+        "ok"
+      ],
+      "trials": 3,
+      "variant": "P0",
+      "workload": "w1_join_agg"
+    }
+  ],
+  "commit": "b8e6cad8ae1057d37fb004a4b8f18475a21439da",
+  "config_hash": "1697af3ced3fec8a093509427af68cc14d4661282f8f4de869cc3c884ff97655",
+  "datasets": {
+    "m105k_control": {
+      "distribution": {
+        "distinct_orders": 105000,
+        "keys": 95,
+        "max_lines_per_order": 1,
+        "max_median_ratio": 1.1,
+        "max_rows_per_key": 1211,
+        "median_rows_per_key": 1105,
+        "per_channel_keys": {
+          "amazon": 19,
+          "lazada": 19,
+          "shopee": 19,
+          "tiktok_shop": 19,
+          "walmart": 19
+        },
+        "per_channel_rows": {
+          "amazon": 21000,
+          "lazada": 21000,
+          "shopee": 21000,
+          "tiktok_shop": 21000,
+          "walmart": 21000
+        },
+        "per_channel_top_share": {
+          "amazon": 0.0577,
+          "lazada": 0.0554,
+          "shopee": 0.0538,
+          "tiktok_shop": 0.0552,
+          "walmart": 0.0557
+        },
+        "rows": 105000,
+        "top_key_share": 0.0115
+      },
+      "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+      "kind": "synthetic_amplification",
+      "spec": {
+        "description": "medium: 7x synthetic amplification, uniform",
+        "factor": 7,
+        "hot_share": 0.0,
+        "name": "m105k_control",
+        "source_run": "b1e64afaff0176de180a"
+      }
+    },
+    "m105k_skew80": {
+      "distribution": {
+        "distinct_orders": 105000,
+        "keys": 100,
+        "max_lines_per_order": 1,
+        "max_median_ratio": 75.04,
+        "max_rows_per_key": 16884,
+        "median_rows_per_key": 225,
+        "per_channel_keys": {
+          "amazon": 20,
+          "lazada": 20,
+          "shopee": 20,
+          "tiktok_shop": 20,
+          "walmart": 20
+        },
+        "per_channel_rows": {
+          "amazon": 21000,
+          "lazada": 21000,
+          "shopee": 21000,
+          "tiktok_shop": 21000,
+          "walmart": 21000
+        },
+        "per_channel_top_share": {
+          "amazon": 0.804,
+          "lazada": 0.7978,
+          "shopee": 0.801,
+          "tiktok_shop": 0.7957,
+          "walmart": 0.7996
+        },
+        "rows": 105000,
+        "top_key_share": 0.1608
+      },
+      "gold_publication_id": "332aa2908ccd0c8788d88c31742e3d9e71805b43b6e4b41bd01417a56d7a5df3",
+      "kind": "synthetic_amplification",
+      "spec": {
+        "description": "medium: 7x synthetic amplification, 80% hot",
+        "factor": 7,
+        "hot_share": 0.8,
+        "name": "m105k_skew80",
+        "source_run": "b1e64afaff0176de180a"
+      }
+    }
+  },
+  "effective_conf": {
+    "B0": {
+      "spark.app.id": "app-20261117135945-0103",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B1": {
+      "spark.app.id": "app-20261117140046-0104",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.coalescePartitions.enabled": "false",
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.adaptive.skewJoin.enabled": "true",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B1T": {
+      "spark.app.id": "app-20261117140331-0105",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.advisoryPartitionSizeInBytes": "4m",
+      "spark.sql.adaptive.coalescePartitions.enabled": "false",
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.adaptive.skewJoin.enabled": "true",
+      "spark.sql.adaptive.skewJoin.skewedPartitionFactor": "2",
+      "spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes": "4m",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B2": {
+      "spark.app.id": "app-20261117140506-0106",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B3": {
+      "spark.app.id": "app-20261117140618-0107",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "16"
+    },
+    "B4_64": {
+      "spark.app.id": "app-20261117140735-0108",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.autoBroadcastJoinThreshold": "-1",
+      "spark.sql.shuffle.partitions": "64"
+    },
+    "P0": {
+      "spark.app.id": "app-20261117140914-0109",
+      "spark.cores.max": "2",
+      "spark.eventLog.compress": "false",
+      "spark.eventLog.enabled": "true",
+      "spark.executor.cores": "1",
+      "spark.executor.memory": "1g",
+      "spark.speculation": "false",
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.shuffle.partitions": "16"
+    }
+  },
+  "environment": {
+    "cpu_count": 4,
+    "free_disk_bytes": 990377820160
+  },
+  "experiment": {
+    "datasets": [
+      "m105k_control",
+      "m105k_skew80"
+    ],
+    "description": "Medium scale (~105k lines): join workload, all optimization directions",
+    "experiment_id": "matrix-100k",
+    "repetitions": 3,
+    "timeout_seconds": 1200,
+    "variants": [
+      "B0",
+      "B1",
+      "B1T",
+      "B2",
+      "B3",
+      "B4_64",
+      "P0"
+    ],
+    "w2_variants": [
+      "B0",
+      "B1",
+      "B1T",
+      "B4_64",
+      "P0"
+    ],
+    "warmups": 1,
+    "workloads": [
+      "w1_join_agg"
+    ]
+  },
+  "image_id": "sha256:b0aaea1c5310ccc4f09fdf9672e23f7c1294254c7595a89e270ca5e98a0bfedb",
+  "plans": {
+    "m105k_control|w1_join_agg|B0": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_control|w1_join_agg|B1": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_control|w1_join_agg|B1T": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_control|w1_join_agg|B2": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": true,
+      "skew_join": false,
+      "sort_merge_join": false
+    },
+    "m105k_control|w1_join_agg|B3": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_control|w1_join_agg|B4_64": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_control|w1_join_agg|P0": {
+      "aqe_shuffle_read": true,
+      "broadcast_hash_join": true,
+      "skew_join": false,
+      "sort_merge_join": false
+    },
+    "m105k_skew80|w1_join_agg|B0": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_skew80|w1_join_agg|B1": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_skew80|w1_join_agg|B1T": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_skew80|w1_join_agg|B2": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": true,
+      "skew_join": false,
+      "sort_merge_join": false
+    },
+    "m105k_skew80|w1_join_agg|B3": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_skew80|w1_join_agg|B4_64": {
+      "aqe_shuffle_read": false,
+      "broadcast_hash_join": false,
+      "skew_join": false,
+      "sort_merge_join": true
+    },
+    "m105k_skew80|w1_join_agg|P0": {
+      "aqe_shuffle_read": true,
+      "broadcast_hash_join": true,
+      "skew_join": false,
+      "sort_merge_join": false
+    }
+  },
+  "schema_version": 1,
+  "trials": {
+    "planned": 56,
+    "recorded": 56,
+    "retried_artifacts": 0,
+    "statuses": {
+      "ok": 56
+    }
+  },
+  "variants": {
+    "B0": "baseline: AQE off, broadcast off, 16 partitions",
+    "B1": "AQE + skew join, default skew thresholds (256MB / factor 5)",
+    "B1T": "AQE + skew join, thresholds tuned to local data size",
+    "B2": "broadcast hint on dim_product",
+    "B3": "salting N=8 on order_key, two-step agg",
+    "B4_64": "64 partitions",
+    "P0": "production session defaults (AQE default on, 10MB broadcast)"
+  }
+}

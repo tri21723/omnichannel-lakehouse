@@ -1,0 +1,7 @@
+dataset,workload,variant,trials,ok_trials,failed_trials,statuses,query_s_median,query_s_min,query_s_max,shuffle_task_ratio_median,max_shuffle_task_ms_median,shuffle_bytes_written_median,shuffle_remote_bytes_read_median,shuffle_local_bytes_read_median,memory_bytes_spilled_median,disk_bytes_spilled_median,failed_tasks_median,speedup_vs_b0,paired_rounds,paired_speedup_median,paired_speedup_min,paired_speedup_max
+l1m_skew80,w1_join_agg,B0,7,7,0,ok,13.027,10.202,14.28,13.31,1903,162867682,17597223,145270156,0,0,0,1.0,7,1.0,1.0,1.0
+l1m_skew80,w1_join_agg,B1,7,7,0,ok,13.203,12.213,15.195,14.118,2084,162869878,39382015,123487863,0,0,0,0.987,7,0.939,0.835,0.995
+l1m_skew80,w1_join_agg,B1T,7,7,0,ok,16.37,13.778,20.21,13.878,2118,163036584,44868983,118182538,0,0,0,0.796,7,0.796,0.505,0.951
+l1m_skew80,w1_join_agg,B2,7,7,0,ok,12.095,10.589,18.639,3.969,1166,88606736,41524605,47082262,0,0,0,1.077,7,0.963,0.751,1.175
+l1m_skew80,w1_join_agg,B3,7,7,0,ok,15.845,13.235,18.913,6.325,1575,173496325,23484865,150011524,0,0,0,0.822,7,0.807,0.649,0.883
+l1m_skew80,w1_join_agg,P0,7,7,0,ok,10.231,9.65,14.531,1.235,2114,88489112,16574627,71914529,0,0,0,1.273,7,1.248,0.888,1.396
