@@ -1,201 +1,230 @@
-# TODO — Phase 4E: Xây dựng Data Warehouse Export (`dp4_warehouse`)
+# TODO — Phase 4F: Performance & Data Skew Benchmark
 
-Cập nhật: **2026-11-16**. Trạng thái: **Phase 4E hoàn tất 100% (v0.4e-warehouse; sẵn sàng chuyển sang Phase 4F — Data Skew Benchmark)**.
+Cập nhật: **2026-11-17**. Trạng thái: **đã lập kế hoạch, chưa triển khai 4F**.
 
-Mục tiêu: triển khai job `dp4_warehouse` thuộc phạm vi `dp4` (theo [ADR-0003](docs/adr/0003-data-contracts.md),
-[AGENTS.md](AGENTS.md) và [plan](docs/plan.md)), tiêu thụ bất biến một completed Gold star-schema
-publication (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`, xuất bản đồng bộ 8 bảng
-star schema (`dim_date`, `dim_channel`, `dim_customer`, `dim_product`, `dim_seller`, `fact_orders`,
-`fact_order_items`, `fact_returns`) trong cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC
-sang PostgreSQL database `sources`, schema `warehouse.*` bằng một giao dịch ACID nguyên tử
-(`BEGIN ... COMMIT` / `ROLLBACK`), bảo toàn kiểu `NUMERIC(18,2)` / `currency` / ranh giới PII,
-cắt bỏ sạch dữ liệu trượt ra ngoài cửa sổ 30 ngày, và kiểm chứng trên cả hai ma trận dữ liệu
-(`186ae107d0793d2ee237` và `b1e64afaff0176de180a`).
+Mục tiêu: xây dựng benchmark có thể chạy lại trên Docker local, đo hiệu quả xử lý
+skew bằng số liệu trước/sau, chứng minh kết quả dữ liệu không đổi, và đóng Phase 4
+trước khi triển khai Airflow ở Phase 5.
 
 Tham chiếu: [plan](docs/plan.md), [data model](docs/data-model.md),
-[bàn giao Phase 4D/4E](docs/features-warehouse-handoff.md), [Gold contract](sql/iceberg/gold_contract.sql),
-[ADR-0003](docs/adr/0003-data-contracts.md), [ADR-0009](docs/adr/0009-gold-star-schema.md),
-[ADR-0010](docs/adr/0010-features-and-return-labels.md).
-Lịch sử: [checklist Phase 4C](docs/phase4c-checklist.md), [bằng chứng Gold](docs/gold-validation.md) (`v0.4c-gold`),
-[checklist Phase 4D](docs/phase4d-checklist.md), [bằng chứng DP3](docs/dp3-validation.md) (`v0.4d-features`).
+[trạng thái triển khai](docs/implementation-status.md),
+[bằng chứng review](docs/review-4cde-validation.md).
+Lịch sử: [Phase 4E](docs/phase4e-checklist.md),
+[checklist 4E và các sửa lỗi review](docs/phase4e-review-checklist.md).
 
-## 1. Baseline và các điểm rà soát kiến trúc quan trọng
+## 1. Điểm xuất phát và phạm vi
 
-Gold star schema (`v0.4c-gold`) và Feature Store / Return Labels (`v0.4d-features`) đã hoàn tất kiểm chứng local
-với 138 unit tests pass. Hai dataset độc lập cùng tồn tại trong `lh.gold.*`:
-- Small fixture (`186ae107d0793d2ee237`): `fact_orders=375`, `fact_order_items=375`, `dim_customer=25`, `dim_product=88`, `dim_seller=88`, `fact_returns=30`, `dim_date=15`, `dim_channel=5`.
-- Default reference (`b1e64afaff0176de180a`): `fact_orders=15,000`, `fact_order_items=15,000`, `dim_customer=1,000`, `dim_product=100`, `dim_seller=100`, `fact_returns=1,500`, `dim_date=17`, `dim_channel=5`.
+- 4C–4E đã có kiểm chứng local; lượt gần nhất: 165 unit tests, 22 ca Spark regression,
+  features publish/replay thành công. Đây là bằng chứng trước 4F, không thay thế gate bên dưới.
+- Policy hiện tại: Gold v2, features v4, labels v3. Dữ liệu lịch sử chưa được nâng
+  đồng loạt; lần chạy tiếp theo sẽ tính lại các scope được yêu cầu.
+- Small fixture: `186ae107d0793d2ee237` (375 orders); default reference:
+  `b1e64afaff0176de180a` (15.000 orders). Xác nhận lại số liệu từ manifest khi chạy.
+- DP2 sở hữu Gold dim/fact; DP3 sở hữu features/labels; DP4 xuất warehouse.
+  Giữ ranh giới ownership theo ADR hiện tại dù plan gốc có mô tả cũ.
+- Benchmark tập trung Spark join/aggregate; JDBC export là kiểm tra tích hợp và
+  giới hạn tài nguyên, không dùng làm đại diện cho khả năng xử lý Spark ở quy mô lớn.
+- Ngoài phạm vi: Airflow, Trino, streaming/CDC, DataHub, cloud, nâng version/đổi port,
+  dịch vụ History Server mới, tự động expire snapshot hoặc xóa volume/bucket/DB.
 
-Các điểm chuẩn hóa kiến trúc cho Phase 4E:
-1. **Ranh giới trách nhiệm của `dp4_warehouse` (`ADR-0003`):**
-   - `dp2` sở hữu các bảng `lh.gold.{dim_*,fact_*}` trên Iceberg và `/runtime/gold/publication/ledger.json`.
-   - `dp4_warehouse` chỉ đọc (read-only) 8 bảng `lh.gold.{dim_*,fact_*}` từ snapshot được pin trong `/runtime/gold/publication/ledger.json` và xuất sang PostgreSQL schema `warehouse.*`; tuyệt đối không ghi ngược vào Iceberg hay sửa ledger của `dp2`/`dp3`.
-   - `dp4_warehouse` quản lý publication/export ledger riêng tại `/runtime/warehouse/export/ledger.json` (kèm bản lưu bất biến `export-<sha256>.json` và `attempt.json`).
-2. **Bảo mật Least-Privilege và Giao dịch ACID nguyên tử trên Driver (`docker/core/roles.psql`, `grants.psql`):**
-   - Trong PostgreSQL `sources`, role `spark_writer` là chủ sở hữu (`AUTHORIZATION spark_writer`) của schema `warehouse`, và default privileges đã tự động cấp quyền `SELECT` trên mọi bảng trong `warehouse.*` cho `trino_ro` (phục vụ Trino Phase 6 và DBeaver).
-   - Giống mô hình của `dp1_bronze` (`spark/lib/bronze_jdbc.py`), chỉ container driver (`spark-submit`) được nhận biến môi trường `SPARK_WRITER_DB_PASSWORD` và `WAREHOUSE_JDBC_URL`; các worker (`spark-worker1`, `spark-worker2`) không giữ mật khẩu DB.
-   - Không dùng `df.write.jdbc` phân tán qua nhiều kết nối độc lập (vì nếu lỗi giữa chừng sẽ để lại dữ liệu dở dang giữa 8 bảng). Thay vào đó, sau khi Spark đọc/lọc/kiểm tra từ Gold, driver mở một kết nối JVM JDBC duy nhất (`conn.setAutoCommit(False)`) để thực thi DDL và thay thế dữ liệu của `_dataset_run_id` trên cả 8 bảng `warehouse.*` trong **một giao dịch PostgreSQL duy nhất (`COMMIT` / `ROLLBACK`)**.
-3. **Cửa sổ trượt 30 ngày (`[run_date - 29 days, run_date + 1 day)` UTC — `docs/data-model.md`):**
-   - Với ngày chạy `run_date` (`DATE` UTC, mặc định là ngày hoạt động lớn nhất của run trong Gold hoặc truyền qua `--run-date YYYY-MM-DD`), cửa sổ xuất dữ liệu là `[W_start, W_end)` với `W_start = run_date - 29 days 00:00:00 UTC` và `W_end = run_date + 1 day 00:00:00 UTC`.
-   - `fact_orders`: chọn các đơn hàng của `_dataset_run_id` có `order_ts >= W_start AND order_ts < W_end`.
-   - `fact_order_items`: chọn các dòng hàng có `order_ts >= W_start AND order_ts < W_end` thuộc các đơn hàng trong cửa sổ.
-   - `fact_returns`: chọn các dòng hoàn trả có `return_ts >= W_start AND return_ts < W_end` và thuộc các đơn hàng hợp lệ trong `warehouse.fact_orders`.
-   - Mọi bản ghi cũ của `_dataset_run_id` trong `warehouse.fact_*` nằm ngoài cửa sổ `[W_start, W_end)` hoặc đã bị retract ở Gold phải bị xóa sạch trong cùng giao dịch khi trượt `run_date` tiến lên.
-4. **Ràng buộc khóa chính/khóa ngoại vật lý và Multi-Dataset Coexistence trong `warehouse.*`:**
-   - Surrogate keys của `dim_customer`, `dim_product`, `dim_seller`, `fact_orders`, `fact_order_items`, `fact_returns` đã được băm kèm `_dataset_run_id`.
-   - Với `warehouse.dim_date` và `warehouse.dim_channel`, khóa chính vật lý được định nghĩa là `(_dataset_run_id, date_key)` và `(_dataset_run_id, channel_key)` để cả hai dataset (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`) cùng tồn tại trong `warehouse.*` mà không xung đột khóa và vẫn đảm bảo 100% `FOREIGN KEY` constraints cấp cơ sở dữ liệu.
-5. **Bảo toàn `NUMERIC(18,2)`, `currency` và ranh giới PII:**
-   - Mọi cột tiền tệ trong PostgreSQL `warehouse.*` dùng `NUMERIC(18,2)` (`CHECK (>= 0)`), giữ nguyên `currency` gốc (`USD`, `VND`).
-   - `warehouse.dim_customer` chỉ lưu `name_hash`, `email_hash`, `_pii_key_version`, tuyệt đối không có PII rõ.
+## 2. Thứ tự thực hiện
 
-Ngoài phạm vi Phase 4E: benchmark skew quy mô lớn (Phase 4F), Airflow (Phase 5), Trino (Phase 6), streaming/CDC.
+| Task | Nội dung | Phụ thuộc | Ước lượng |
+|---|---|---|---|
+| P4F-01 | Baseline đồng nhất policy và correctness gate | Không | 0,5–1 ngày |
+| P4F-02 | ADR, workload và ngân sách tài nguyên | 01 | 0,5 ngày |
+| P4F-03 | Dataset scale/skew có ground truth | 02 | 0,5–1 ngày |
+| P4F-04 | Harness, event logs, metrics và artifact | 02 | 1–2 ngày |
+| P4F-05 | Baseline và ma trận tối ưu có kiểm soát | 03, 04 | 1–2 ngày |
+| P4F-06 | Đối soát, replay và kiểm tra tích hợp | 05 | 0,5–1 ngày |
+| P4F-07 | Báo cáo, CI smoke và bàn giao | 06 | 0,5–1 ngày |
 
-## 2. Thứ tự và mốc bàn giao
+Ước lượng là thời gian làm việc, không cam kết tốc độ benchmark hoặc số ngày hoàn tất.
 
-| Task | Phụ thuộc | Đầu ra | Công sức dự kiến |
-| --- | --- | --- | --- |
-| P4E-01 | — | Baseline Gold/Postgres, ADR-0011, physical DDL `sql/postgres/003_warehouse.sql` & env wiring | 2–3 giờ |
-| P4E-02 | 01 | Reader Gold publication cố định theo snapshot-id và bộ lọc cửa sổ trượt 30 ngày | 2–3 giờ |
-| P4E-03 | 02 | Writer JVM JDBC transactional (`spark_writer`) đồng bộ 8 bảng `warehouse.*` trong 1 ACID tx | 4–5 giờ |
-| P4E-04 | 03 | Export ledger `/runtime/warehouse/export/ledger.json`, skip idempotent và fault injection rollback | 3–4 giờ |
-| P4E-05 | 04 | Đối soát hai chiều Gold Iceberg ↔ PostgreSQL `warehouse.*` (`NUMERIC(18,2)`, FK, `trino_ro`) | 3–4 giờ |
-| P4E-06 | 05 | Kiểm thử trượt cửa sổ (window pruning), multi-dataset coexistence, recovery & restart regression | 2–3 giờ |
-| P4E-07 | 06 | Makefile, CI allowlist/workflow, runbook, `docs/warehouse-validation.md` và tag `v0.4e-warehouse` | 2–3 giờ |
+## 3. Checklist triển khai
 
-Tổng **18–25 giờ công**, là ước lượng lập kế hoạch, không phải deadline.
+### P4F-01 — Chuẩn hóa baseline và chốt đầu vào
 
-## 3. Checklist triển khai chi tiết
+- [ ] Kiểm tra git sạch, image đúng source, Docker core/batch healthy; ghi commit,
+  image ID, CPU/RAM cấp cho Docker, disk trống, số worker/executor/core/memory thực tế.
+- [ ] Chạy `make check`, `make test-review-regressions`; lưu bằng chứng theo commit.
+- [ ] Xác nhận source manifests, Bronze/Silver completed publications cho small/default;
+  nếu mismatch thì xử lý trước khi đo, không ghi đè dữ liệu để che sai lệch.
+- [ ] Chạy Gold cho **cả hai dataset trước**, chốt publication cuối, rồi chạy toàn bộ
+  dates features/labels cần làm baseline trên cùng Gold publication. Không xen kẽ
+  cập nhật Gold giữa các phép so sánh downstream.
+- [ ] Xuất warehouse cho hai dataset từ Gold đã chốt; ghi run-date/window cụ thể.
+- [ ] Chạy verify/reconcile/DQ tương ứng cho Gold, DP3 và warehouse; kiểm tra currency,
+  keys, số dòng, censoring và tổng tiền theo channel/currency.
+- [ ] Replay cùng tham số: xác nhận skip/read-back, không nhân đôi hoặc mất scope khác.
+- [ ] Ghi manifest baseline: run IDs, publication IDs, table snapshot IDs, policy versions,
+  evaluation dates, horizon, warehouse window, counts và checksum bằng chứng.
+- [ ] Chặn benchmark nếu snapshot thiếu, policy không đúng, input còn pending/failed
+  hoặc kết quả đối soát không đạt.
 
-### P4E-01 — Baseline Gold/Postgres, ADR-0011, physical DDL và cấu hình kết nối
+**Đạt khi:** baseline nhất quán và có thể truy về đúng input. Giữ các snapshot được pin.
+**Commit gợi ý:** `test(batch): establish current-policy baseline for skew benchmarks`.
 
-- [x] Chạy kiểm tra baseline: `make check`, `make smoke-core`, `make verify-gold`, `make verify-features`, `make verify-labels`.
-- [x] Soạn thảo `docs/adr/0011-warehouse-export.md` chốt các quyết định thiết kế cho `dp4_warehouse`:
-  - Ranh giới đọc bất biến từ `/runtime/gold/publication/ledger.json` theo `snapshot-id` và ledger riêng tại `/runtime/warehouse/export/ledger.json`.
-  - Định nghĩa chính xác cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC cho `fact_orders`, `fact_order_items`, `fact_returns` và cách đồng bộ 5 bảng `dim_*`.
-  - Cơ chế ghi transactional qua một kết nối JVM JDBC duy nhất trên driver bằng role `spark_writer` (`conn.setAutoCommit(False)`), đảm bảo rollback 100% nếu bất kỳ bảng nào lỗi.
-  - Thiết kế khóa chính/khóa ngoại vật lý trong PostgreSQL `warehouse.*` hỗ trợ multi-dataset coexistence (`_dataset_run_id`).
-- [x] Viết `sql/postgres/003_warehouse.sql` định nghĩa DDL idempotent (`CREATE TABLE IF NOT EXISTS warehouse.<table_name>`) cho 8 bảng:
-  - `warehouse.dim_date`, `warehouse.dim_channel`, `warehouse.dim_customer`, `warehouse.dim_product`, `warehouse.dim_seller`
-  - `warehouse.fact_orders`, `warehouse.fact_order_items`, `warehouse.fact_returns`
-  - Đầy đủ `PRIMARY KEY`, `FOREIGN KEY`, `CHECK` constraints cho các cột tiền tệ `NUMERIC(18,2) >= 0`, và indexes trên `(_dataset_run_id, order_ts)`, `(_dataset_run_id, return_ts)`, `(channel, currency)`.
-- [x] Cập nhật `docker/compose.batch.yml` (chỉ thêm `SPARK_WRITER_DB_PASSWORD` và `WAREHOUSE_JDBC_URL` vào service `spark-submit`, không thêm vào workers) và `.env.example` (nếu cần), kèm unit test kiểm tra cấu hình môi trường.
+### P4F-02 — Chốt thiết kế và workload
 
-**Đạt khi:** ADR-0011, DDL `sql/postgres/003_warehouse.sql` (pass `sqlfluff`) và cấu hình driver JDBC sẵn sàng.
-**Commit gợi ý:** `docs(adr): define Phase 4E warehouse export contract and Postgres DDL`.
+- [ ] Viết ADR tiếp theo (dự kiến `docs/adr/0012-skew-benchmark.md`, kiểm tra số trước khi tạo).
+- [ ] Chốt workload từ nghiệp vụ hiện có: join fact items với dimension theo đúng
+  grain/key, rồi aggregate seller/channel/currency; kiểm chứng hot key thực sự
+  xuất hiện trên join/shuffle key, không chỉ trên một thuộc tính không tham gia shuffle.
+- [ ] Tách phép đo join và aggregate nếu cần phân biệt skew join với skew aggregation;
+  AQE skew-join không được mặc định coi là giải pháp cho mọi aggregate.
+- [ ] Chốt grain đầu ra, điều kiện filter, NULL semantics, công thức sum/count/ratio,
+  schema, kiểu DECIMAL và tiêu chí tương đương trước khi tối ưu.
+- [ ] Chốt đường dẫn trong cây hiện có: `spark/jobs/benchmark_skew/`, helper dùng chung
+  trong `spark/lib`, cấu hình dưới thư mục job, báo cáo trong `docs/benchmarks/`.
+- [ ] Chốt chế độ benchmark đọc snapshot đã pin, không cập nhật ledger nghiệp vụ.
+  Nếu cần sink để materialize toàn bộ kết quả, dùng output riêng theo experiment/run.
+- [ ] Ghi giới hạn thời gian mỗi trial, dung lượng output/event logs, memory và disk
+  tối thiểu trước khi tăng scale; ngừng trial khi vượt ngân sách, lưu trạng thái lỗi.
 
-### P4E-02 — Reader Gold publication theo snapshot-id và bộ lọc cửa sổ trượt 30 ngày
+**Đạt khi:** workload, resource budget và phép so sánh được mô tả rõ trong ADR.
+**Commit gợi ý:** `docs(benchmark): define skew workload and measurement protocol`.
 
-- [x] Tạo `spark/lib/warehouse_input.py` đọc và xác thực `/runtime/gold/publication/ledger.json` (`status == "completed"`, khớp `publication-<sha256>.json`, đủ 8 bảng Gold star schema).
-- [x] Đọc 8 bảng `lh.gold.{dim_date,dim_channel,dim_customer,dim_product,dim_seller,fact_orders,fact_order_items,fact_returns}` bằng `option("snapshot-id", ...)`, đối soát summary (`rows`, `h1`, `h2`) khớp với ledger trước khi lọc theo `_dataset_run_id`.
-- [x] Xây dựng hàm tính cửa sổ 30 ngày `compute_export_window(run_date)` trả về `[W_start, W_end)` UTC (`W_start = run_date - 29 days 00:00:00 UTC`, `W_end = run_date + 1 day 00:00:00 UTC`) và lọc các bảng `fact_orders`, `fact_order_items`, `fact_returns` của `_dataset_run_id` theo đúng cửa sổ.
-- [x] Viết unit tests (`spark/tests/test_warehouse_input.py`) kiểm chứng: từ chối ledger chưa completed/sai digest, tính đúng biên 30 ngày `[run_date - 29 days, run_date + 1 day)`, loại bỏ các dòng ngoài cửa sổ `[W_start, W_end)` và cô lập giữa các `_dataset_run_id`.
+### P4F-03 — Dataset có scale và skew kiểm chứng được
 
-**Đạt khi:** `dp4_warehouse` đọc đúng snapshot Gold đã pin và cắt chính xác lát cắt 30 ngày theo `run_date`.
-**Commit gợi ý:** `feat(warehouse): read pinned Gold snapshots and slice 30-day window`.
+- [ ] Tạo config riêng, không sửa ngầm `generators/config.yaml` hoặc reference fixtures.
+- [ ] Ma trận dự kiến: smoke 15k, medium 100k, large 1M **tổng orders**;
+  điều chỉnh theo preflight tài nguyên và ghi rõ tổng/per-channel/per-day thực tế.
+- [ ] Với mỗi scale, có control tương đối đều và skew mạnh (dự kiến top seller 80%);
+  giữ seed, days, channel mix, dup/return/schema-drift settings nhất quán ngoài biến skew.
+- [ ] Đo phân bố thực tế sau Silver/Gold: top-key share, số key, max/median rows per key,
+  phân bố theo channel và số partition; so với config/ground truth.
+- [ ] Bảo đảm dimension join unique theo key; thêm salting về sau không được làm fan-out.
+- [ ] Kiểm tra generator cùng seed/config cho cùng checksum; run ID/prefix độc lập
+  cho từng cấu hình để bảo toàn small/default.
+- [ ] Ingest và kiểm tra correctness từng cấp trước khi tăng scale. Nếu 1M vượt giới hạn,
+  lưu lỗi/ngân sách, dùng scale lớn nhất đạt và ghi giới hạn trong báo cáo.
+- [ ] Với workload nhân bản từ dữ liệu nhỏ để nghiên cứu, ghi rõ synthetic amplification,
+  khóa/ground truth tương ứng và không gọi đó là ingestion end-to-end 1M orders.
 
-### P4E-03 — Transactional JVM JDBC Writer (`spark_writer`) và job `dp4_warehouse`
+**Đạt khi:** ít nhất control và skew ở scale đủ tạo shuffle, với input được pin và số liệu thực tế.
+**Commit gợi ý:** `feat(benchmark): add reproducible scale and skew datasets`.
 
-- [x] Tạo `spark/lib/warehouse_jdbc.py` quản lý kết nối JVM JDBC (`user="spark_writer"`, `SPARK_WRITER_DB_PASSWORD`, `WAREHOUSE_JDBC_URL`, `setAutoCommit(False)`, timezone `UTC`) và khởi tạo schema/bảng từ `sql/postgres/003_warehouse.sql`.
-- [x] Thực thi thay thế nguyên tử (transactional slice replacement) cho `_dataset_run_id` bên trong một giao dịch duy nhất:
-  - Xóa dữ liệu cũ của `_dataset_run_id` theo thứ tự khóa ngoại ngược (`fact_returns` → `fact_order_items` → `fact_orders` → `dim_product` / `dim_customer` / `dim_seller` / `dim_channel` / `dim_date`) hoặc xóa các dòng ngoài cửa sổ / upsert idempotent.
-  - Ghi batch (`PreparedStatement.addBatch` / `executeBatch`) theo thứ tự khóa ngoại xuôi (`dim_*` trước, `fact_orders` → `fact_order_items` → `fact_returns` sau), giữ chính xác kiểu `BigDecimal` (`NUMERIC(18,2)`), `Timestamp` UTC, `Date`, `Boolean`.
-  - Chỉ gọi `conn.commit()` sau khi cả 8 bảng đã ghi và kiểm tra số dòng thành công; nếu có bất kỳ lỗi nào thì `conn.rollback()` ngay lập tức.
-- [x] Tạo entrypoint `spark/jobs/dp4_warehouse/main.py` hỗ trợ CLI: `--run-id`, `--run-date` (tùy chọn; mặc định lấy ngày lớn nhất của run trong Gold), `--publication-id`, `--mode full|incremental`, `--force`, `--verify`.
-- [x] Viết unit tests (`spark/tests/test_warehouse_jdbc.py`) kiểm chứng thứ tự bảng FK, ánh xạ kiểu dữ liệu `DECIMAL(18,2)` / `TIMESTAMPTZ`, và hành vi rollback khi xảy ra ngoại lệ trước `commit()`.
+### P4F-04 — Harness đo và thu thập metrics
 
-**Đạt khi:** `dp4_warehouse` đồng bộ cả 8 bảng sang PostgreSQL `warehouse.*` trong một giao dịch ACID duy nhất bằng role `spark_writer`.
-**Commit gợi ý:** `feat(warehouse): export 30-day Gold star schema to Postgres transactionally`.
+- [ ] Thêm CLI/config: experiment ID, dataset run ID, publication/snapshots, variant,
+  repetitions, output path, timeout và tham số tuning; validate allowlist/range.
+- [ ] Mỗi trial dùng Spark application riêng, cấu hình resources giống nhau; pin input
+  một lần cho cả experiment. Không dùng production publication skip làm số đo xử lý.
+- [ ] Materialize đầy đủ workload/output; tránh chỉ `count()` khiến optimizer loại bỏ
+  các cột/phép tính cần đo. Giữ cách materialize giống nhau giữa variants.
+- [ ] Tách thời gian startup/input/setup, query/action, verification và sink I/O;
+  công bố rõ metric nào dùng để so sánh. Không collect dữ liệu lớn về driver.
+- [ ] Bật Spark event logging tùy chọn qua config; mount/persist đường dẫn đúng quyền,
+  không thêm service mới. Lưu initial/final physical plan và effective Spark config.
+- [ ] Parse event logs: application/query/stage IDs, task duration median/p95/max,
+  max/median ratio, shuffle read/write bytes, memory/disk spill, task failures/retries,
+  stage duration và executor metrics có sẵn.
+- [ ] Xử lý stage/task retry và speculative attempts: tách metrics successful work
+  khỏi overhead; không cộng trùng hoặc chọn attempt tùy tiện. Stage rỗng/median=0
+  phải có quy tắc rõ, không tạo ratio vô nghĩa.
+- [ ] Artifact JSON/CSV có schema version, source commit/image, input/config hashes,
+  trial status, repetition, timestamp UTC, metrics, correctness status và log refs.
+- [ ] Test parser bằng event-log fixtures: thiếu/truncated events, retry, stage rỗng,
+  field không có. Metric thiếu ghi unavailable, không biến thành zero.
+- [ ] Event logs/config có thể chứa credentials/SQL: redaction và allowlist trước khi
+  xuất báo cáo/CI artifact; không commit raw logs, raw PII hoặc dataset.
+- [ ] Thêm Make targets dự kiến: `benchmark-preflight`, `benchmark-skew`,
+  `verify-benchmark`, `report-benchmark`, `test-benchmark`; ghi help và tham số.
+  Các target này **chưa tồn tại**, phải triển khai trước khi dùng.
 
-### P4E-04 — Export ledger `/runtime/warehouse/export`, skip idempotent và fault recovery
+**Đạt khi:** một trial smoke tạo artifact có metrics và có thể đối chiếu với event log.
+**Commit gợi ý:** `feat(benchmark): add Spark measurement harness and event metrics`.
 
-- [x] Tạo `spark/lib/warehouse_publish.py` sử dụng POSIX `writer_lock` tại `/runtime/warehouse/export`, quản lý `attempt.json`, `ledger.json` và bản lưu bất biến `export-<sha256>.json`.
-- [x] Lưu đầy đủ thông tin đối soát trong `ledger.json`: `status`, `runs[<run_id>]` (`gold_publication_id`, `run_date`, `window_start`, `window_end`, `tables`, `updated_at`), và thống kê số dòng / tổng tiền theo từng bảng trong `warehouse.*`.
-- [x] Nếu gặp đúng tổ hợp `(_dataset_run_id, _gold_publication_id, run_date)` đã `completed` và kiểm tra read-back từ PostgreSQL `warehouse.*` khớp 100% với ledger, cho phép skip an toàn (`skipped=True`).
-- [x] Hỗ trợ tiêm lỗi (`fail_after="dimensions" | "facts" | "completion"`) để kiểm thử:
-  - Khi lỗi tại `dimensions` hoặc `facts`: giao dịch PostgreSQL được `ROLLBACK` hoàn toàn (trạng thái các bảng `warehouse.*` trong PostgreSQL giữ nguyên như trước khi chạy), `attempt.json` ghi `failed`, `ledger.json` giữ nguyên từng byte.
-  - Khi chạy lại không tiêm lỗi: phục hồi và commit thành công.
-- [x] Viết unit tests (`spark/tests/test_warehouse_publish.py`) cho cơ chế lock, skip idempotent, phát hiện thay đổi `_gold_publication_id` / `run_date`, và bảo toàn ledger khi lỗi.
+### P4F-05 — Chạy baseline và từng biến thể
 
-**Đạt khi:** Quá trình export sang PostgreSQL có ledger độc lập, idempotent khi chạy lại và rollback sạch sẽ khi gặp lỗi giữa chừng.
-**Commit gợi ý:** `feat(warehouse): manage export ledger idempotent skip and transactional rollback`.
+- [ ] Baseline B0: cố định partition count (khởi điểm 16), AQE off và auto broadcast off;
+  xác nhận physical plan thật có shuffle, ghi cả cấu hình production hiện có để tham chiếu.
+- [ ] B1: chỉ bật AQE và skew-join handling; ghi final plan có/không split skew partitions.
+- [ ] B2: broadcast dimension đủ nhỏ; ghi kích thước dimension, threshold/hint và plan;
+  không ép broadcast khi vượt ngân sách memory. Ghi rõ cấu hình nền kế thừa.
+- [ ] B3: salting key nóng với salt deterministic từ khóa dòng ổn định; replicate phía
+  dimension đúng salt, aggregate hai bước và bỏ salt khỏi output. Count-distinct,
+  average và ratio phải giữ semantics (không cộng distinct-count từng salt).
+- [ ] B4: repartition/shuffle partitions sweep 16/32/64 ở cùng workload và resources;
+  tính cả chi phí repartition, không loại nó khỏi thời gian query để tạo lợi thế giả.
+- [ ] So sánh từng biến thể trên nền xác định rõ trước; chỉ phối hợp các thay đổi có ích
+  ở vòng cuối. Mỗi trial lưu effective config, không để config của trial trước rò sang.
+- [ ] Chạy 1 warm-up và ít nhất 3 trial đo cho mỗi cell bắt buộc; đổi/thay phiên thứ tự
+  variants, không chạy job khác đồng thời. Công bố cache/OS-cache caveat; không gọi
+  một lần chạy là cold-cache nếu chưa có cơ chế kiểm soát.
+- [ ] Cell bắt buộc: baseline + bốn hướng tối ưu trên control/skew ở scale khả thi.
+  Mỗi hướng phải được chạy hoặc có bằng chứng không áp dụng; không âm thầm bỏ kết quả xấu.
+- [ ] Không so sánh baseline 100k với optimized 1M; mọi cặp phải cùng snapshot/config
+  nghiệp vụ/resources và cùng cache protocol.
+- [ ] Báo cáo median và min/max qua repetitions, speedup baseline/variant, task skew,
+  shuffle/spill, file count/size nếu có sink; giữ failures/OOM/timeouts trong kết quả.
+- [ ] Nếu skew quá nhỏ hoặc workload quá nhẹ, tăng scale trong budget hoặc đổi workload
+  có lý do; không kết luận “tối ưu hiệu quả” từ nhiễu. Không đặt mục tiêu speedup giả định.
 
-### P4E-05 — Verifier read-only và đối soát hai chiều Gold Iceberg ↔ PostgreSQL `warehouse.*`
+**Đạt khi:** ma trận có số đo lặp lại và lời giải thích từ physical plan/metrics.
+**Commit gợi ý:** `perf(benchmark): compare AQE broadcast salting and partition tuning`.
 
-- [x] Tích hợp chế độ `--verify` read-only trong `dp4_warehouse` đọc `/runtime/warehouse/export/ledger.json` và truy vấn PostgreSQL `warehouse.*` để xác nhận số dòng, tổng tiền và ràng buộc mà không ghi lại dữ liệu.
-- [x] Tạo `spark/jobs/dp4_warehouse/reconcile.py` và `spark/jobs/dp4_warehouse/dq_test.py` kiểm chứng toàn diện:
-  - **Row count & Key reconciliation:** số dòng của từng bảng trong `warehouse.{dim_*,fact_*}` khớp 100% với lát cắt `[W_start, W_end)` trong `lh.gold.{dim_*,fact_*}` cho từng `_dataset_run_id`.
-  - **Exact monetary reconciliation (`NUMERIC(18,2)`):** tổng `gross_amount`, `discount_amount`, `net_amount` (`fact_orders`), `gross_line_amount`, `net_line_amount` (`fact_order_items`), và `refund_amount` (`fact_returns`) theo từng `(channel, currency)` trong PostgreSQL `warehouse.*` khớp tuyệt đối đến từng xu (`0.00`) với Gold Iceberg.
-  - **Referential integrity & PII guard:** 0 orphan foreign keys giữa `fact_*` và `dim_*` trong PostgreSQL; 0 cột PII rõ (`full_name`, `email`, `_raw`); role `trino_ro` đọc được (`SELECT`) toàn bộ 8 bảng `warehouse.*` nhưng bị từ chối mọi lệnh ghi (`INSERT`/`UPDATE`/`DELETE`).
+### P4F-06 — Correctness và áp dụng kết quả
 
-**Đạt khi:** Đối soát hai chiều giữa Iceberg Gold và PostgreSQL `warehouse.*` khớp tuyệt đối về số dòng, khóa và tiền tệ `NUMERIC(18,2)`.
-**Commit gợi ý:** `feat(warehouse): add Gold-to-Postgres reconciliation and read-only verifier`.
+- [ ] Mỗi variant phải đạt cùng schema/grain, row counts, unique keys, NULL semantics,
+  exact monetary totals theo channel/currency, và equality hai chiều có multiplicity.
+- [ ] Dùng distributed `exceptAll`/đối soát đầy đủ khi khả thi; checksum chỉ là bổ trợ,
+  không dùng sum/count đơn thuần để kết luận toàn bộ output giống nhau.
+- [ ] Test salting với hot/cold keys, NULL keys, nhiều dòng cùng order và dimension keys;
+  kiểm tra duplicate/fan-out, count-distinct và tỷ lệ sau ghép partial aggregates.
+- [ ] Giữ regression numeric overflow, currency, policy, point-in-time và censoring xanh.
+- [ ] Replay benchmark cùng input/config cho cùng kết quả; artifact phân biệt trial mới
+  và retry, không ghi đè bằng chứng hoặc ảnh hưởng publication nghiệp vụ.
+- [ ] Chỉ áp dụng tuning vào pipeline chính nếu hiệu quả đo được và correctness đạt;
+  nếu không có lợi, giữ làm benchmark và nêu kết luận. Tuning mặc định phải qua ADR/config.
+- [ ] Nếu đổi pipeline chính: chạy lại job bị ảnh hưởng hai lần, verify/reconcile, kiểm tra
+  small/default cùng tồn tại; kiểm tra restart và recovery liên quan trước khi đóng task.
+- [ ] Ghi rollback về cấu hình trước tối ưu; không reset dữ liệu để rollback config.
 
-### P4E-06 — Kiểm thử trượt cửa sổ 30 ngày, multi-dataset coexistence, recovery và regression
+**Đạt khi:** mọi variant được đưa vào so sánh đều có correctness evidence; production
+changes (nếu có) có replay/recovery evidence.
+**Commit gợi ý:** `test(benchmark): verify equivalent outputs and safe replay`.
 
-- [x] Viết `spark/jobs/dp4_warehouse/recovery_test.py` kiểm chứng trên môi trường thực:
-  - **Sliding-window pruning test:** xuất dữ liệu với `run_date = 2026-01-17` (bao phủ toàn bộ đơn `2026-01-01..2026-01-03`), sau đó chạy với `run_date = 2026-02-01` (cửa sổ `[2026-01-03, 2026-02-02)` cắt bỏ ngày `2026-01-01` và `2026-01-02`), xác minh các đơn của `2026-01-01..2026-01-02` bị xóa sạch khỏi `warehouse.fact_*`, rồi khôi phục lại `run_date = 2026-01-17`.
-  - **Transactional rollback & recovery test:** tiêm lỗi `fail_after="dimensions"`, `"facts"`, `"completion"`, chứng minh PostgreSQL `warehouse.*` tự động rollback giữ nguyên số dòng đã commit trước đó và `ledger.json` không bị hỏng; chạy lại phục hồi thành công.
-- [x] Chạy và đối soát toàn diện trên cả 2 dataset cùng tồn tại trong `warehouse.*`:
-  - Small fixture (`186ae107d0793d2ee237`): `375` orders, `375` order_items, `30` returns, `25` customers, `88` products, `88` sellers.
-  - Default reference (`b1e64afaff0176de180a`): `15,000` orders, `15,000` order_items, `1,500` returns, `1,000` customers, `100` products, `100` sellers.
-  - Tổng cộng trong PostgreSQL `warehouse.*`: `15,375` orders, `15,375` order_items, `1,530` returns, `1,025` customers, `188` products, `188` sellers.
-- [x] Thực hiện `make restart-core` và `make restart-lakehouse`, sau đó chạy `make verify-warehouse`, `make reconcile-warehouse` cùng toàn bộ chuỗi regression (`make smoke-core`, `make verify-sources`, `make verify-lakehouse`, `make smoke-bronze`, `make verify-silver`, `make verify-gold`, `make verify-features`, `make verify-labels`).
+### P4F-07 — Báo cáo, CI và bàn giao
 
-**Đạt khi:** Cả 2 dataset cùng tồn tại trong PostgreSQL `warehouse.*`, vượt qua bài kiểm tra trượt cửa sổ 30 ngày, transactional rollback, và bền vững sau khi restart.
-**Commit gợi ý:** `test(warehouse): verify 30-day window pruning rollback recovery and coexistence`.
+- [ ] Viết `docs/benchmarks/skew.md`: môi trường, dataset, seed/skew thật, workload,
+  commit/image/publications, commands, bảng median/min/max, shuffle/spill/task skew,
+  physical-plan evidence, kết quả không cải thiện, giới hạn và cách tái chạy.
+- [ ] Commit summary CSV/JSON đã redacted với kích thước nhỏ; raw event logs/output
+  lưu local/artifact ngoài git, có hướng dẫn retention không xóa snapshot đang được pin.
+- [ ] Thêm CI smoke/manual workflow và event allowlist phù hợp: build, fixture nhỏ,
+  run+verify+report, upload artifact đã lọc. Không đặt ngưỡng wall-clock dễ flaky trên hosted CI.
+- [ ] CI failure cho input mismatch, thiếu correctness/metrics bắt buộc hoặc job lỗi;
+  timeout rõ. Large benchmark local/manual, không tự chạy 1M trong mỗi PR.
+- [ ] Chạy `make check`, CI smoke local và matrix đã chọn; hosted CI chỉ ghi thành công
+  khi có run URL/commit, phân biệt bằng chứng local với thông tin user đã báo trước đó.
+- [ ] Cập nhật README, runbook, implementation-status và tài liệu bàn giao Phase 5:
+  CLI/config ổn định, resources, input dependencies, outputs, retry/idempotency/timeout.
+- [ ] Lưu checklist đã hoàn thành vào `docs/phase4f-checklist.md`; chỉ gắn tag dự kiến
+  `v0.4f-benchmark` khi DoD đạt, không di chuyển các tag cũ.
 
-### P4E-07 — Makefile, CI, tài liệu và bàn giao sang Phase 4F
+**Commit gợi ý:** `docs(benchmark): publish skew results and close Phase 4`.
 
-- [x] Mở rộng `Makefile`:
-  - Hỗ trợ `JOB=dp4_warehouse` trong `spark-submit`.
-  - Thêm các target: `smoke-warehouse`, `verify-warehouse`, `integration-warehouse`, `integration-warehouse-reference`, `reconcile-warehouse`, `test-warehouse-dq`, `test-warehouse-recovery` (giữ nguyên toàn bộ target cũ).
-- [x] Cập nhật `docker/batch/ci_events.py` (allowlist các structured event của `dp4_warehouse`) và cập nhật manual workflow `.github/workflows/gold-dp3.yml` (hoặc thêm `.github/workflows/warehouse.yml`) chạy kiểm thử end-to-end với small fixture và `make down` không xóa volume.
-- [x] Cập nhật `docs/runbook.md`, `docs/data-model.md`, `docs/implementation-status.md`, `README.md`, `docs/features-warehouse-handoff.md` và viết báo cáo bằng chứng `docs/warehouse-validation.md`.
-- [x] Rà soát toàn bộ checkbox trong `TODO.md` theo bằng chứng thực tế, lưu trữ vào `docs/phase4e-checklist.md`, commit theo Conventional Commits và gắn tag `v0.4e-warehouse` khi đạt đủ local DoD.
+## 4. Điều kiện đóng Phase 4F / Phase 4
 
-**Đạt khi:** Đầy đủ công cụ `make`, CI allowlist, runbook, báo cáo kiểm chứng `docs/warehouse-validation.md` và gắn tag `v0.4e-warehouse`.
-**Commit gợi ý:** `docs(warehouse): publish Phase 4E validation evidence and close warehouse export`.
+- [ ] Baseline nghiệp vụ đồng nhất policy, verify/reconcile đạt trên small/default.
+- [ ] Dataset benchmark có scale/skew thật được đo và input snapshots cố định.
+- [ ] Baseline và AQE/broadcast/salting/repartition được đánh giá có bằng chứng;
+  hướng không áp dụng phải có giải thích, số liệu không bị chọn lọc.
+- [ ] Có repetitions, metrics task/shuffle/spill và bảng so sánh trước/sau tái lập được.
+- [ ] Kết quả dữ liệu giữa variants tương đương; không phá các contract numeric/PII/keys.
+- [ ] `make check`, benchmark smoke và regression của thay đổi production đều đạt.
+- [ ] Báo cáo `docs/benchmarks/skew.md`, checklist, commands và bàn giao Phase 5 đầy đủ.
 
-## 4. Điều kiện đóng Phase 4E
+Không bắt buộc đạt một phần trăm tăng tốc cụ thể: kết luận không cải thiện cũng hợp lệ
+nếu phương pháp đo đúng và giới hạn được ghi rõ. Không đóng Phase 4 chỉ vì job chạy xong.
 
-- [x] 8 bảng `warehouse.{dim_date,dim_channel,dim_customer,dim_product,dim_seller,fact_orders,fact_order_items,fact_returns}` trong PostgreSQL `sources` có đầy đủ khóa chính, khóa ngoại, kiểm tra `NUMERIC(18,2)` và quyền đọc cho `trino_ro`.
-- [x] Input được pin chặt chẽ từ completed Gold publication ledger (`/runtime/gold/publication/ledger.json`) theo `snapshot-id`; publication của `dp4_warehouse` tách riêng tại `/runtime/warehouse/export/ledger.json`.
-- [x] Cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC hoạt động chính xác: giữ đúng dữ liệu trong cửa sổ và cắt bỏ sạch dữ liệu trượt ra ngoài cửa sổ.
-- [x] Ghi transactional nguyên tử bằng một kết nối JVM JDBC (`spark_writer`): nếu lỗi giữa chừng thì `ROLLBACK` 100%, không để lại dữ liệu dở dang giữa các bảng.
-- [x] Multi-dataset coexistence (`186ae107d0793d2ee237` và `b1e64afaff0176de180a`), đối soát hai chiều Gold ↔ Postgres khớp từng xu (`0.00`), replay idempotent, recovery và restart persistence đều xanh.
-- [x] `make check` và toàn bộ regression `core`/`sources`/`lakehouse`/`bronze`/`silver`/`gold`/`dp3` đều xanh; tài liệu, ADR-0011, DDL và runbook cập nhật đầy đủ.
+## 5. Quy tắc cập nhật
 
-## 5. Quy tắc thực hiện
-
-1. Mọi checkbox để trống cho đến khi có implementation và bằng chứng kiểm tra tương ứng.
-2. Sau mỗi task nhỏ: chạy kiểm tra liên quan và `make check`, cập nhật `TODO.md`/evidence, rồi tạo commit theo Conventional Commits ngay; không chờ dồn cuối phase.
-3. Mục không áp dụng phải ghi rõ `N/A` kèm lý do; mục bị chặn giữ nguyên `[ ]` và ghi rõ blocker.
-4. Không đổi version/port đã pin, không xóa volume/bucket/DB, không expire các snapshot đang được pin/ledger tham chiếu.
-5. Không commit `.env`, secret, HMAC key, DB password, raw PII hay file dữ liệu runtime.
-6. Mọi quyết định thiết kế về cửa sổ 30 ngày, giao dịch JDBC và khóa vật lý trong `warehouse.*` phải được chốt trong ADR-0011 trước khi viết code phụ thuộc.
-
-Sau 4E: **Phase 4F** (benchmark data skew & đóng toàn bộ Phase 4) → **Phase 5** (Airflow orchestration) → **Phase 6** (Trino + DBeaver federated query).
-
-## Follow-up review Phase 4C–4E (2026-11-16)
-
-- [x] DP3: lưu freshness theo bảng/ngày với Gold publication, policy và label horizon; legacy scope phải tính lại.
-- [x] Warehouse: phục hồi file mirror JSON hỏng từ metadata đã commit trong PostgreSQL.
-- [x] Features: từ chối currency không phù hợp hoặc trộn currency trước khi tổng hợp tiền; sửa Shopee thành USD theo generator, nâng feature policy v2.
-- [x] `make check`: 164 tests; Spark regression: 7 cases; JDBC recovery/tampering: 2 scenarios trên image đã build lại.
-
-Bằng chứng: [review validation](docs/review-4cde-validation.md).
-- [x] Publish/replay Iceberg thật cho features và labels trên fixture nhỏ ngày `2026-01-03`: lần đầu `skipped=false`, replay `skipped=true` cho cả hai.
-
-## Review fixes (2026-11-17)
-
-- [x] Full DP3 skip kiểm tra cả ngày retained trong ledger cũ để không giữ thừa ngày sau full refresh.
-- [x] Kiểm tra overflow aggregate customer/product trước khi thay NULL bằng 0; feature policy v3.
-- [x] `make check`: 165 tests; `make test-review-regressions`: 11 ca Spark trên image mới.
-- [x] Features policy v3 publish/replay trên fixture nhỏ ngày `2026-01-03`: `skipped=false` rồi `skipped=true`, read-back đạt.
-
-## Count/quantity review fix (2026-11-17)
-
-- [x] Guard giới hạn INT trước cast cho Gold item_count/total_qty, DP3 counts/units và label return_line_count.
-- [x] Tăng policy để scope cũ tính lại khi được yêu cầu; Gold skip kiểm tra policy_version.
-- [x] `make check`: 165 tests; Spark regression: 22 ca trên image mới, bao gồm positive wraparound và hai ANSI modes.
-- [x] Features policy v4 publish/replay trên fixture nhỏ ngày `2026-01-03`: `skipped=false` rồi `skipped=true`, read-back đạt.
+1. Chỉ đánh `[x]` khi có implementation và evidence đúng commit; blocker giữ `[ ]` kèm lý do.
+2. Sau task nhỏ: kiểm tra phù hợp, cập nhật evidence/checklist, commit Conventional Commits.
+3. Ưu tiên Make targets; chỉ bật core/batch, giữ versions/ports và resource limits đã pin.
+4. Không commit secrets, dữ liệu lớn, raw event logs hoặc state local; không xóa volume,
+   bucket, DB hoặc snapshot được pin.
+5. Chưa triển khai Phase 5 trong kế hoạch này. Sau khi 4F đạt DoD mới lập TODO Airflow.
