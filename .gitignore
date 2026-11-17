@@ -242,3 +242,6 @@ __marimo__/
 spark/lib/**/__pycache__/
 spark/lib/__pycache__/
 spark/lib/**/*.pyc
+
+# Claude Code local settings
+.claude/settings.local.json
