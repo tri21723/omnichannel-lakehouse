@@ -3,7 +3,9 @@
 Personal project Data Engineering cho e-commerce 5 kênh: Walmart, Amazon,
 TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-end.
 
-![System architecture](docs/architecture.jpg)
+![System architecture](docs/architecture.svg)
+
+Chi tiết luồng và bản Mermaid: [docs/architecture.md](docs/architecture.md).
 
 ## Trạng thái
 

@@ -1,0 +1,83 @@
+# Kiến trúc hệ thống
+
+Sơ đồ chi tiết (kiến trúc đích, dùng trong README):
+
+![System architecture](architecture.svg)
+
+Nhãn luồng (B/S/C/Q/O/G/I) khớp bảng §4.2 trong [plan](plan.md). Port theo
+`AGENTS.md` §5. Nét liền là dữ liệu; nét đứt là điều phối, metadata hoặc provisioning.
+Sơ đồ mô tả kiến trúc đích; trạng thái triển khai xem
+[implementation status](implementation-status.md).
+
+## Bản rút gọn (Mermaid)
+
+Dùng để chỉnh nhanh khi thay đổi luồng; khi đổi kiến trúc, cập nhật cả
+`architecture.svg` để hai bản không lệch nhau.
+
+```mermaid
+flowchart LR
+    DE([Data Engineer])
+
+    subgraph SRC[Source generators]
+        GB[batch<br/>JSONL 5 kênh]
+        GL[load<br/>Walmart OLTP]
+        GS[stream<br/>late · dup · burst]
+    end
+
+    MINIO[(MinIO raw<br/>JSONL + manifest)]
+    PG[(PostgreSQL<br/>sources: walmart, warehouse<br/>airflow · lakekeeper · mlflow)]
+
+    subgraph ORCH[Airflow :8081]
+        DAGS[dp1_bronze · dp2_silver · dp3_* · dp4_warehouse · dp1_cdc]
+    end
+
+    subgraph SPARK[Spark :7077]
+        SJ[master + 2 workers]
+    end
+
+    subgraph LH[Lakehouse · Iceberg v2]
+        LK[Lakekeeper<br/>REST catalog :8181]
+        BR[Bronze · dp1]
+        SI[Silver · dp2]
+        GO[Gold<br/>dim/fact dp2 · feat/lbl dp3]
+    end
+
+    subgraph STREAM[Streaming]
+        KAFKA[[Kafka :9092]]
+        FLINK[Flink :8082<br/>watermark · dedup]
+        FOUT[CSV / Parquet]
+    end
+
+    DBZ[Debezium<br/>+ kafka-ui :8085]
+    TRINO[Trino :8083]
+    DBV[DBeaver]
+    DH[DataHub :9002]
+    IAC[Terraform + Ansible<br/>AWS]
+
+    GB -- B1 --> MINIO
+    MINIO -- B2 --> GL
+    GL -- B3 --> PG
+    MINIO -- B4 --> SJ
+    PG -- B5 JDBC --> SJ
+    SJ -- B6 --> BR --> SI --> GO
+    SJ -. B7 commit .-> LK
+    LK -. B8 catalog DB .-> PG
+    GO -- B9 dp4 30 ngày --> PG
+
+    GS -- S1 --> KAFKA -- S2 --> FLINK -- S3 --> FOUT --> BR
+
+    PG -- C1 WAL --> DBZ -- C2 --> KAFKA
+    KAFKA -- C3 dp1_cdc --> BR
+
+    LH -- Q1 --> TRINO
+    PG -- Q2 JDBC --> TRINO
+    TRINO -- Q3 --> DBV --> DE
+
+    DE -. O1 .-> ORCH
+    DE -. O2 .-> SRC
+    ORCH -. O3 spark-submit .-> SPARK
+    ORCH -. O4 lineage .-> DH
+    ORCH -. O5 metadata .-> PG
+    DH -. G1 .-> DE
+    DE -. I1 / I2 .-> IAC
+```
