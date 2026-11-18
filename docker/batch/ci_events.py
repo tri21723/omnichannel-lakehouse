@@ -61,6 +61,9 @@ EVENTS = {
     "benchmark_finished",
     "benchmark_verified",
     "spark_driver_busy",
+    "iceberg_verified",
+    "e2e_backfill_created",
+    "e2e_summary",
 }
 BENCHMARK_STATUSES = {"ok", "error", "timeout", "correctness_failed"}
 ERROR_TYPES = {
@@ -151,6 +154,8 @@ def safe_events(lines):
             "problems",
             "keys",
             "distinct_orders",
+            "backfill_id",
+            "controller_runs",
         ):
             if type(item.get(name)) is int:
                 clean[name] = item[name]

@@ -333,7 +333,8 @@ test-benchmark: ## Real-Spark correctness tests for salting/broadcast/AQE varian
 	$(BENCH_RUN) spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/benchmark_skew/salting_test.py
 
 .PHONY: env-orch config-orch build-orch up-orch smoke-orch restart-orch test-dags airflow-cli e2e
-E2E_RUN_ID ?=
+# Run ID derived deterministically from generators/fixtures/orchestration.yaml.
+E2E_RUN_ID ?= 5f552019ee41c24af95f
 env-orch: env-silver ## Add Airflow secrets/settings to .env without rotating existing values
 	$(PYTHON) docker/orch/env.py
 config-orch: ## Validate merged core+batch+orch configuration silently
@@ -356,3 +357,7 @@ test-dags: ## Run DagBag and DAG contract tests inside the Airflow image
 	$(ORCH) run --rm --no-deps -v "$(CURDIR)/airflow:/opt/omnichannel/airflow:ro" -w /opt/omnichannel --entrypoint python airflow -m pytest -q -p no:cacheprovider airflow/tests
 airflow-cli: ## Run an Airflow CLI command in the running container, e.g. ARGS='dags list'
 	$(AIRFLOW_EXEC) airflow $(ARGS)
+e2e: ## Backfill batch_daily via Airflow on the orchestration fixture twice; replay must not change ledgers (needs up-orch)
+	$(MAKE) gen-sources GEN_ARGS='--config generators/fixtures/orchestration.yaml'
+	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) < docker/orch/e2e.py
+	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) --reprocess completed --expect-unchanged < docker/orch/e2e.py

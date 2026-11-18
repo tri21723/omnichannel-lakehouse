@@ -128,3 +128,18 @@ def test_benchmark_events_keep_counts_but_drop_paths_and_details():
         {"event": "benchmark_verified", "problems": 0},
         {"event": "benchmark_trial_finished", "correct": True},
     ]
+
+
+def test_e2e_summary_keeps_counts_only():
+    line = json.dumps(
+        {
+            "event": "e2e_summary",
+            "backfill_id": 3,
+            "controller_runs": 3,
+            "ledger_hashes": {"gold": "abc"},
+            "problems": ["/runtime/private"],
+        }
+    )
+    assert list(module.safe_events([line])) == [
+        {"event": "e2e_summary", "backfill_id": 3, "controller_runs": 3}
+    ]
