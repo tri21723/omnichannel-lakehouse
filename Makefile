@@ -392,3 +392,9 @@ query-sql: ## Run one sql/trino file, e.g. SQL=sql/trino/01_revenue_by_channel_d
 	$(PYTHON) docker/query/run_sql.py $(SQL) $(foreach p,$(PARAMS),--param $(p)) --url $(TRINO_URL)
 query-samples: ## Run all sql/trino samples for every dataset and check invariants (read-only)
 	$(PYTHON) docker/query/samples.py --url $(TRINO_URL)
+.PHONY: verify-query
+verify-query: ## Reconcile Trino with Spark (same SQL at ledger snapshots), ledgers and warehouse (needs up-batch + up-query)
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/query_parity/main.py
+	mkdir -p .local-data/query
+	$(BATCH) run --rm --no-deps -T --entrypoint cat spark-submit /runtime/query/parity.json > .local-data/query/parity.json
+	$(PYTHON) docker/query/verify.py --expected .local-data/query/parity.json --url $(TRINO_URL)
