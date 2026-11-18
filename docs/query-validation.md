@@ -158,3 +158,11 @@ and the per-dataset order count returned 375 / 300 / 15,000, equal to the ledger
 Asset-scheduled on `sources.warehouse` (emitted by `dp4_warehouse` verify), paused at creation.
 A manual asset event triggered it: `query_checks_reconciled` with 3 runs, 15 groups, 0 problems.
 The shared Trino client now lives in `spark/lib/trino_http.py` (also used by host tools).
+
+## Hosted CI
+
+`Scaffold checks` run
+[44355559275](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44355559275) on
+commit `a11d318` (push, 2026-11-19): job `check` (lint incl. `sql/trino` with the Trino dialect,
+unit tests incl. runner/parity/event tests) and job `dags` succeeded. The manual workflow
+`Trino query layer` has not been run on GitHub and is not claimed.
