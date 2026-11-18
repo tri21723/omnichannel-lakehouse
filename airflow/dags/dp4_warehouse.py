@@ -7,14 +7,15 @@ from airflow.sdk import DAG
 with DAG(
     **dag_kwargs(
         "dp4_warehouse",
-        "One JDBC transaction per export; identical export verifies and skips (ADR-0011).",
+        "One JDBC transaction per export; identical or older (`--no-regress`) dates skip "
+        "(ADR-0011, ADR-0013).",
         ["warehouse"],
     )
 ):
     export = spark_task(
         "warehouse_export",
         "dp4_warehouse/main.py",
-        ["--run-id", RUN_ID, "--run-date", DS, "--mode", "full"],
+        ["--run-id", RUN_ID, "--run-date", DS, "--mode", "full", "--no-regress"],
         "warehouse",
     )
     verify = spark_task(

@@ -66,13 +66,19 @@
 | `dp1_bronze` | wait for `s3://raw/manifests/<run>/stream_manifest.json`; JSONL for 5 channels; Walmart JDBC | `--run-id R --run-date ds --channel C [--source jdbc] --mode incremental` |
 | `dp2_silver` | 5 channels | `--run-id R --run-date ds --channel C --mode incremental --fail-on-reject` |
 | `dp2_gold` | publish, verify | `--run-id R --mode full`; `--verify` |
-| `dp3_features` | publish, verify | `--run-id R --as-of-date ds --mode full`; `--verify` |
-| `dp3_return_labels` | publish, verify | `--run-id R --as-of-date ds --horizon-days 14 --mode full`; `--verify` |
-| `dp4_warehouse` | export, verify | `--run-id R --run-date ds --mode full`; `--verify --run-id R` |
+| `dp3_features` | publish, verify | `--run-id R --as-of-date ds --mode incremental`; `--verify` |
+| `dp3_return_labels` | publish, verify | `--run-id R --as-of-date ds --horizon-days 14 --mode incremental`; `--verify` |
+| `dp4_warehouse` | export, verify | `--run-id R --run-date ds --mode full --no-regress`; `--verify --run-id R` |
 
-- `incremental` Bronze/Silver skip completed identical slices; Gold, DP3 and warehouse skip
-  when their pinned upstream publication and policy are unchanged. A rerun of the same date
-  therefore publishes nothing new.
+- `incremental` Bronze/Silver skip completed identical slices (JDBC by snapshot content,
+  ADR-0007); Gold skips when the Silver publication and policy are unchanged.
+- DP3 runs **incremental** for one date: `full` means "the requested dates are the whole run"
+  and would delete every other date of the run. Incremental replaces only `ds` and skips when
+  that date's provenance (Gold publication, policy, horizon) is current.
+- The warehouse mirrors the latest 30-day window. With `--no-regress`, a date older than the
+  committed export for the same Gold publication is skipped, so a backfill of history never
+  moves the window backwards; the newest date's run exports it.
+- A rerun of the same dates therefore publishes nothing new (checked by `make e2e`).
 
 ## 5. Task contract
 

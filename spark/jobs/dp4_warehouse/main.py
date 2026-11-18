@@ -56,6 +56,7 @@ def run_job(spark, args):
         fail_after=getattr(args, "fail_after", None),
         force=getattr(args, "force", False),
         mode=args.mode,
+        no_regress=getattr(args, "no_regress", False),
     )
     run_entry = ledger["runs"][args.run_id]
     counts = {name.split(".", 1)[1]: meta["rows"] for name, meta in run_entry["tables"].items()}
@@ -82,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["full", "incremental"],
         default="full",
         help="Export mode (both replace the 30-day run slice atomically)",
+    )
+    parser.add_argument(
+        "--no-regress",
+        action="store_true",
+        help="Skip a run date older than the committed export from the same Gold publication",
     )
     parser.add_argument(
         "--force",

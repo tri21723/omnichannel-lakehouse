@@ -65,6 +65,16 @@ def test_skip_condition_detects_publication_and_run_date_changes():
     assert should_skip_export(ledger, "run_a", "gold_1", "2026-01-17", force=True) is False
     assert should_skip_export(ledger, "run_a", "gold_1", "2026-01-17", fail_after="facts") is False
     assert should_skip_export(ledger, "run_a", "gold_2", "2026-01-17") is False
+    # Backfilling an older date: exported only without no_regress, skipped with it.
+    assert should_skip_export(ledger, "run_a", "gold_1", "2026-01-10") is False
+    assert should_skip_export(ledger, "run_a", "gold_1", "2026-01-10", no_regress=True) is True
+    # A later date or a newer Gold publication is never skipped by no_regress.
+    assert should_skip_export(ledger, "run_a", "gold_1", "2026-01-18", no_regress=True) is False
+    assert should_skip_export(ledger, "run_a", "gold_2", "2026-01-10", no_regress=True) is False
+    assert (
+        should_skip_export(ledger, "run_a", "gold_1", "2026-01-10", no_regress=True, force=True)
+        is False
+    )
     assert should_skip_export(ledger, "run_a", "gold_1", "2026-02-01") is False
     assert should_skip_export(ledger, "run_b", "gold_1", "2026-01-17") is False
 

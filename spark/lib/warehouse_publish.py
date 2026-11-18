@@ -160,19 +160,25 @@ def should_skip_export(
     *,
     force: bool = False,
     fail_after: str | None = None,
+    no_regress: bool = False,
 ) -> bool:
-    """Return True iff identical (run_id, gold_pub_id, run_date) already completed cleanly."""
+    """Return True iff identical (run_id, gold_pub_id, run_date) already completed cleanly.
+
+    With ``no_regress`` (orchestrated backfills), an older ``run_date`` is also skipped when the
+    run was already exported for a later date from the same Gold publication, so replaying
+    history never moves the 30-day window backwards (ADR-0013).
+    """
     if force or fail_after is not None:
         return False
     if ledger.get("status") != "completed":
         return False
     prior_run = ledger.get("runs", {}).get(run_id)
-    if not prior_run:
+    if not prior_run or prior_run.get("gold_publication_id") != gold_pub_id:
         return False
-    return (
-        prior_run.get("gold_publication_id") == gold_pub_id
-        and prior_run.get("run_date") == run_date
-    )
+    prior_date = str(prior_run.get("run_date") or "")
+    if prior_date == run_date:
+        return True
+    return bool(no_regress and prior_date > run_date)
 
 
 def publish_warehouse(
@@ -190,6 +196,7 @@ def publish_warehouse(
     mode: str = "full",
     batch_size: int = 1000,
     ddl_path: str | Path = DEFAULT_DDL_PATH,
+    no_regress: bool = False,
 ) -> tuple[dict[str, Any], bool]:
     """Synchronize 8 warehouse.* tables atomically with export ledger & POSIX lock."""
     root = Path(root)
@@ -230,6 +237,7 @@ def publish_warehouse(
             run_date_str,
             force=force,
             fail_after=fail_after,
+            no_regress=no_regress,
         ):
             verify_warehouse_ledger(spark, old, target_run_id=run_id)
             export_id = compute_export_id(old)

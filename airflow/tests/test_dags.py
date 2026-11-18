@@ -87,9 +87,12 @@ def test_rendered_commands_match_job_cli(dagbag):
     gold = render(dagbag.dags["dp2_gold"].get_task("gold_publish"))
     assert f"gold_main.py --run-id {RUN} --mode full" in gold
     labels = render(dagbag.dags["dp3_return_labels"].get_task("labels_publish"))
-    assert "--as-of-date 2026-01-02 --horizon-days 14 --mode full" in labels
+    # Daily DP3 must be incremental: `full` would replace every other date of the run.
+    assert "--as-of-date 2026-01-02 --horizon-days 14 --mode incremental" in labels
+    features = render(dagbag.dags["dp3_features"].get_task("features_publish"))
+    assert "--as-of-date 2026-01-02 --mode incremental" in features
     export = render(dagbag.dags["dp4_warehouse"].get_task("warehouse_export"))
-    assert "--run-date 2026-01-02 --mode full" in export
+    assert "--run-date 2026-01-02 --mode full --no-regress" in export
     assert dagbag.dags["dp4_warehouse"].get_task("warehouse_export").execution_timeout == (
         timedelta(minutes=45)
     )

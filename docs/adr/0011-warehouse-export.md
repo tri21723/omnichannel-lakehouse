@@ -124,3 +124,9 @@ still serializes local exports; distributed multi-writer operation is not claime
 Recovery also tolerates malformed file mirrors: the writer queries committed database
 metadata before parsing any file. With no database completion, invalid legacy JSON
 still fails closed; database errors never fall back to potentially stale files.
+
+## Addendum (Phase 5): orchestrated backfills
+
+`--no-regress` (used by the `dp4_warehouse` DAG) skips an export whose `run_date` is older than
+the committed export of the same run and Gold publication, so replaying earlier dates does not
+move the window backwards. Without the flag the CLI behaves as before. See ADR-0013.

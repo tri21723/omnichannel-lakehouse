@@ -14,7 +14,7 @@ with DAG(
     publish = spark_task(
         "features_publish",
         "dp3_features/main.py",
-        ["--run-id", RUN_ID, "--as-of-date", DS, "--mode", "full"],
+        ["--run-id", RUN_ID, "--as-of-date", DS, "--mode", "incremental"],
         "dp3",
     )
     verify = spark_task(
