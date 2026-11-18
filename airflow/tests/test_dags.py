@@ -2,7 +2,8 @@
 
 import pytest
 
-pytest.importorskip("airflow")
+# The repo directory `airflow/` is a namespace package, so probe a real Airflow module.
+pytest.importorskip("airflow.configuration")
 
 from datetime import timedelta  # noqa: E402
 
