@@ -80,3 +80,18 @@ Sources checked (2026-11-18):
 - [apache-airflow on PyPI](https://pypi.org/project/apache-airflow/3.3.2/) (3.3.2 uploaded 2026-09-17)
 - [Constraints 3.3.2 / Python 3.11](https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.11.txt)
 - [Simple auth manager](https://airflow.apache.org/docs/apache-airflow/3.3.2/core-concepts/auth-manager/simple/index.html)
+
+## Phase 6 selected pins (2026-11-18)
+
+See ADR-0015: Trino **484** (`trinodb/trino:484`, image
+`sha256:2704eb53935af5e582d63d6033e9bf99d20c325e9b0e30b1016ef59a4773979f`, published
+2026-10-16, bundled OpenJDK 25.0.4). It was the newest tag and older than two weeks at
+selection time. Iceberg access uses the built-in Iceberg connector with the REST catalog
+(Lakekeeper v0.9.3) and the native S3 file system (`fs.s3.enabled`); PostgreSQL access uses the
+built-in PostgreSQL connector. No existing pin or port was changed.
+
+Sources checked (2026-11-18):
+- [trinodb/trino tags](https://hub.docker.com/r/trinodb/trino/tags)
+- [Iceberg REST catalog properties](https://trino.io/docs/484/object-storage/metastores.html)
+- [Native S3 file system](https://trino.io/docs/484/object-storage/file-system-s3.html)
+- [File-based access control](https://trino.io/docs/484/security/file-system-access-control.html)
