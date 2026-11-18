@@ -1,0 +1,13 @@
+[sqlfluff]
+dialect = trino
+templater = placeholder
+max_line_length = 100
+
+[sqlfluff:templater:placeholder]
+param_style = colon
+dataset_run_id = 'b1e64afaff0176de180a'
+fact_orders_snapshot = 1
+as_of_ts = '2026-11-18 00:00:00 UTC'
+as_of_date = '2026-01-03'
+window_start = '2025-12-19 00:00:00 UTC'
+window_end = '2026-01-18 00:00:00 UTC'

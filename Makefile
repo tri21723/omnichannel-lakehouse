@@ -22,6 +22,7 @@ lint: ## Check Python, YAML and SQL
 	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
+	cd sql/trino && ../../$(BIN)/sqlfluff lint .
 
 format: ## Format Python source
 	$(BIN)/black .
@@ -369,7 +370,7 @@ ICEBERG_AS_OF ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 iceberg-report: ## Dry-run Iceberg retention report (ADR-0014); never expires or deletes anything
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/maintenance/iceberg_report.py --as-of $(ICEBERG_AS_OF)
 
-.PHONY: env-query config-query up-query smoke-query restart-query trino-cli
+.PHONY: env-query config-query up-query smoke-query restart-query trino-cli query-sql query-samples
 TRINO_URL ?= http://127.0.0.1:8083
 env-query: env-batch ## Add Phase 6 settings (TRINO_IMAGE) to .env without rotating credentials
 	@grep -q '^TRINO_IMAGE=' .env || echo 'TRINO_IMAGE=trinodb/trino:484' >> .env
@@ -387,3 +388,7 @@ restart-query: ## Restart Trino; configuration is mounted read-only
 	$(QUERY) up -d --wait trino
 trino-cli: ## Run the Trino CLI in the container, e.g. ARGS='--execute "SHOW CATALOGS"'
 	$(QUERY) exec trino trino $(ARGS)
+query-sql: ## Run one sql/trino file, e.g. SQL=sql/trino/01_revenue_by_channel_day.sql PARAMS='dataset_run_id=…'
+	$(PYTHON) docker/query/run_sql.py $(SQL) $(foreach p,$(PARAMS),--param $(p)) --url $(TRINO_URL)
+query-samples: ## Run all sql/trino samples for every dataset and check invariants (read-only)
+	$(PYTHON) docker/query/samples.py --url $(TRINO_URL)
