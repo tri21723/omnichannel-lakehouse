@@ -19,7 +19,7 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 
@@ -32,7 +32,7 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-query up-stream up-cdc up-gov gen-stream:
+up-stream up-cdc up-gov gen-stream:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -62,11 +62,11 @@ restart-core: ## Restart core services while preserving named volumes
 status-core: ## Show core service status
 	$(COMPOSE) ps -a
 
-down: ## Stop core, batch and orch services without deleting volumes
-	$(ORCH) down
+down: ## Stop core, batch, orch and query services without deleting volumes
+	$(ALL_PROFILES) down
 
-logs: ## Follow logs; optionally SVC=postgres, minio, spark-master or airflow
-	$(ORCH) logs --tail=100 -f $(SVC)
+logs: ## Follow logs; optionally SVC=postgres, minio, spark-master, airflow or trino
+	$(ALL_PROFILES) logs --tail=100 -f $(SVC)
 
 .PHONY: format-sql
 format-sql: ## Format PostgreSQL DDL and smoke assertions
@@ -106,6 +106,8 @@ verify-sources: ## Reconcile local/S3 bytes and SQL rows without rewriting data
 DRIVER_LOCK := python -m spark.lib.driver_lock --
 BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml --profile core --profile batch
 ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
+QUERY := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.query.yml --profile core --profile batch --profile query
+ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml --profile core --profile batch --profile orch --profile query
 AIRFLOW_EXEC = $(ORCH) exec -T airflow
 .PHONY: env-batch config-batch build-batch init-lakehouse smoke-lakehouse verify-lakehouse restart-lakehouse
 env-batch: env ## Add missing Phase 3 settings without rotating credentials
@@ -366,3 +368,22 @@ e2e: ## Backfill batch_daily via Airflow on the orchestration fixture twice; rep
 ICEBERG_AS_OF ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 iceberg-report: ## Dry-run Iceberg retention report (ADR-0014); never expires or deletes anything
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/maintenance/iceberg_report.py --as-of $(ICEBERG_AS_OF)
+
+.PHONY: env-query config-query up-query smoke-query restart-query trino-cli
+TRINO_URL ?= http://127.0.0.1:8083
+env-query: env-batch ## Add Phase 6 settings (TRINO_IMAGE) to .env without rotating credentials
+	@grep -q '^TRINO_IMAGE=' .env || echo 'TRINO_IMAGE=trinodb/trino:484' >> .env
+config-query: ## Validate merged core+batch+query configuration silently
+	$(QUERY) config --quiet
+up-query: env-query ## Start PostgreSQL, MinIO, Lakekeeper and read-only Trino on :8083 (no Spark/Airflow)
+	$(MAKE) up-core
+	$(QUERY) up -d --wait lakekeeper
+	$(MAKE) init-lakehouse
+	$(QUERY) up -d --wait trino
+smoke-query: ## Catalogs, schemas, counts, PII masking and denied writes against Trino
+	$(PYTHON) docker/query/smoke.py --url $(TRINO_URL)
+restart-query: ## Restart Trino; configuration is mounted read-only
+	$(QUERY) restart trino
+	$(QUERY) up -d --wait trino
+trino-cli: ## Run the Trino CLI in the container, e.g. ARGS='--execute "SHOW CATALOGS"'
+	$(QUERY) exec trino trino $(ARGS)

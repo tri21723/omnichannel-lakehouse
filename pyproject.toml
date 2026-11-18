@@ -16,5 +16,5 @@ target-version = ["py311"]
 line-length = 100
 
 [tool.pytest.ini_options]
-testpaths = ["generators/tests", "spark/tests", "airflow/tests", "docker/core/tests", "docker/batch/tests", "docker/orch/tests"]
+testpaths = ["generators/tests", "spark/tests", "airflow/tests", "docker/core/tests", "docker/batch/tests", "docker/orch/tests", "docker/query/tests"]
 addopts = "-ra"

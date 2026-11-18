@@ -1,0 +1,29 @@
+{
+  "catalogs": [
+    {"catalog": "(iceberg|postgresql|system)", "allow": "read-only"},
+    {"catalog": ".*", "allow": "none"}
+  ],
+  "schemas": [
+    {"owner": false}
+  ],
+  "tables": [
+    {"catalog": "iceberg", "schema": "(bronze|benchmark)", "privileges": []},
+    {"catalog": "iceberg", "schema": "(silver|gold|information_schema)", "privileges": ["SELECT"]},
+    {
+      "catalog": "postgresql",
+      "schema": "walmart",
+      "table": "customers",
+      "privileges": ["SELECT"],
+      "columns": [
+        {"name": "full_name", "mask": "'[redacted]'"},
+        {"name": "email", "mask": "'[redacted]'"}
+      ]
+    },
+    {"catalog": "postgresql", "schema": "(walmart|warehouse|information_schema)", "privileges": ["SELECT"]},
+    {"catalog": "system", "privileges": ["SELECT"]},
+    {"privileges": []}
+  ],
+  "procedures": [
+    {"privileges": []}
+  ]
+}
