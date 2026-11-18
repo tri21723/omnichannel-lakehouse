@@ -1,0 +1,126 @@
+"""DagBag and DAG contract tests (ADR-0013 §6). Run with `make test-dags` in the Airflow image."""
+
+import pytest
+
+pytest.importorskip("airflow")
+
+from datetime import timedelta  # noqa: E402
+
+from airflow.configuration import conf  # noqa: E402
+from airflow.models import DagBag  # noqa: E402
+
+JOB_DAGS = {
+    "dp1_bronze",
+    "dp2_silver",
+    "dp2_gold",
+    "dp3_features",
+    "dp3_return_labels",
+    "dp4_warehouse",
+}
+RUN = "b1e64afaff0176de180a"
+
+
+@pytest.fixture(scope="module")
+def dagbag():
+    return DagBag(dag_folder=conf.get("core", "dags_folder"))
+
+
+def render(task, ds="2026-01-02", run=RUN):
+    return task.render_template(task.bash_command, {"params": {"dataset_run_id": run}, "ds": ds})
+
+
+def test_dags_import_without_errors(dagbag):
+    assert dagbag.import_errors == {}
+    assert set(dagbag.dag_ids) == JOB_DAGS | {"batch_daily"}
+
+
+def test_every_dag_follows_defaults(dagbag):
+    for dag_id in dagbag.dag_ids:
+        dag = dagbag.get_dag(dag_id)
+        assert dag.max_active_runs == 1, dag_id
+        assert dag.catchup is False, dag_id
+        assert "omnichannel" in dag.tags, dag_id
+        assert dag.params.get_param("dataset_run_id").value == RUN
+        for task in dag.tasks:
+            assert task.owner == "data-platform", (dag_id, task.task_id)
+            assert task.on_failure_callback, (dag_id, task.task_id)
+
+
+def test_spark_tasks_use_pool_timeout_retries_and_lock(dagbag):
+    for dag_id in JOB_DAGS:
+        dag = dagbag.get_dag(dag_id)
+        assert dag.schedule is None or str(dag.timetable.summary) in ("None", "")
+        spark = [t for t in dag.tasks if hasattr(t, "bash_command")]
+        assert spark, dag_id
+        for task in spark:
+            assert task.pool == "spark_driver", task.task_id
+            assert task.retries >= 1 and task.retry_delay == timedelta(minutes=2)
+            assert timedelta(0) < task.execution_timeout <= timedelta(minutes=45)
+            command = render(task)
+            assert "python -m spark.lib.driver_lock -- /opt/spark/bin/spark-submit" in command
+            assert "ci_events.py" in command and 'exit "$rc"' in command
+            assert "{{" not in command
+
+
+def test_rendered_commands_match_job_cli(dagbag):
+    bronze = dagbag.get_dag("dp1_bronze")
+    assert [t.task_id for t in bronze.topological_sort()] == [
+        "wait_for_manifest",
+        "bronze_walmart_jsonl",
+        "bronze_amazon_jsonl",
+        "bronze_tiktok_shop_jsonl",
+        "bronze_shopee_jsonl",
+        "bronze_lazada_jsonl",
+        "bronze_walmart_jdbc",
+    ]
+    jdbc = render(bronze.get_task("bronze_walmart_jdbc"))
+    assert (
+        f"dp1_bronze/main.py --run-id {RUN} --run-date 2026-01-02 --mode incremental "
+        "--channel walmart --source jdbc"
+    ) in jdbc
+    silver = render(dagbag.get_dag("dp2_silver").get_task("silver_shopee"))
+    assert "--channel shopee --mode incremental --fail-on-reject" in silver
+    gold = render(dagbag.get_dag("dp2_gold").get_task("gold_publish"))
+    assert f"gold_main.py --run-id {RUN} --mode full" in gold
+    labels = render(dagbag.get_dag("dp3_return_labels").get_task("labels_publish"))
+    assert "--as-of-date 2026-01-02 --horizon-days 14 --mode full" in labels
+    export = render(dagbag.get_dag("dp4_warehouse").get_task("warehouse_export"))
+    assert "--run-date 2026-01-02 --mode full" in export
+    assert dagbag.get_dag("dp4_warehouse").get_task("warehouse_export").execution_timeout == (
+        timedelta(minutes=45)
+    )
+
+
+def test_manifest_sensor_does_not_hold_a_slot(dagbag):
+    sensor = dagbag.get_dag("dp1_bronze").get_task("wait_for_manifest")
+    assert sensor.mode == "reschedule"
+    assert sensor.pool != "spark_driver"
+    assert sensor.timeout == 1800
+
+
+def test_controller_chains_jobs_in_order_without_holding_slots(dagbag):
+    controller = dagbag.get_dag("batch_daily")
+    order = [t.trigger_dag_id for t in controller.topological_sort()]
+    assert order == [
+        "dp1_bronze",
+        "dp2_silver",
+        "dp2_gold",
+        "dp3_features",
+        "dp3_return_labels",
+        "dp4_warehouse",
+    ]
+    for task in controller.tasks:
+        assert task.deferrable and task.wait_for_completion and task.reset_dag_run
+        assert task.pool != "spark_driver"
+    assert controller.start_date.isoformat().startswith("2026-01-01")
+    assert controller.end_date.isoformat().startswith("2026-01-03")
+
+
+def test_dataset_param_rejects_unsafe_values(dagbag):
+    from airflow.sdk.definitions.param import ParamValidationError
+
+    param = dagbag.get_dag("dp2_gold").params.get_param("dataset_run_id")
+    assert param.resolve(RUN) == RUN
+    for bad in ("b1e64afaff0176de180", "'; rm -rf / #", "B1E64AFAFF0176DE180A"):
+        with pytest.raises(ParamValidationError):
+            param.resolve(bad)
