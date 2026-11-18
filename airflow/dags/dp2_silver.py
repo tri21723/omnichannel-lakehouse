@@ -28,6 +28,7 @@ with DAG(
                     "--fail-on-reject",
                 ],
                 "silver",
+                outlet="silver" if c == CHANNELS[-1] else None,
             )
             for c in CHANNELS
         ]

@@ -14,7 +14,7 @@ import urllib.request
 from datetime import UTC, datetime, timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import Param
+from airflow.sdk import Asset, Param
 
 OWNER = "data-platform"
 POOL = "spark_driver"
@@ -29,6 +29,17 @@ EVENTS_SCRIPT = "/app/docker/batch/ci_events.py"
 LOCK_WAIT_SECONDS = 300
 RUN_ID = "{{ params.dataset_run_id }}"
 DS = "{{ ds }}"
+
+# Data-aware visibility only (UI "Assets" tab); no DAG is scheduled on these. An event means
+# the stage finished successfully for some dataset run (published or verified-identical skip).
+ASSETS = {
+    "bronze": Asset(name="lh.bronze", uri="iceberg://lakekeeper/lh/bronze"),
+    "silver": Asset(name="lh.silver", uri="iceberg://lakekeeper/lh/silver"),
+    "gold": Asset(name="lh.gold.star_schema", uri="iceberg://lakekeeper/lh/gold/star_schema"),
+    "features": Asset(name="lh.gold.features", uri="iceberg://lakekeeper/lh/gold/features"),
+    "labels": Asset(name="lh.gold.labels", uri="iceberg://lakekeeper/lh/gold/labels"),
+    "warehouse": Asset(name="sources.warehouse", uri="warehouse://postgres/sources/warehouse"),
+}
 
 # Execution timeouts from measured durations (docs/phase5-handoff.md §3).
 TIMEOUTS = {
@@ -124,13 +135,16 @@ def spark_command(script: str, args: list[str]) -> str:
     )
 
 
-def spark_task(task_id: str, script: str, args: list[str], timeout: str) -> BashOperator:
+def spark_task(
+    task_id: str, script: str, args: list[str], timeout: str, outlet: str | None = None
+) -> BashOperator:
     return BashOperator(
         task_id=task_id,
         bash_command=spark_command(script, args),
         pool=POOL,
         execution_timeout=TIMEOUTS[timeout],
         do_xcom_push=True,
+        outlets=[ASSETS[outlet]] if outlet else [],
     )
 
 

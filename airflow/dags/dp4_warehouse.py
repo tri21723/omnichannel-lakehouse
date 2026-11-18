@@ -23,5 +23,6 @@ with DAG(
         "dp4_warehouse/main.py",
         ["--verify", "--run-id", RUN_ID],
         "verify",
+        outlet="warehouse",
     )
     export >> verify

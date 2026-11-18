@@ -39,5 +39,6 @@ with DAG(
         "dp1_bronze/main.py",
         [*base, "--channel", "walmart", "--source", "jdbc"],
         "bronze",
+        outlet="bronze",
     )
     chain(wait, *jsonl, jdbc)

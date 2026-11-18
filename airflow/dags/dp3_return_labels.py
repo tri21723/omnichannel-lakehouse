@@ -18,6 +18,10 @@ with DAG(
         "dp3",
     )
     verify = spark_task(
-        "labels_verify", "dp3_return_labels/main.py", ["--run-id", RUN_ID, "--verify"], "verify"
+        "labels_verify",
+        "dp3_return_labels/main.py",
+        ["--run-id", RUN_ID, "--verify"],
+        "verify",
+        outlet="labels",
     )
     publish >> verify

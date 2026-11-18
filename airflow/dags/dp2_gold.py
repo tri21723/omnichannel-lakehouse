@@ -15,6 +15,10 @@ with DAG(
         "gold_publish", "dp2_silver/gold_main.py", ["--run-id", RUN_ID, "--mode", "full"], "gold"
     )
     verify = spark_task(
-        "gold_verify", "dp2_silver/gold_main.py", ["--run-id", RUN_ID, "--verify"], "verify"
+        "gold_verify",
+        "dp2_silver/gold_main.py",
+        ["--run-id", RUN_ID, "--verify"],
+        "verify",
+        outlet="gold",
     )
     publish >> verify
