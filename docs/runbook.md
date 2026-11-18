@@ -534,3 +534,10 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   `TABLE_NOT_FOUND`/`SCHEMA_NOT_FOUND` vì bảng benchmark chỉ có ở nơi đã chạy benchmark; probe
   Bronze vẫn phải bị từ chối quyền. Log CI chỉ in tên kiểm tra và `ok` (`query_smoke_check`,
   `query_verify_check`).
+- **`INVALID_FUNCTION_ARGUMENT: Key not present in map` trên bảng `$snapshots`:** không phải
+  snapshot nào cũng có mọi khoá `summary` (ví dụ append rỗng lúc tạo bảng, gặp trên fixture CI).
+  Dùng `ELEMENT_AT(summary, '…')` (trả NULL) thay cho `summary['…']`. `make query-samples` giờ ghi
+  lỗi từng file (`query_sample` với `error_name`) và chạy tiếp các file khác.
+- **Tái hiện workflow cục bộ mà không đụng dữ liệu thật:** `git clone` repo ra thư mục khác, đặt
+  `COMPOSE_PROJECT_NAME` khác (shell + `.env` của bản clone) để có volume riêng, dừng stack chính
+  trước (trùng port), chạy lần lượt các bước của workflow.

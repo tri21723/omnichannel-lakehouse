@@ -182,3 +182,29 @@ def test_query_events_keep_counts_only():
         {"event": "query_smoke_check", "check": "denied", "ok": False},
         {"event": "query_verify_check", "ok": True},
     ]
+
+
+def test_query_sample_keeps_file_and_error_code_only():
+    lines = [
+        json.dumps(
+            {
+                "event": "query_sample",
+                "run_id": "186ae107d0793d2ee237",
+                "file": "07_snapshot_metadata.sql",
+                "ok": False,
+                "error_name": "INVALID_FUNCTION_ARGUMENT",
+                "problems": ["Key not present in map: secret@example.com"],
+            }
+        ),
+        json.dumps({"event": "query_sample", "file": "../etc/passwd", "error_name": "x y"}),
+    ]
+    assert list(module.safe_events(lines)) == [
+        {
+            "event": "query_sample",
+            "run_id": "186ae107d0793d2ee237",
+            "file": "07_snapshot_metadata.sql",
+            "error_name": "INVALID_FUNCTION_ARGUMENT",
+            "ok": False,
+        },
+        {"event": "query_sample"},
+    ]

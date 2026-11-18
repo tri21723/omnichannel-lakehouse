@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run_sql import render  # noqa: E402
-from trino_client import DEFAULT_URL, run  # noqa: E402
+from trino_client import DEFAULT_URL, TrinoQueryError, run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SQL_DIR = ROOT / "sql" / "trino"
@@ -81,7 +81,23 @@ def main(argv=None) -> int:
             "window_end": window["window_end"],
         }
         for path in sorted(SQL_DIR.glob("*.sql")):
-            result = run(render(path.read_text(encoding="utf-8"), params), url)
+            try:
+                result = run(render(path.read_text(encoding="utf-8"), params), url)
+            except TrinoQueryError as exc:  # report and continue with the other files
+                failures += 1
+                print(
+                    json.dumps(
+                        {
+                            "event": "query_sample",
+                            "run_id": run_id,
+                            "file": path.name,
+                            "ok": False,
+                            "error_name": exc.error_name,
+                            "problems": [str(exc)[:300]],
+                        }
+                    )
+                )
+                continue
             rows = result.dicts()
             out = OUT / run_id / f"{path.stem}.json"
             out.parent.mkdir(parents=True, exist_ok=True)

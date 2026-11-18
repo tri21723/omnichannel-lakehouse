@@ -64,6 +64,7 @@ EVENTS = {
     "iceberg_verified",
     "e2e_backfill_created",
     "e2e_summary",
+    "query_sample",
     "query_smoke_check",
     "query_smoke_finished",
     "query_verify_check",
@@ -204,6 +205,14 @@ def safe_events(lines):
                             and type(v) is int
                         }
                 clean[name] = values
+        if isinstance(item.get("file"), str) and re.fullmatch(
+            r"\d\d_[a-z0-9_]+\.sql", item["file"]
+        ):
+            clean["file"] = item["file"]
+        if isinstance(item.get("error_name"), str) and re.fullmatch(
+            r"[A-Z_]{1,64}", item["error_name"]
+        ):
+            clean["error_name"] = item["error_name"]
         if item.get("check") in QUERY_CHECKS:
             clean["check"] = item["check"]
         if isinstance(item.get("reason"), str) and item["reason"] in REASONS:
