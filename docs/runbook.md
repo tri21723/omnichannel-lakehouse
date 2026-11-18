@@ -436,3 +436,55 @@ artifacts as `*.attemptN.json`. Results go to `lh.benchmark.res_*` / `ref_*`, ne
 - Disk retention: event logs and result tables are local evidence. Remove an experiment
   directory only after its report is committed, and never expire Gold snapshots pinned by
   `/runtime/benchmark/datasets/*.json` or the Gold/DP3/warehouse ledgers.
+
+## Airflow orchestration (Phase 5)
+
+Run only `core + batch + orch`. Airflow is also the Spark driver (ADR-0013).
+
+```sh
+make env-orch            # adds Airflow secrets/settings to .env once, never rotates them
+make build-orch          # builds the Spark image, then the Airflow image
+make up-orch             # up-batch, airflow-init (db migrate + pool), Airflow on 127.0.0.1:8081
+make smoke-orch          # health, DAG import errors, pool, Spark driver run from Airflow
+make test-dags           # DagBag/contract tests inside the Airflow image
+make e2e                 # orchestration fixture, backfill 2026-01-01..03 twice via Airflow
+make airflow-cli ARGS='dags list'
+make restart-orch
+```
+
+Login: user `admin`, password `AIRFLOW_ADMIN_PASSWORD` in `.env` (simple auth manager,
+local only). DAG/plugin code is bind-mounted read-only and reparsed automatically; changes
+under `spark/` still need `make build-orch` because job code is baked into the image.
+
+Daily chain: trigger or backfill `batch_daily` with conf `{"dataset_run_id": "<20 hex>"}`.
+It runs `dp1_bronze → dp2_silver → dp2_gold → dp3_features → dp3_return_labels →
+dp4_warehouse` for the same logical date. Per-job DAGs can be triggered alone.
+
+- **Backfill stays `queued`:** `batch_daily` is paused at creation. Unpause it
+  (`make airflow-cli ARGS='dags unpause batch_daily'`); its `end_date` is in the past and
+  `catchup=False`, so no automatic run is created. `make e2e` does this via the API.
+- **`Dag run with run_id 'batch_daily__…' not found` in a controller task:** a per-job DAG
+  already has a run for that logical date (for example a manual trigger); Airflow allows one
+  run per DAG and logical date. Delete that metadata-only run in the UI/API or reuse the
+  controller run ID, then clear the failed controller task.
+- **Later dates did not start after a failure:** intended. Controller tasks use
+  `depends_on_past=True` so Gold/DP3 never run on a dataset missing an earlier date. Fix the
+  failed date and rerun it (`airflow backfill create … --reprocess-behavior failed`).
+- **`spark_driver_busy` / exit 75:** another Spark driver (a `make` target or another task)
+  holds `/runtime/locks/spark-driver.lock`. Airflow tasks wait up to 5 minutes for the lock,
+  then fail and retry once after 2 minutes; for `make`, wait and rerun. Avoid long manual Spark
+  jobs while a backfill runs. Never delete the lock file while a driver is running.
+- **`airflow command error: invalid choice: 'sh'`:** the image entrypoint only treats `bash`
+  or `python` as shell commands; compose uses `bash`.
+- **`No module named 'airflow'` under `docker exec`:** the image needs
+  `PYTHONUSERBASE=/home/airflow/.local` when running as root (set in the Dockerfile).
+- **Deadlock with `parallelism=1`:** controller tasks are deferrable; if a controller task
+  sits in `running` while the child stays `queued`, check that the triggerer is healthy
+  (`/api/v2/monitor/health`).
+- **Memory:** Airflow `mem_limit` is 3 GiB (standalone ~1 GiB + one driver JVM). Keep other
+  profiles off; check with `docker stats`.
+- **Per-date DP3 must be incremental:** `dp3_* --as-of-date D --mode full` treats D as the whole
+  run and removes every other date of that run. The DAGs use `--mode incremental`; for a full
+  recompute use `--all-dates --mode full`.
+- **Warehouse window after a backfill:** the DAG passes `--no-regress`, so replaying older dates
+  skips instead of moving `warehouse.*` back in time; the newest date's run owns the window.
