@@ -392,6 +392,15 @@ query-sql: ## Run one sql/trino file, e.g. SQL=sql/trino/01_revenue_by_channel_d
 	$(PYTHON) docker/query/run_sql.py $(SQL) $(foreach p,$(PARAMS),--param $(p)) --url $(TRINO_URL)
 query-samples: ## Run all sql/trino samples for every dataset and check invariants (read-only)
 	$(PYTHON) docker/query/samples.py --url $(TRINO_URL)
+.PHONY: query-jdbc-check
+TRINO_JDBC_JAR := .local-data/query/trino-jdbc-484.jar
+TRINO_JDBC_JAR_URL := https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/484/trino-jdbc-484.jar
+query-jdbc-check: ## Connect like DBeaver with Trino JDBC 484 (needs Java 17+ on the host)
+	mkdir -p .local-data/query
+	test -f $(TRINO_JDBC_JAR) || curl -fsSL -o $(TRINO_JDBC_JAR) $(TRINO_JDBC_JAR_URL)
+	curl -fsSL $(TRINO_JDBC_JAR_URL).sha1 | sed 's|$$|  $(TRINO_JDBC_JAR)|' | sha1sum -c -
+	java -cp $(TRINO_JDBC_JAR) docker/query/JdbcCheck.java
+
 .PHONY: verify-query
 verify-query: ## Reconcile Trino with Spark (same SQL at ledger snapshots), ledgers and warehouse (needs up-batch + up-query)
 	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/query_parity/main.py
