@@ -16,3 +16,19 @@ jobs:
       - run: make setup
       - run: make check
       - run: make env config-core
+  dags:
+    runs-on: ubuntu-24.04
+    env:
+      AIRFLOW_HOME: ${{ github.workspace }}/.airflow-ci
+      AIRFLOW__CORE__DAGS_FOLDER: ${{ github.workspace }}/airflow/dags
+      AIRFLOW__CORE__PLUGINS_FOLDER: ${{ github.workspace }}/airflow/plugins
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: >-
+          pip install -r requirements-airflow-test.txt
+          -c https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.11.txt
+      - run: python -m pytest -q -p no:cacheprovider airflow/tests

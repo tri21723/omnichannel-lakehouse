@@ -1,0 +1,5 @@
+# DAG tests outside Docker (CI). Install with the official constraints:
+#   pip install -r requirements-airflow-test.txt \
+#     -c https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.11.txt
+apache-airflow==3.3.2
+pytest

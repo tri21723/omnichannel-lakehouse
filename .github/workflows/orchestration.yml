@@ -1,0 +1,25 @@
+name: Airflow orchestration e2e
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  orchestration-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-orch config-orch
+      - run: make build-generator build-orch
+      - run: make up-orch
+      - run: make test-dags
+      - run: sh docker/batch/ci_run.sh make smoke-orch
+      # Backfill 2026-01-01..03 twice through Airflow; the replay must not change ledgers.
+      - run: sh docker/batch/ci_run.sh make e2e
+      - run: make restart-orch
+      - run: sh docker/batch/ci_run.sh make smoke-orch
+      - if: always()
+        run: make down
