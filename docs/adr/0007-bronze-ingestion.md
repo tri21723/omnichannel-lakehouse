@@ -6,6 +6,10 @@ Status: accepted for implementation; runtime validation tracked in bronze-valida
   MERGE predicate, including run ID and source type, never by day alone.
 - `full` replaces the selected slice. `incremental` skips only a completed slice whose
   input fingerprint and current target content still match. It does not mean CDC.
+  For JDBC the source is always read (OLTP can change); since Phase 5 an incremental run
+  skips without writing when the snapshot evidence (per-table rows and stream SHA-256) equals
+  the completed slice, so daily replays do not cascade new pins downstream (ADR-0013). A
+  changed row order only causes a re-ingest, never a false skip.
 - JSONL goes to `<channel>_orders_raw`, except Walmart exports use
   `walmart_orders_export_raw`. JDBC owns `walmart_<entity>_raw` for Silver.
 - Raw UTF-8 lines exclude the physical LF/CRLF terminator. Blank and malformed JSON

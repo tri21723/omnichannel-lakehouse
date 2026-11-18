@@ -109,6 +109,18 @@ def snapshot(spark: Any, table: str) -> int | None:
     return int(row[0]) if row is not None and row[0] is not None else None
 
 
+def jdbc_source_unchanged(valid: bool, old_state: dict, evidence: dict) -> bool:
+    """True when a verified completed JDBC slice has exactly the same snapshot evidence.
+
+    Only ``tables`` (per-table ``{"rows", "sha256_stream"}``) is compared: the snapshot
+    fingerprint hashes an ephemeral PostgreSQL token and differs on every read. Any table
+    difference (including only row order) or missing evidence means re-ingest (ADR-0007).
+    """
+    previous = (old_state or {}).get("source_evidence") or {}
+    current = (evidence or {}).get("tables")
+    return bool(valid and current and previous.get("tables") == current)
+
+
 def verify_state(spark: Any, state: dict, args: Any, input_hash: str) -> bool:
     if state.get("status") != "completed" or state.get("input_hash") != input_hash:
         return False

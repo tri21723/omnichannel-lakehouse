@@ -95,6 +95,7 @@ REASONS = {
     "channel-outside-manifest",
     "staging-byte-limit",
     "catalog-not-found",
+    "source_unchanged",
 }
 
 

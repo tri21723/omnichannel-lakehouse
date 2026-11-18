@@ -18,6 +18,7 @@ from spark.lib.bronze import (
     audit,
     event,
     input_digest,
+    jdbc_source_unchanged,
     replace_slice,
     save_state,
     verify_state,
@@ -77,6 +78,22 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
             if args.mode == "incremental" and valid and args.source == "jsonl":
                 event("bronze_skipped", batch_id=batch)
                 return
+            if args.mode == "incremental" and valid and args.source == "jdbc":
+                # OLTP can change, so JDBC is always read. If the snapshot content evidence
+                # (per-table row count + stream SHA-256) equals the completed slice, nothing
+                # is written and downstream pins stay unchanged (ADR-0007). A different row
+                # order only makes the digest differ, which safely falls back to re-ingesting.
+                from spark.lib.bronze_jdbc import stage_jdbc
+
+                probe_root = Path(os.environ["BRONZE_STAGE_DIR"])
+                probe_root.mkdir(parents=True, exist_ok=True)
+                with tempfile.TemporaryDirectory(prefix="probe-", dir=probe_root) as probe:
+                    _files, evidence = stage_jdbc(
+                        spark, args, Path(probe), int(os.environ["BRONZE_STAGE_MAX_BYTES"])
+                    )
+                if jdbc_source_unchanged(valid, old, evidence):
+                    event("bronze_skipped", batch_id=batch, reason="source_unchanged")
+                    return
             attempt = uuid.uuid4().hex
             stage_root = Path(os.environ["BRONZE_STAGE_DIR"])
             stage_root.mkdir(parents=True, exist_ok=True)
