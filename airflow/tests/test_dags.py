@@ -32,7 +32,7 @@ def render(task, ds="2026-01-02", run=RUN):
 
 def test_dags_import_without_errors(dagbag):
     assert dagbag.import_errors == {}
-    assert set(dagbag.dag_ids) == JOB_DAGS | {"batch_daily"}
+    assert set(dagbag.dag_ids) == JOB_DAGS | {"batch_daily", "maintenance_iceberg"}
 
 
 def test_every_dag_follows_defaults(dagbag):
@@ -41,7 +41,8 @@ def test_every_dag_follows_defaults(dagbag):
         assert dag.max_active_runs == 1, dag_id
         assert dag.catchup is False, dag_id
         assert "omnichannel" in dag.tags, dag_id
-        assert dag.params.get_param("dataset_run_id").value == RUN
+        if dag_id != "maintenance_iceberg":  # not tied to one dataset run
+            assert dag.params.get_param("dataset_run_id").value == RUN
         for task in dag.tasks:
             assert task.owner == "data-platform", (dag_id, task.task_id)
             assert task.on_failure_callback, (dag_id, task.task_id)
@@ -133,3 +134,32 @@ def test_dataset_param_rejects_unsafe_values(dagbag):
     for bad in ("b1e64afaff0176de180", "'; rm -rf / #", "B1E64AFAFF0176DE180A"):
         with pytest.raises(ParamValidationError):
             param.resolve(bad)
+
+
+def test_last_stage_tasks_emit_layer_assets(dagbag):
+    expected = {
+        ("dp1_bronze", "bronze_walmart_jdbc"): "lh.bronze",
+        ("dp2_silver", "silver_lazada"): "lh.silver",
+        ("dp2_gold", "gold_verify"): "lh.gold.star_schema",
+        ("dp3_features", "features_verify"): "lh.gold.features",
+        ("dp3_return_labels", "labels_verify"): "lh.gold.labels",
+        ("dp4_warehouse", "warehouse_verify"): "sources.warehouse",
+    }
+    for (dag_id, task_id), name in expected.items():
+        outlets = dagbag.dags[dag_id].get_task(task_id).outlets
+        assert [a.name for a in outlets] == [name], (dag_id, task_id)
+    # Assets are informational: no DAG is scheduled on them.
+    for dag in dagbag.dags.values():
+        assert "Asset" not in type(dag.timetable).__name__
+
+
+def test_maintenance_dag_is_report_only_and_paused(dagbag):
+    dag = dagbag.dags["maintenance_iceberg"]
+    (task,) = dag.tasks
+    command = task.render_template(
+        task.bash_command, {"data_interval_end": __import__("datetime").datetime(2026, 11, 22)}
+    )
+    assert "maintenance/iceberg_report.py --as-of 2026-11-22T00:00:00" in command
+    assert task.pool == "spark_driver"
+    for forbidden in ("expire_snapshots", "remove_orphan_files", "rewrite_data_files"):
+        assert forbidden not in command

@@ -361,3 +361,8 @@ e2e: ## Backfill batch_daily via Airflow on the orchestration fixture twice; rep
 	$(MAKE) gen-sources GEN_ARGS='--config generators/fixtures/orchestration.yaml'
 	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) < docker/orch/e2e.py
 	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) --reprocess completed --expect-unchanged < docker/orch/e2e.py
+
+.PHONY: iceberg-report
+ICEBERG_AS_OF ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+iceberg-report: ## Dry-run Iceberg retention report (ADR-0014); never expires or deletes anything
+	$(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/maintenance/iceberg_report.py --as-of $(ICEBERG_AS_OF)
