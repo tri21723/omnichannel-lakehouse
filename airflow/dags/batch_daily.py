@@ -30,7 +30,9 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     is_paused_upon_creation=True,
-    default_args=default_args(retries=0),
+    # depends_on_past: a failed date blocks later dates instead of running them on
+    # incomplete upstream data (Gold/DP3 are cumulative over the dataset run).
+    default_args={**default_args(retries=0), "depends_on_past": True},
     params=dataset_params(),
     tags=["omnichannel", "batch", "controller"],
 ):

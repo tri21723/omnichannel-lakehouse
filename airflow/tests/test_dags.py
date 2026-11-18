@@ -37,7 +37,7 @@ def test_dags_import_without_errors(dagbag):
 
 def test_every_dag_follows_defaults(dagbag):
     for dag_id in dagbag.dag_ids:
-        dag = dagbag.get_dag(dag_id)
+        dag = dagbag.dags[dag_id]
         assert dag.max_active_runs == 1, dag_id
         assert dag.catchup is False, dag_id
         assert "omnichannel" in dag.tags, dag_id
@@ -49,7 +49,7 @@ def test_every_dag_follows_defaults(dagbag):
 
 def test_spark_tasks_use_pool_timeout_retries_and_lock(dagbag):
     for dag_id in JOB_DAGS:
-        dag = dagbag.get_dag(dag_id)
+        dag = dagbag.dags[dag_id]
         assert dag.schedule is None or str(dag.timetable.summary) in ("None", "")
         spark = [t for t in dag.tasks if hasattr(t, "bash_command")]
         assert spark, dag_id
@@ -64,7 +64,7 @@ def test_spark_tasks_use_pool_timeout_retries_and_lock(dagbag):
 
 
 def test_rendered_commands_match_job_cli(dagbag):
-    bronze = dagbag.get_dag("dp1_bronze")
+    bronze = dagbag.dags["dp1_bronze"]
     assert [t.task_id for t in bronze.topological_sort()] == [
         "wait_for_manifest",
         "bronze_walmart_jsonl",
@@ -79,28 +79,28 @@ def test_rendered_commands_match_job_cli(dagbag):
         f"dp1_bronze/main.py --run-id {RUN} --run-date 2026-01-02 --mode incremental "
         "--channel walmart --source jdbc"
     ) in jdbc
-    silver = render(dagbag.get_dag("dp2_silver").get_task("silver_shopee"))
+    silver = render(dagbag.dags["dp2_silver"].get_task("silver_shopee"))
     assert "--channel shopee --mode incremental --fail-on-reject" in silver
-    gold = render(dagbag.get_dag("dp2_gold").get_task("gold_publish"))
+    gold = render(dagbag.dags["dp2_gold"].get_task("gold_publish"))
     assert f"gold_main.py --run-id {RUN} --mode full" in gold
-    labels = render(dagbag.get_dag("dp3_return_labels").get_task("labels_publish"))
+    labels = render(dagbag.dags["dp3_return_labels"].get_task("labels_publish"))
     assert "--as-of-date 2026-01-02 --horizon-days 14 --mode full" in labels
-    export = render(dagbag.get_dag("dp4_warehouse").get_task("warehouse_export"))
+    export = render(dagbag.dags["dp4_warehouse"].get_task("warehouse_export"))
     assert "--run-date 2026-01-02 --mode full" in export
-    assert dagbag.get_dag("dp4_warehouse").get_task("warehouse_export").execution_timeout == (
+    assert dagbag.dags["dp4_warehouse"].get_task("warehouse_export").execution_timeout == (
         timedelta(minutes=45)
     )
 
 
 def test_manifest_sensor_does_not_hold_a_slot(dagbag):
-    sensor = dagbag.get_dag("dp1_bronze").get_task("wait_for_manifest")
+    sensor = dagbag.dags["dp1_bronze"].get_task("wait_for_manifest")
     assert sensor.mode == "reschedule"
     assert sensor.pool != "spark_driver"
     assert sensor.timeout == 1800
 
 
 def test_controller_chains_jobs_in_order_without_holding_slots(dagbag):
-    controller = dagbag.get_dag("batch_daily")
+    controller = dagbag.dags["batch_daily"]
     order = [t.trigger_dag_id for t in controller.topological_sort()]
     assert order == [
         "dp1_bronze",
@@ -112,6 +112,8 @@ def test_controller_chains_jobs_in_order_without_holding_slots(dagbag):
     ]
     for task in controller.tasks:
         assert task.deferrable and task.wait_for_completion and task.reset_dag_run
+        # A failed date must block later dates in a backfill.
+        assert task.depends_on_past
         assert task.pool != "spark_driver"
     assert controller.start_date.isoformat().startswith("2026-01-01")
     assert controller.end_date.isoformat().startswith("2026-01-03")
@@ -120,7 +122,7 @@ def test_controller_chains_jobs_in_order_without_holding_slots(dagbag):
 def test_dataset_param_rejects_unsafe_values(dagbag):
     from airflow.sdk.definitions.param import ParamValidationError
 
-    param = dagbag.get_dag("dp2_gold").params.get_param("dataset_run_id")
+    param = dagbag.dags["dp2_gold"].params.get_param("dataset_run_id")
     assert param.resolve(RUN) == RUN
     for bad in ("b1e64afaff0176de180", "'; rm -rf / #", "B1E64AFAFF0176DE180A"):
         with pytest.raises(ParamValidationError):
