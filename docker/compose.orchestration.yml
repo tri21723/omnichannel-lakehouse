@@ -36,6 +36,8 @@ x-airflow-env: &airflow-env
   SILVER_PII_KEY_VERSION: ${SILVER_PII_KEY_VERSION:-}
   OMNI_DATASET_RUN_ID: ${OMNI_DATASET_RUN_ID:-b1e64afaff0176de180a}
   AIRFLOW_ALERT_WEBHOOK_URL: ${AIRFLOW_ALERT_WEBHOOK_URL:-}
+  # Read-only Trino (profile query) used by the query_checks DAG.
+  TRINO_URL: ${TRINO_INTERNAL_URL:-http://trino:8080}
 
 services:
   airflow-init:

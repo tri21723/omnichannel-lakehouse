@@ -32,7 +32,7 @@ def render(task, ds="2026-01-02", run=RUN):
 
 def test_dags_import_without_errors(dagbag):
     assert dagbag.import_errors == {}
-    assert set(dagbag.dag_ids) == JOB_DAGS | {"batch_daily", "maintenance_iceberg"}
+    assert set(dagbag.dag_ids) == JOB_DAGS | {"batch_daily", "maintenance_iceberg", "query_checks"}
 
 
 def test_every_dag_follows_defaults(dagbag):
@@ -41,7 +41,7 @@ def test_every_dag_follows_defaults(dagbag):
         assert dag.max_active_runs == 1, dag_id
         assert dag.catchup is False, dag_id
         assert "omnichannel" in dag.tags, dag_id
-        if dag_id != "maintenance_iceberg":  # not tied to one dataset run
+        if dag_id not in ("maintenance_iceberg", "query_checks"):  # not tied to one run
             assert dag.params.get_param("dataset_run_id").value == RUN
         for task in dag.tasks:
             assert task.owner == "data-platform", (dag_id, task.task_id)
@@ -148,9 +148,18 @@ def test_last_stage_tasks_emit_layer_assets(dagbag):
     for (dag_id, task_id), name in expected.items():
         outlets = dagbag.dags[dag_id].get_task(task_id).outlets
         assert [a.name for a in outlets] == [name], (dag_id, task_id)
-    # Assets are informational: no DAG is scheduled on them.
-    for dag in dagbag.dags.values():
-        assert "Asset" not in type(dag.timetable).__name__
+    # Only the read-only query_checks DAG is scheduled on an asset.
+    for dag_id, dag in dagbag.dags.items():
+        asset_scheduled = "Asset" in type(dag.timetable).__name__
+        assert asset_scheduled == (dag_id == "query_checks"), dag_id
+
+
+def test_query_checks_is_read_only_and_data_aware(dagbag):
+    dag = dagbag.dags["query_checks"]
+    (task,) = dag.tasks
+    assert task.pool != "spark_driver"
+    assert task.python_callable.__name__ == "reconcile_warehouse_window"
+    assert task.execution_timeout.total_seconds() == 600
 
 
 def test_maintenance_dag_is_report_only_and_paused(dagbag):
