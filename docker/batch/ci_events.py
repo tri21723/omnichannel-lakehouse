@@ -60,6 +60,7 @@ EVENTS = {
     "benchmark_trial_finished",
     "benchmark_finished",
     "benchmark_verified",
+    "spark_driver_busy",
 }
 BENCHMARK_STATUSES = {"ok", "error", "timeout", "correctness_failed"}
 ERROR_TYPES = {

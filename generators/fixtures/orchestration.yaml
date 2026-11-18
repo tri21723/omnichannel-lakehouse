@@ -1,0 +1,14 @@
+# Phase 5 orchestration e2e fixture: small, distinct seed so Airflow ingests a fresh run end to end.
+seed: 505
+start_date: '2026-01-01'
+days: 3
+orders_per_day_per_channel: 20
+channels: [walmart, amazon, tiktok_shop, shopee, lazada]
+dup_rate: 0.04
+late_rate: 0.05
+late_max_minutes: 60
+skew_top_seller_share: 0.50
+schema_drift_at_day: 2
+burst_multiplier: 50
+return_rate: 0.10
+rows_per_file: 10

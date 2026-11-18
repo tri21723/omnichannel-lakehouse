@@ -12,7 +12,7 @@ def get_spark(catalog_suffix="", app_name="lakehouse-smoke", extra_conf=None):
     warehouse = json.loads(Path("/runtime/catalog.json").read_text())["warehouse_name"]
     settings = {
         "spark.master": os.environ["SPARK_MASTER_URL"],
-        "spark.driver.host": "omnichannel-spark-driver",
+        "spark.driver.host": os.environ.get("SPARK_DRIVER_HOST", "omnichannel-spark-driver"),
         "spark.driver.bindAddress": "0.0.0.0",
         "spark.executor.memory": "1g",
         "spark.cores.max": "2",
