@@ -58,7 +58,10 @@ def test_spark_tasks_use_pool_timeout_retries_and_lock(dagbag):
             assert task.retries >= 1 and task.retry_delay == timedelta(minutes=2)
             assert timedelta(0) < task.execution_timeout <= timedelta(minutes=45)
             command = render(task)
-            assert "python -m spark.lib.driver_lock -- /opt/spark/bin/spark-submit" in command
+            assert (
+                "python -m spark.lib.driver_lock --wait 300 -- /opt/spark/bin/spark-submit"
+                in command
+            )
             assert "ci_events.py" in command and 'exit "$rc"' in command
             assert "{{" not in command
 

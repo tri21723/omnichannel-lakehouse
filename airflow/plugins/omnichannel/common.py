@@ -25,6 +25,8 @@ START_DATE = datetime(2026, 1, 1, tzinfo=UTC)
 SPARK_SUBMIT = "/opt/spark/bin/spark-submit"
 JOBS_DIR = "/app/spark/jobs"
 EVENTS_SCRIPT = "/app/docker/batch/ci_events.py"
+# A manual `make` job may hold the driver lock; tasks wait this long before exit 75.
+LOCK_WAIT_SECONDS = 300
 RUN_ID = "{{ params.dataset_run_id }}"
 DS = "{{ ds }}"
 
@@ -113,7 +115,8 @@ def spark_command(script: str, args: list[str]) -> str:
         "set -uo pipefail\n"
         'log="$(mktemp)"\n'
         "trap 'rm -f \"$log\"' EXIT\n"
-        f"python -m spark.lib.driver_lock -- {SPARK_SUBMIT} {JOBS_DIR}/{script} {rendered}"
+        f"python -m spark.lib.driver_lock --wait {LOCK_WAIT_SECONDS} -- "
+        f"{SPARK_SUBMIT} {JOBS_DIR}/{script} {rendered}"
         ' 2>&1 | tee "$log"\n'
         "rc=${PIPESTATUS[0]}\n"
         f'python {EVENTS_SCRIPT} "$log" | tail -n 1\n'
