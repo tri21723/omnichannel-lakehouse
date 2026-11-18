@@ -64,6 +64,11 @@ EVENTS = {
     "iceberg_verified",
     "e2e_backfill_created",
     "e2e_summary",
+    "query_smoke_finished",
+    "query_samples_finished",
+    "query_parity_prepared",
+    "query_verify_finished",
+    "query_checks_reconciled",
 }
 BENCHMARK_STATUSES = {"ok", "error", "timeout", "correctness_failed"}
 ERROR_TYPES = {
@@ -192,6 +197,11 @@ def safe_events(lines):
             "jsonl_rows",
             "jdbc_orders",
             "skipped",
+            "ok",
+            "checks",
+            "failures",
+            "files",
+            "groups",
         ):
             if type(item.get(key)) in (int, bool):
                 clean[key] = item[key]

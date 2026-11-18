@@ -153,3 +153,21 @@ def test_json_after_log_prefix_is_read_and_still_allowlisted():
         "2026-11-18 08:00:02,000 INFO not json {",
     ]
     assert list(module.safe_events(lines)) == [{"event": "warehouse_exported", "skipped": True}]
+
+
+def test_query_events_keep_counts_only():
+    lines = [
+        json.dumps(
+            {
+                "event": "query_verify_finished",
+                "checks": 38,
+                "ok": True,
+                "gold_publication_id": "x" * 64,
+                "details": ["s3://secret"],
+            }
+        ),
+        json.dumps({"event": "query_smoke_check", "sql": "SELECT email FROM customers"}),
+    ]
+    assert list(module.safe_events(lines)) == [
+        {"event": "query_verify_finished", "checks": 38, "ok": True}
+    ]

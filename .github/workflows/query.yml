@@ -1,0 +1,32 @@
+name: Trino query layer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  query:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-silver env-query config-batch config-query
+      - run: make build-generator build-batch up-batch
+      # Small fixture through Silver, Gold, DP3 and the warehouse so every catalog has data.
+      - run: sh docker/batch/ci_run.sh make prepare-silver-fixture
+      - run: sh docker/batch/ci_run.sh make integration-silver
+      - run: sh docker/batch/ci_run.sh make smoke-gold
+      - run: sh docker/batch/ci_run.sh make smoke-features
+      - run: sh docker/batch/ci_run.sh make smoke-labels
+      - run: sh docker/batch/ci_run.sh make smoke-warehouse
+      - run: make up-query
+      # Read-only checks: denied writes, PII masks, samples, Spark/ledger/warehouse parity.
+      - run: sh docker/batch/ci_run.sh make smoke-query
+      - run: sh docker/batch/ci_run.sh make query-samples
+      - run: sh docker/batch/ci_run.sh make verify-query
+      - run: make restart-query
+      - run: sh docker/batch/ci_run.sh make smoke-query
+      - if: always()
+        run: make down
