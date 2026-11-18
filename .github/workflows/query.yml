@@ -23,10 +23,10 @@ jobs:
       - run: sh docker/batch/ci_run.sh make smoke-warehouse
       - run: make up-query
       # Read-only checks: denied writes, PII masks, samples, Spark/ledger/warehouse parity.
-      - run: sh docker/batch/ci_run.sh make smoke-query
+      - run: sh docker/batch/ci_run.sh make smoke-query QUERY_SMOKE_MIN_DATASETS=1
       - run: sh docker/batch/ci_run.sh make query-samples
       - run: sh docker/batch/ci_run.sh make verify-query
       - run: make restart-query
-      - run: sh docker/batch/ci_run.sh make smoke-query
+      - run: sh docker/batch/ci_run.sh make smoke-query QUERY_SMOKE_MIN_DATASETS=1
       - if: always()
         run: make down

@@ -32,6 +32,10 @@ DENIED = [
     "SELECT count(*) FROM iceberg.bronze.amazon_orders_raw",
     "SELECT count(*) FROM iceberg.benchmark.items_s15k_skew80",
 ]
+# Benchmark tables exist only where the skew benchmark ran (not on the CI fixture); a hidden
+# object that does not exist cannot leak, so "not found" also passes for these probes only.
+ABSENT_OK = {"SELECT count(*) FROM iceberg.benchmark.items_s15k_skew80"}
+NOT_FOUND = {"TABLE_NOT_FOUND", "SCHEMA_NOT_FOUND"}
 
 
 def check(name, ok, **details):
@@ -46,6 +50,12 @@ def scalar(sql, url):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", default=DEFAULT_URL)
+    parser.add_argument(
+        "--min-datasets",
+        type=int,
+        default=1,
+        help="datasets expected in Gold and warehouse (3 locally, 1 on the CI fixture)",
+    )
     args = parser.parse_args(argv)
     url, results = args.url, []
 
@@ -66,13 +76,13 @@ def main(argv=None) -> int:
     counts = run(
         "SELECT _dataset_run_id, count(*) FROM iceberg.gold.fact_orders GROUP BY 1 ORDER BY 1", url
     ).rows
-    results.append(check("iceberg_gold_counts", len(counts) >= 3, counts=counts))
+    results.append(check("iceberg_gold_counts", len(counts) >= args.min_datasets, counts=counts))
     wh = run(
         "SELECT _dataset_run_id, count(*) FROM postgresql.warehouse.fact_orders"
         " GROUP BY 1 ORDER BY 1",
         url,
     ).rows
-    results.append(check("warehouse_counts", len(wh) >= 3, counts=wh))
+    results.append(check("warehouse_counts", len(wh) >= args.min_datasets, counts=wh))
     snaps = scalar('SELECT count(*) FROM iceberg.gold."fact_orders$snapshots"', url)
     results.append(check("iceberg_metadata_table", snaps > 0, snapshots=snaps))
 
@@ -92,7 +102,8 @@ def main(argv=None) -> int:
         try:
             run(sql, url)
         except TrinoQueryError as exc:
-            results.append(check("denied", exc.access_denied, sql=sql, error=exc.error_name))
+            ok = exc.access_denied or (sql in ABSENT_OK and exc.error_name in NOT_FOUND)
+            results.append(check("denied", ok, sql=sql, error=exc.error_name))
         else:
             results.append(check("denied", False, sql=sql, error="NOT DENIED"))
 

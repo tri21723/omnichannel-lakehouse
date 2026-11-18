@@ -166,8 +166,19 @@ def test_query_events_keep_counts_only():
                 "details": ["s3://secret"],
             }
         ),
-        json.dumps({"event": "query_smoke_check", "sql": "SELECT email FROM customers"}),
+        json.dumps(
+            {
+                "event": "query_smoke_check",
+                "check": "denied",
+                "ok": False,
+                "sql": "SELECT email FROM customers",
+                "error": "NOT DENIED",
+            }
+        ),
+        json.dumps({"event": "query_verify_check", "check": "s3://secret", "ok": True}),
     ]
     assert list(module.safe_events(lines)) == [
-        {"event": "query_verify_finished", "checks": 38, "ok": True}
+        {"event": "query_verify_finished", "checks": 38, "ok": True},
+        {"event": "query_smoke_check", "check": "denied", "ok": False},
+        {"event": "query_verify_check", "ok": True},
     ]

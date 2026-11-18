@@ -64,7 +64,9 @@ EVENTS = {
     "iceberg_verified",
     "e2e_backfill_created",
     "e2e_summary",
+    "query_smoke_check",
     "query_smoke_finished",
+    "query_verify_check",
     "query_samples_finished",
     "query_parity_prepared",
     "query_verify_finished",
@@ -84,6 +86,21 @@ ERROR_TYPES = {
     "ConnectionError",
 }
 
+# Fixed check names of docker/query/smoke.py and verify.py (no SQL, values or identifiers).
+QUERY_CHECKS = {
+    "catalogs",
+    "iceberg_schemas",
+    "postgresql_schemas",
+    "iceberg_gold_counts",
+    "warehouse_counts",
+    "iceberg_metadata_table",
+    "pii_masked",
+    "denied",
+    "ledger_rows",
+    "spark_parity",
+    "warehouse_three_way",
+    "time_travel",
+}
 REASONS = {
     "source_fingerprint_mismatch",
     "source_row_count_mismatch",
@@ -187,6 +204,8 @@ def safe_events(lines):
                             and type(v) is int
                         }
                 clean[name] = values
+        if item.get("check") in QUERY_CHECKS:
+            clean["check"] = item["check"]
         if isinstance(item.get("reason"), str) and item["reason"] in REASONS:
             clean["reason"] = item["reason"]
         for key in (

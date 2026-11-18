@@ -529,3 +529,8 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   runner):** Maven Central giới hạn tần suất theo IP dùng chung. Mọi lần tải từ Maven dùng
   `--retry 8 --retry-max-time 300` (tôn trọng `Retry-After`) và kiểm checksum; nếu vẫn lỗi sau
   ~5 phút, chạy lại workflow sau. Lần đầu gặp: run `Trino query layer` 44357062344 (2026-11-19).
+- **`smoke-query` trên CI chỉ có một dataset:** `QUERY_SMOKE_MIN_DATASETS` mặc định 3 (local giữ
+  3 dataset), workflow `query.yml` truyền 1. Probe `iceberg.benchmark` chấp nhận
+  `TABLE_NOT_FOUND`/`SCHEMA_NOT_FOUND` vì bảng benchmark chỉ có ở nơi đã chạy benchmark; probe
+  Bronze vẫn phải bị từ chối quyền. Log CI chỉ in tên kiểm tra và `ok` (`query_smoke_check`,
+  `query_verify_check`).

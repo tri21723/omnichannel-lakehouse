@@ -381,8 +381,10 @@ up-query: env-query ## Start PostgreSQL, MinIO, Lakekeeper and read-only Trino o
 	$(QUERY) up -d --wait lakekeeper
 	$(MAKE) init-lakehouse
 	$(QUERY) up -d --wait trino
+# Local keeps three coexisting datasets (CLAUDE.md); the CI fixture has one.
+QUERY_SMOKE_MIN_DATASETS ?= 3
 smoke-query: ## Catalogs, schemas, counts, PII masking and denied writes against Trino
-	$(PYTHON) docker/query/smoke.py --url $(TRINO_URL)
+	$(PYTHON) docker/query/smoke.py --url $(TRINO_URL) --min-datasets $(QUERY_SMOKE_MIN_DATASETS)
 restart-query: ## Restart Trino; configuration is mounted read-only
 	$(QUERY) restart trino
 	$(QUERY) up -d --wait trino
