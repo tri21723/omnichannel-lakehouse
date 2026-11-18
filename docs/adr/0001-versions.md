@@ -64,3 +64,19 @@ Iceberg runtime and AWS bundle 1.9.2, JDBC 42.7.5, Lakekeeper v0.9.3.
 These are new pins; core versions remain unchanged. Actual runtime evidence is
 recorded separately in lakehouse-validation.md. Maven Iceberg JARs verify SHA-512
 against Maven Central at build time; OS packages remain distribution-managed.
+
+## Phase 5 selected pins (2026-11-18)
+
+See ADR-0013: Apache Airflow **3.3.2** (`apache/airflow:3.3.2-python3.11`), installed
+packages constrained by `constraints-3.3.2/constraints-3.11.txt`. Airflow 2.x reached EOL on
+2026-04-22; 3.4.0 (released 2026-11-06) was considered too new, so the last patch of the
+previous minor line is used. The Airflow image adds Java 17 and PySpark 3.5.5 (outside the
+Airflow constraints, `py4j` only dependency) and copies the Iceberg 1.9.2 / PostgreSQL JDBC
+42.7.5 jars from the pinned Spark image so driver and executors load identical jars.
+Python 3.11 matches the Spark workers (3.11.11). No existing pin or port was changed.
+
+Sources checked (2026-11-18):
+- [Airflow supported versions](https://airflow.apache.org/docs/apache-airflow/stable/installation/supported-versions.html)
+- [apache-airflow on PyPI](https://pypi.org/project/apache-airflow/3.3.2/) (3.3.2 uploaded 2026-09-17)
+- [Constraints 3.3.2 / Python 3.11](https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.11.txt)
+- [Simple auth manager](https://airflow.apache.org/docs/apache-airflow/3.3.2/core-concepts/auth-manager/simple/index.html)
