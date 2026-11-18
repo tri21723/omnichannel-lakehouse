@@ -98,12 +98,19 @@ REASONS = {
 }
 
 
-def safe_events(lines):
-    for line in lines:
+def _json_object(line):
+    """Parse a JSON line, or the JSON object after a log prefix such as `<time> INFO `."""
+    for candidate in (line, line[line.find("{") :] if "{" in line else ""):
         try:
-            item = json.loads(line)
+            return json.loads(candidate)
         except ValueError:
             continue
+    return None
+
+
+def safe_events(lines):
+    for line in lines:
+        item = _json_object(line)
         if not isinstance(item, dict) or not isinstance(item.get("event"), str):
             continue
         if item["event"] not in EVENTS:

@@ -143,3 +143,13 @@ def test_e2e_summary_keeps_counts_only():
     assert list(module.safe_events([line])) == [
         {"event": "e2e_summary", "backfill_id": 3, "controller_runs": 3}
     ]
+
+
+def test_json_after_log_prefix_is_read_and_still_allowlisted():
+    lines = [
+        '2026-11-18 08:00:00,000 INFO {"event": "warehouse_exported", "skipped": true,'
+        ' "password": "x"}',
+        '2026-11-18 08:00:01,000 INFO {"event": "private_event"}',
+        "2026-11-18 08:00:02,000 INFO not json {",
+    ]
+    assert list(module.safe_events(lines)) == [{"event": "warehouse_exported", "skipped": True}]
