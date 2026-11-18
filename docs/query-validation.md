@@ -96,3 +96,58 @@ snapshots are still present, the current snapshot `2146564618510487487` equals t
 `verify-gold` passes for all three datasets and all four ledger hashes equal the P6-01 baseline.
 Fix: `iceberg.security=read_only` plus 36500d minimum retention for snapshot/orphan procedures;
 after the fix both procedures are denied and no further metadata version was written.
+
+## P6-05 — Sample queries and runner
+
+- `sql/trino/01…08`: revenue per channel/day, top sellers (skew), return rate per
+  category/currency, federated Gold ⋈ `walmart.orders`, warehouse vs Iceberg window, time travel,
+  snapshot metadata, label maturity. Lint: `sql/trino/.sqlfluff` (dialect `trino`, placeholder
+  templater), run from that directory by `make lint`.
+- `docker/query/run_sql.py` (`make query-sql`) renders `:name` parameters as typed literals
+  (`spark/lib/sql_params.py`); unsafe values are rejected (unit tests).
+- `make query-samples`: 8 files × 3 datasets = 24 runs, all invariants pass (federated orders
+  matched 3,000/3,000 with equal amounts on the default dataset; warehouse vs Iceberg diff 0.00;
+  version and timestamp time travel equal; immature labels have `is_returned` NULL; hot seller
+  = 50.0% of each channel). Review fixed queries 03 and 08, which summed money across currencies.
+
+## P6-06 — Reconciliation (`make verify-query`)
+
+The Spark job `spark/jobs/query_parity` runs the same SQL files at the ledger snapshots (Spark
+temp views, `walmart.orders` via JDBC) and `docker/query/verify.py` runs them on Trino with
+`FOR VERSION AS OF`. 38 checks, all pass, two full runs produced an identical `parity.json` and no
+ledger changed:
+
+| Check | Count | Result |
+|---|---|---|
+| Row count at ledger snapshot = ledger `content.rows` (Gold 8 + DP3 3 tables) | 11 | equal |
+| Trino = Spark for files 01–04, 08 per dataset (two-way multiset) | 15 | equal |
+| Warehouse money/rows: Iceberg slice (ADR-0011 rules) = `postgresql.warehouse` = ledger | 9 | equal (375 / 15,000 / 300 item rows; 5 channel/currency groups each) |
+| Time travel at the older Gold publication `332aa290…` | 3 | e2e dataset 0 → 300 orders; other datasets unchanged |
+
+## P6-07 — DBeaver / JDBC
+
+`make query-jdbc-check` (Trino JDBC 484, SHA-1 verified) from the host: driver/server 484,
+per-dataset counts 375 / 300 / 15,000, `email` = `[redacted]`, prepared statement 300, DELETE
+denied. Template and walkthrough: [dbeaver.md](dbeaver.md). No DBeaver GUI screenshot yet.
+
+## P6-08 — Operations
+
+- Lakekeeper stopped: Iceberg queries fail with `ICEBERG_CATALOG_ERROR`, PostgreSQL queries keep
+  working; after Lakekeeper is healthy again Iceberg works without restarting Trino (once a single
+  query right after start still failed; a second measurement recovered at 0 s).
+- MinIO restarted: both catalogs work afterwards.
+- Wrong S3 secret (temporary container env): `ICEBERG_INVALID_METADATA`, PostgreSQL still works,
+  the secret value appears neither in the error nor in the Trino log; restored config passes
+  `smoke-query` 20/20.
+- Memory: query stack alone ≈ 2.2 GiB; during `verify-query` (Spark + Trino) peaks sum to
+  4.8 GiB (Trino 1.75 GiB); all profiles idle ≈ 4.0 GiB used, 5.3 GiB host available. Running
+  everything is possible for light work, but the summed `mem_limit` (~13 GiB) exceeds the host.
+- Query during an Airflow publish (`dp3_return_labels` for the e2e dataset, new date 2026-01-10):
+  `latest` changed from 900 to 1,200 labels while the pinned snapshot stayed at 900. This publish
+  changed only the DP3 ledger (`b2d6892e…`); `verify-labels` and `verify-query` pass afterwards.
+
+## P6-09 — `query_checks` DAG
+
+Asset-scheduled on `sources.warehouse` (emitted by `dp4_warehouse` verify), paused at creation.
+A manual asset event triggered it: `query_checks_reconciled` with 3 runs, 15 groups, 0 problems.
+The shared Trino client now lives in `spark/lib/trino_http.py` (also used by host tools).

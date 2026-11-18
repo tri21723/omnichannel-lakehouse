@@ -64,7 +64,17 @@ The default `tpch`, `tpcds`, `memory` and `jmx` catalogs of the image are not sh
 - Money stays DECIMAL(18,2) per channel currency (USD, VND); never sum across currencies or cast
   to double. Timestamps are UTC.
 
-## 5. Consequences
+## 5. Verification
+
+- `make smoke-query`: catalogs, schemas, PII masks and denied writes (negative tests).
+- `make query-samples`: every `sql/trino` file for every dataset with business invariants.
+- `make verify-query`: the same SQL files on Spark (ledger snapshots) and Trino
+  (`FOR VERSION AS OF`), ledger row counts, three-way warehouse money (Iceberg slice = mirror =
+  ledger) and time travel across Gold publications.
+- Airflow `query_checks` (asset-scheduled on `sources.warehouse`, paused at creation) re-checks
+  the warehouse window against Iceberg after exports.
+
+## 6. Consequences
 
 - No new service outside the architecture; ports and existing pins unchanged.
 - Changing access rules requires updating `rules.json` and the negative tests together.
