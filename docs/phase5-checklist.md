@@ -186,7 +186,8 @@ giữ `parallelism=1` nên không cần ngoại lệ AGENTS. **Commit:** `da2181
 - [x] Kiểm chứng không deadlock với `parallelism` đã chốt (test thực tế + ghi lại).
 - [x] Downstream chỉ chạy khi upstream thành công cho đúng ngày; lỗi giữa chuỗi dừng chuỗi,
   không publish dở dang; rerun từ task lỗi hoạt động.
-- [ ] (Tùy chọn theo ADR) Asset/Dataset đánh dấu publication — không làm; lineage để Phase 9.
+- [x] (Tùy chọn theo ADR) Asset theo tầng trên task publish/verify cuối, chỉ để quan sát trong UI;
+  lineage đầy đủ để Phase 9.
 
 **Đạt khi:** trigger `batch_daily` từ UI cho một ngày chạy xanh toàn chuỗi trên small fixture.
 **Bằng chứng:** backfill 3 ngày xanh; deferrable không deadlock với `parallelism=1`; `depends_on_past`.
@@ -206,8 +207,8 @@ giữ `parallelism=1` nên không cần ngoại lệ AGENTS. **Commit:** `da2181
   có kiểm soát; ghi lại hành vi.
 - [x] Bằng chứng: thời lượng mỗi lượt/ngày, XCom đã lọc, hash ledger; không commit log thô, secret,
   dữ liệu.
-- [ ] Ảnh Graph/Gantt: chưa có — UI cần đăng nhập; việc tắt xác thực để chụp tự động bị chặn và
-  không làm. Người dùng chụp tại http://localhost:8081 → `batch_daily`.
+- [x] Ảnh Graph/Gantt: `docs/images/phase5/` (Chromium headless đăng nhập qua form, không tắt xác
+  thực).
 
 **Đạt khi:** DoD plan: trigger UI xanh toàn chuỗi; backfill 3 ngày chạy lại 2 lần cùng kết quả.
 **Bằng chứng:** lượt D: 3/3 ngày, mọi bước skip, hash 4 ledger không đổi; khôi phục lock/restart/manifest;
@@ -215,16 +216,18 @@ giữ `parallelism=1` nên không cần ngoại lệ AGENTS. **Commit:** `da2181
 
 ### P5-09 — `maintenance_iceberg` (chỉ báo cáo, tùy chọn)
 
-- [ ] DAG hằng tuần, mặc định dry-run: liệt kê snapshot/file ứng viên expire/compaction cho
+- [x] DAG hằng tuần, mặc định dry-run: liệt kê snapshot/file ứng viên expire/compaction cho
   `bronze/silver/gold/benchmark`, **loại trừ** mọi snapshot được pin trong ledger
   Bronze/Silver/Gold/DP3/warehouse và `/runtime/benchmark/datasets/*.json`.
-- [ ] Xuất báo cáo (số snapshot, file nhỏ, dung lượng ước tính); không gọi `expire_snapshots`,
+- [x] Xuất báo cáo (số snapshot, file nhỏ, dung lượng ước tính); không gọi `expire_snapshots`,
   `remove_orphan_files` hay `rewrite_data_files` thật.
-- [ ] Bật thao tác thật chỉ khi có ADR retention riêng và người dùng đồng ý rõ ràng.
+- [x] Bật thao tác thật chỉ khi có ADR retention riêng và người dùng đồng ý rõ ràng — ADR-0014 ghi
+  rõ điều kiện; thao tác thật vẫn tắt.
 
 **Đạt khi:** báo cáo dry-run chạy được và test chứng minh snapshot pin không nằm trong danh sách.
-**Trạng thái:** hoãn (tùy chọn). Cần ADR retention snapshot trước; chưa có DAG nào xóa/expire dữ liệu.
-**Commit gợi ý:** `feat(airflow): add dry-run Iceberg maintenance report`.
+**Bằng chứng:** [ADR-0014](adr/0014-iceberg-snapshot-retention.md); `make iceberg-report` và run Airflow
+`scheduled__2026-11-15` thành công; retention 1 ngày: 289 ứng viên, 0 trùng 1.382 snapshot pin;
+unit test chọn ứng viên/pin, test DAG chặn lệnh xóa.
 
 ### P5-10 — CI, tài liệu và bàn giao
 

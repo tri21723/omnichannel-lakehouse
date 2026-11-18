@@ -109,4 +109,6 @@
   stay in `.env`, the UI is loopback-only, and task output passes through the event allowlist.
 - Resource budget: Airflow `mem_limit` 3 GiB (standalone + one driver JVM); with core + batch
   limits (~7.5 GiB) the total stays within the ~11.7 GiB host. Other profiles stay off.
+- Layer assets on the last publish/verify task give data-aware visibility in the UI only;
+  `maintenance_iceberg` is a weekly dry-run report (ADR-0014), paused at creation.
 - Lineage to DataHub (O4), CDC DAG and Iceberg maintenance with real deletion are later work.

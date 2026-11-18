@@ -147,8 +147,11 @@ See [skew benchmark](benchmarks/skew.md), [ADR-0012](adr/0012-skew-benchmark.md)
   2026-01-01..03 and replayed; the existing datasets still verify and reconcile.
 - Fix found by orchestration: pinned older Gold publications are read from their archive, so
   warehouse reconciliation keeps working after another dataset publishes Gold.
-- Deferred: `maintenance_iceberg` (needs a snapshot retention ADR), DataHub lineage (Phase 9),
-  `dp1_cdc` (Phase 8). Hosted runs of the new workflows are not claimed.
+- Layer assets for UI visibility; `maintenance_iceberg` weekly dry-run retention report
+  ([ADR-0014](adr/0014-iceberg-snapshot-retention.md)) that excludes pinned snapshots and never
+  deletes; Graph/Gantt screenshots in `docs/images/phase5/`.
+- Deferred: real snapshot expiry/compaction, DataHub lineage (Phase 9), `dp1_cdc` (Phase 8).
+  Hosted runs of the new workflows are not claimed.
 
 See [orchestration validation](orchestration-validation.md), [checklist](phase5-checklist.md)
 and [Phase 6 handoff](phase6-handoff.md).

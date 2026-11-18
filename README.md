@@ -174,8 +174,11 @@ make test-dags
 make e2e                # backfill batch_daily 2026-01-01..03 hai lần qua Airflow
 ```
 
+![batch_daily graph](docs/images/phase5/batch_daily-graph.png)
+
 Mỗi job có một DAG cùng tên (`dp1_bronze` … `dp4_warehouse`); `batch_daily` gọi lần lượt cho cùng
-ngày logic. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
+ngày logic. `maintenance_iceberg` chỉ báo cáo snapshot có thể dọn (không xóa gì, ADR-0014);
+chạy tay bằng `make iceberg-report`. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
 Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
 [kiểm chứng](docs/orchestration-validation.md).
 

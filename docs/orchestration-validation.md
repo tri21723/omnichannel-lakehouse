@@ -118,7 +118,43 @@ Recovery checks:
 - All datasets: `verify-gold`, `verify-features`, `verify-labels`, `verify-warehouse`,
   `reconcile-warehouse` (3 runs), `test-review-regressions` (22 cases) pass.
 - `make smoke-orch`, `make test-dags` (7 tests), `make check` (lint + unit tests) pass.
-- Not produced: Graph/Gantt screenshots (the UI requires a login; open
-  http://localhost:8081 → `batch_daily` to view them). Hosted runs of `ci.yml` (dags job) and
-  `orchestration.yml` are not claimed; the DagBag job was reproduced in a clean
-  `python:3.11.11-slim-bookworm` container with the 3.3.2 constraints (7 passed).
+- Hosted runs of `ci.yml` (dags job) and `orchestration.yml` are not claimed; the DagBag job
+  was reproduced in a clean `python:3.11.11-slim-bookworm` container with the 3.3.2
+  constraints.
+
+## Remaining Phase 5 items (completed after the first close)
+
+### UI evidence
+
+Captured with a headless Chromium (Playwright in a throwaway venv) that logs in through the
+normal login form; authentication was not disabled. Pass D runs for 2026-01-03:
+
+| View | File |
+|---|---|
+| `batch_daily` graph (6 chained triggers, all success) | [batch_daily-graph.png](images/phase5/batch_daily-graph.png) |
+| `batch_daily` Gantt (all tries over time; Silver is the longest step) | [batch_daily-gantt.png](images/phase5/batch_daily-gantt.png) |
+| `dp1_bronze` graph (sensor + 6 Bronze tasks) | [dp1_bronze-graph.png](images/phase5/dp1_bronze-graph.png) |
+| `dp2_silver` Gantt | [dp2_silver-gantt.png](images/phase5/dp2_silver-gantt.png) |
+
+![batch_daily graph](images/phase5/batch_daily-graph.png)
+
+### Assets
+
+The last publish/verify task of each per-job DAG emits a layer asset (`lh.bronze`,
+`lh.silver`, `lh.gold.star_schema`, `lh.gold.features`, `lh.gold.labels`,
+`sources.warehouse`). They are informational (UI "Assets" tab); no DAG is scheduled on them.
+A `dp2_gold` run recorded an event for `iceberg://lakekeeper/lh/gold/star_schema` from
+`gold_verify`. `make test-dags`: 9 passed (asset and maintenance contracts included).
+
+### `maintenance_iceberg` (ADR-0014, dry run)
+
+- `make iceberg-report`: 142 tables in `bronze/silver/gold/benchmark`, 1,973 snapshots, 1,382
+  pinned snapshot IDs from 0 unreadable pin sources, 1,653 small files (< 8 MiB), 0 expiry
+  candidates with the default 7-day retention (the project is younger than 7 days).
+- With `--retention-days 1` (still report only): 289 candidates, **0 overlap with pinned
+  snapshots**; e.g. `lh.bronze.walmart_orders_raw` 81 snapshots, 41 pinned, 33 candidates.
+- Airflow: unpausing `maintenance_iceberg` ran `scheduled__2026-11-15` to success and wrote
+  `/runtime/maintenance/iceberg-report-2026-11-15.json`; the DAG was paused again afterwards.
+- No `expire_snapshots`, `remove_orphan_files` or `rewrite_data_files` call exists in the code
+  (asserted by the DAG test for the rendered command).
+

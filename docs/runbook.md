@@ -488,3 +488,9 @@ dp4_warehouse` for the same logical date. Per-job DAGs can be triggered alone.
   recompute use `--all-dates --mode full`.
 - **Warehouse window after a backfill:** the DAG passes `--no-regress`, so replaying older dates
   skips instead of moving `warehouse.*` back in time; the newest date's run owns the window.
+- **Iceberg maintenance (dry run):** `make iceberg-report` or unpause `maintenance_iceberg`
+  writes `/runtime/maintenance/iceberg-report-<date>.json`. It lists candidates only; pinned
+  snapshots are excluded and nothing is expired or deleted (ADR-0014). If
+  `unreadable_pin_sources` is not empty, fix that JSON before any future real expiry.
+- **Assets tab:** layer assets update when the last task of a per-job DAG succeeds (published or
+  verified-identical skip); they do not trigger other DAGs.
