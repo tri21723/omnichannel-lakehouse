@@ -167,7 +167,8 @@ and [Phase 6 handoff](phase6-handoff.md).
 - `sql/trino` samples (incl. federated and time travel) with a typed-parameter runner;
   `make verify-query` proves Trino = Spark on the same SQL at ledger snapshots, ledger row counts,
   Iceberg = warehouse = ledger money, and time travel. DBeaver template + JDBC check; read-only
-  asset-triggered `query_checks` DAG; manual workflow `query.yml` (hosted run not claimed).
+  asset-triggered `query_checks` DAG; manual workflow `query.yml` green on GitHub
+  ([run 44374160331](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44374160331)).
 
 See [query validation](query-validation.md), [checklist](phase6-checklist.md),
 [DBeaver](dbeaver.md) and [Phase 7 handoff](phase7-handoff.md).

@@ -15,8 +15,10 @@ Lịch sử: [Phase 6](docs/phase6-checklist.md), [kiểm chứng query](docs/qu
 
 - Phase 6 đóng ở `v0.6-query`; hosted `Scaffold checks` xanh trên `a11d318`
   ([run 44355559275](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44355559275)).
-  Việc mang sang (tùy chọn): chạy thủ công `Trino query layer`, `Airflow orchestration e2e`,
-  `Skew benchmark smoke` trên GitHub và ghi run URL.
+  Workflow thủ công `Trino query layer` xanh trên `3fe9364`
+  ([run 44374160331](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44374160331)).
+  Việc mang sang (tùy chọn): chạy thủ công `Airflow orchestration e2e`, `Skew benchmark smoke` trên
+  GitHub và ghi run URL (đã có retry Maven).
 - Đã có sẵn: tên/port dành cho Kafka 9092, kafka-ui 8085, Flink JobManager 8082; topic
   `amazon.order-notifications`, `tiktok_shop.order-webhooks`; bucket `checkpoints`; thư mục rỗng
   `generators/stream/`, `flink/jobs/amazon_late/`, `flink/jobs/tiktok_dedup/`; `make gen-stream`,

@@ -164,5 +164,21 @@ The shared Trino client now lives in `spark/lib/trino_http.py` (also used by hos
 `Scaffold checks` run
 [44355559275](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44355559275) on
 commit `a11d318` (push, 2026-11-19): job `check` (lint incl. `sql/trino` with the Trino dialect,
-unit tests incl. runner/parity/event tests) and job `dags` succeeded. The manual workflow
-`Trino query layer` has not been run on GitHub and is not claimed.
+unit tests incl. runner/parity/event tests) and job `dags` succeeded.
+
+Manual workflow `Trino query layer` run
+[44374160331](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44374160331) on
+commit `3fe9364` (2026-11-19, ~16 min): all 18 steps succeeded on a fresh runner with only the
+small fixture — build, Silver → Gold → DP3 → warehouse, `up-query`, `smoke-query`
+(`QUERY_SMOKE_MIN_DATASETS=1`), `query-samples`, `verify-query`, `restart-query`, `smoke-query`.
+
+Earlier attempts and fixes (no local data involved):
+
+| Run | Failed step | Cause | Fix |
+|---|---|---|---|
+| 44357062344 | build Spark image | Maven Central HTTP 429 on shared runner IP | `b19cb09`: retry with backoff, checksum PostgreSQL JAR |
+| (2nd) | `smoke-query` | checks assumed the 3 local datasets and existing benchmark tables | `3e7bfe4`: `--min-datasets`, absent benchmark probe allowed |
+| (3rd) | `query-samples` | `summary['added-records']` fails on the empty creation snapshot | `3fe9364`: `ELEMENT_AT`, per-file error reporting |
+
+The third failure was reproduced locally in an isolated Compose project (own `.env` and
+volumes) before fixing; the reproduction volumes were removed afterwards.
