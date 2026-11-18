@@ -43,10 +43,10 @@
 
 - Every Spark task is in pool `spark_driver` (1 slot) and `parallelism=1`.
 - Every Spark submission, from Airflow or `make`, is wrapped by
-  `python -m spark.lib.driver_lock`, which takes a non-blocking `flock` on
-  `/runtime/locks/spark-driver.lock` and exits with code 75 (`driver_busy`) if it is held.
-  Airflow retries the task later; a manual `make` call fails fast. A crashed holder releases
-  the lock automatically.
+  `python -m spark.lib.driver_lock`, which takes an exclusive `flock` on
+  `/runtime/locks/spark-driver.lock`. A manual `make` call fails fast with exit code 75
+  (`spark_driver_busy`); Airflow tasks wait up to 300 s (`--wait`) for a manual job to finish,
+  then exit 75 and use their normal retry. A crashed holder releases the lock automatically.
 
 ## 4. DAG topology and dates
 
