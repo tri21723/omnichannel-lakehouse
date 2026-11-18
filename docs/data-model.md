@@ -108,3 +108,12 @@ pinned copies of Gold `fact_order_items` / `dim_product` columns, scoped by
 `_dataset_run_id = bench_<dataset>`), and per-experiment results `res_*` / `ref_*`. They are not
 part of the published Silver/Gold contract and are never read by pipeline jobs. See
 [ADR-0012](adr/0012-skew-benchmark.md).
+
+## Reading through Trino (Phase 6)
+
+Trino exposes `iceberg.silver`, `iceberg.gold`, `postgresql.walmart` (customer name/email
+masked) and `postgresql.warehouse`, read-only. Bronze stays restricted. Every table is
+multi-dataset, so filter `_dataset_run_id`; money is summed per `currency` only. `latest` can be
+read mid-chain while `batch_daily` publishes; reproducible results pin
+`FOR VERSION AS OF <snapshot>` from the Gold/DP3 ledgers. See
+[ADR-0015](adr/0015-trino-query-layer.md).

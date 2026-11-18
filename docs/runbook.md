@@ -514,3 +514,14 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   `LAKEKEEPER_URI`, `LAKEHOUSE_WAREHOUSE` in `.env`; `make smoke-core` checks the S3 user.
 - **Memory:** Trino is capped at 2.5 GiB (heap 1.5 GiB). Avoid running `batch` + `orch` + `query`
   together on a ~12 GiB host; stop Airflow/Spark with `docker compose stop` when querying.
+- **Samples and parameters:** `make query-samples` runs every `sql/trino` file for every dataset;
+  `make query-sql SQL=… PARAMS='dataset_run_id=…'` runs one file with validated parameters.
+  `ParamError` means a value failed validation (run IDs are 20 lowercase hex, dates ISO).
+- **`make verify-query`** needs `up-batch` (Spark) and `up-query`; it runs a read-only Spark job,
+  copies `/runtime/query/parity.json` to `.local-data/query/` and compares with Trino. A
+  `spark_parity` mismatch with equal ledger rows usually means a query uses an engine-specific
+  function; a `warehouse_three_way` mismatch means the warehouse export and Gold differ (rerun
+  `reconcile-warehouse`).
+- **`query_checks` DAG** is asset-scheduled on `sources.warehouse` and paused at creation; unpause
+  it only while the `query` profile runs, otherwise each warehouse export triggers a failing check.
+- **DBeaver:** see [dbeaver.md](dbeaver.md); `make query-jdbc-check` tests the same JDBC path.

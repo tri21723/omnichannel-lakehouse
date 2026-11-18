@@ -20,9 +20,11 @@ partition) trên dataset tới ~1M dòng, 240 trial đều đúng kết quả; g
 vì không biến thể nào nhanh hơn ổn định. Phase 4 đã đóng.
 Phase 5 hoàn thành local (`v0.5-orchestration`): Airflow 3.3.2 điều phối toàn chuỗi batch theo ngày
 (`batch_daily`), backfill 3 ngày chạy lại cho cùng kết quả, một Spark driver tại một thời điểm.
-Tiếp theo là Phase 6 (Trino + DBeaver).
+Phase 6 hoàn thành local (`v0.6-query`): Trino 484 chỉ đọc trên Iceberg + PostgreSQL, che PII,
+8 query mẫu, đối soát Trino = Spark = ledger = warehouse, DBeaver/JDBC.
+Tiếp theo là Phase 7 (Kafka + Flink).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -181,6 +183,21 @@ ngày logic. `maintenance_iceberg` chỉ báo cáo snapshot có thể dọn (kh�
 chạy tay bằng `make iceberg-report`. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
 Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
 [kiểm chứng](docs/orchestration-validation.md).
+
+## Chạy Trino (Phase 6)
+
+```sh
+make up-query            # PostgreSQL, MinIO, Lakekeeper, Trino 127.0.0.1:8083 (không cần Spark/Airflow)
+make smoke-query         # catalog, PII bị che, mọi lệnh ghi bị từ chối
+make query-samples       # 8 query mẫu × mọi dataset
+make verify-query        # cần thêm up-batch: Trino = Spark = ledger = warehouse
+make query-sql SQL=sql/trino/02_top_sellers.sql PARAMS='dataset_run_id=b1e64afaff0176de180a'
+```
+
+Trino chỉ đọc (`iceberg.silver`, `iceberg.gold`, `postgresql.walmart`, `postgresql.warehouse`);
+`iceberg.bronze` (PII thô) và `iceberg.benchmark` bị ẩn, `walmart.customers.full_name/email` hiển
+thị `[redacted]`. Kết nối DBeaver: [docs/dbeaver.md](docs/dbeaver.md). Thiết kế:
+[ADR-0015](docs/adr/0015-trino-query-layer.md); bằng chứng: [query validation](docs/query-validation.md).
 
 ## Benchmark data skew (Phase 4F)
 

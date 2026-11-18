@@ -156,9 +156,25 @@ See [skew benchmark](benchmarks/skew.md), [ADR-0012](adr/0012-skew-benchmark.md)
 See [orchestration validation](orchestration-validation.md), [checklist](phase5-checklist.md)
 and [Phase 6 handoff](phase6-handoff.md).
 
-## Next: Phase 6 — Trino + DBeaver
+## Phase 6 — Trino query layer complete locally
 
-Not started. See [Phase 6 handoff](phase6-handoff.md).
+- Local milestone `v0.6-query`. Trino 484 single node in profile `query` (127.0.0.1:8083,
+  2.5 GiB), catalogs `iceberg` (Lakekeeper REST + MinIO, read-only key) and `postgresql`
+  (`trino_ro`); `make up-query` needs no Spark/Airflow ([ADR-0015](adr/0015-trino-query-layer.md)).
+- Read-only in three layers (file-based rules, `iceberg.security=read_only`, storage credentials);
+  a table-procedure gap in file-based rules was found and closed. Raw PII is never returned
+  (`iceberg.bronze` hidden, `walmart.customers` name/email masked); `iceberg.benchmark` hidden.
+- `sql/trino` samples (incl. federated and time travel) with a typed-parameter runner;
+  `make verify-query` proves Trino = Spark on the same SQL at ledger snapshots, ledger row counts,
+  Iceberg = warehouse = ledger money, and time travel. DBeaver template + JDBC check; read-only
+  asset-triggered `query_checks` DAG; manual workflow `query.yml` (hosted run not claimed).
+
+See [query validation](query-validation.md), [checklist](phase6-checklist.md),
+[DBeaver](dbeaver.md) and [Phase 7 handoff](phase7-handoff.md).
+
+## Next: Phase 7 — Kafka + Flink
+
+Not started. See [Phase 7 handoff](phase7-handoff.md).
 
 ## Later phases
 
