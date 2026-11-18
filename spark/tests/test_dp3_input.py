@@ -100,6 +100,33 @@ def test_load_gold_publication_failures(tmp_path: Path) -> None:
         load_gold_publication(ledger_file)
 
 
+def test_explicit_older_publication_is_read_from_its_archive(tmp_path: Path) -> None:
+    old = sample_gold_ledger()
+    old_id = compute_publication_id(old)
+    new = deepcopy(old)
+    new["runs"]["run_e2e_3"] = {"silver_publication_id": "s3", "policy_version": "gold-policy-v1"}
+    ledger_file = tmp_path / "ledger.json"
+    ledger_file.write_text(json.dumps(new), encoding="utf-8")
+    (tmp_path / f"publication-{old_id}.json").write_text(json.dumps(old), encoding="utf-8")
+
+    loaded, returned_id = load_gold_publication(ledger_file, publication_id=old_id)
+    assert returned_id == old_id and "run_e2e_3" not in loaded["runs"]
+    current, current_id = load_gold_publication(ledger_file)
+    assert current_id == compute_publication_id(new)
+
+    # A running current ledger does not block reading a pinned, completed archive.
+    running = dict(new, status="running")
+    ledger_file.write_text(json.dumps(running), encoding="utf-8")
+    assert load_gold_publication(ledger_file, publication_id=old_id)[1] == old_id
+
+    # A tampered archive is rejected.
+    (tmp_path / f"publication-{old_id}.json").write_text(
+        json.dumps(dict(old, duration_seconds=99)), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="content hash mismatch"):
+        load_gold_publication(ledger_file, publication_id=old_id)
+
+
 def test_validate_gold_run_membership() -> None:
     ledger = sample_gold_ledger()
     meta = validate_gold_run_membership(ledger, "run_fixture_1")

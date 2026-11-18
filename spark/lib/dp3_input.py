@@ -25,14 +25,23 @@ def load_gold_publication(
         raise FileNotFoundError(f"Gold publication ledger not found: {ledger_path}")
 
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
-    if ledger.get("status") != "completed":
-        raise ValueError(f"Gold publication is not completed (status={ledger.get('status')})")
-
     computed_id = compute_publication_id(ledger)
     if publication_id and publication_id != computed_id:
-        raise ValueError(
-            f"Requested publication ID {publication_id} does not match ledger {computed_id}"
-        )
+        # An explicitly pinned older publication (e.g. the one a warehouse export or DP3 date
+        # was built from) is read from its immutable content-addressed archive, never from
+        # the current ledger. Other datasets may have published Gold since.
+        archive_path = ledger_path.parent / f"publication-{publication_id}.json"
+        if not archive_path.exists():
+            raise ValueError(
+                f"Requested publication ID {publication_id} does not match ledger {computed_id}"
+            )
+        ledger = json.loads(archive_path.read_text(encoding="utf-8"))
+        computed_id = compute_publication_id(ledger)
+        if computed_id != publication_id:
+            raise ValueError("Corrupted publication archive: content hash mismatch")
+
+    if ledger.get("status") != "completed":
+        raise ValueError(f"Gold publication is not completed (status={ledger.get('status')})")
 
     # Verify immutable publication archive exists and matches if present
     archive_path = ledger_path.parent / f"publication-{computed_id}.json"
