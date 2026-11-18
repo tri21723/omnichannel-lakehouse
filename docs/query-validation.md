@@ -53,3 +53,46 @@ With only PostgreSQL, MinIO and Lakekeeper running (Spark and Airflow stopped wi
 (limits 768 + 768 + 384 MiB); host available ≈ 8.8 GiB. A Trino container capped at 2.5 GiB
 fits comfortably. Running `query` together with `batch` + `orch` raises total limits to
 ≈ 13 GiB on an ~11.7 GiB host, so the default `up-query` does not start Spark or Airflow.
+
+## P6-02 — Version and ADR
+
+- Trino 484 (`trinodb/trino:484`, published 2026-10-16, OpenJDK 25.0.4) pinned in ADR-0001;
+  ADR-0015 records catalogs, security model, PII rules and read consistency.
+
+## P6-03 — Service and Make targets
+
+- `docker/compose.query.yml` (profile `query`), configuration in `docker/query/trino/etc`
+  mounted read-only, secrets via `${ENV:…}` only, healthcheck = image `health-check`,
+  `127.0.0.1:8083`, `mem_limit` 2.5 GiB, heap 1.5 GiB.
+- `make up-query` from a stopped Trino: 36 s, healthy; `make restart-query` healthy; `make smoke-query`
+  passes after both. Trino uses ~1.5 GiB of 2.5 GiB; with PostgreSQL, MinIO and Lakekeeper the
+  query stack uses ~2.1 GiB (Spark and Airflow stopped).
+- Catalogs: only `iceberg`, `postgresql`, `system` (image defaults `tpch`, `tpcds`, `memory`, `jmx`
+  are not shipped).
+
+## P6-04 — Read-only access, PII and exposed scope
+
+`make smoke-query` (20 checks, all pass):
+
+- Schemas visible: `iceberg` → `gold`, `silver`, `information_schema`; `postgresql` → `walmart`,
+  `warehouse`, `information_schema`. `bronze` and `benchmark` are hidden and direct reads return
+  `PERMISSION_DENIED`.
+- Gold and warehouse counts per dataset through Trino: 375 / 15,000 / 300 orders, matching the
+  ledgers; Iceberg metadata tables (`"fact_orders$snapshots"`) readable.
+- PII: `SELECT full_name, email` and `SELECT *` on `postgresql.walmart.customers` return only
+  `[redacted]` for both columns.
+- Denied with `PERMISSION_DENIED`: CREATE TABLE/SCHEMA, INSERT, DELETE on both catalogs, `CALL`
+  `unregister_table`, `ALTER TABLE … EXECUTE expire_snapshots` and `remove_orphan_files`.
+- Credential layer: `make smoke-core` passes (Trino S3 user cannot write, `trino_ro` cannot delete).
+
+### Incident found and fixed
+
+The first smoke run showed `ALTER TABLE iceberg.gold.dim_channel EXECUTE
+expire_snapshots(retention_threshold => '36500d')` was **not denied**: file-based access control
+does not govern table procedures, and the REST commit was written by Lakekeeper. The probe used a
+100-year threshold, so no snapshot qualified, but Lakekeeper still wrote a new metadata version
+(`00004-…metadata.json`, 2026-11-18 15:51:37 UTC) for `lh.gold.dim_channel`. Impact check: both
+snapshots are still present, the current snapshot `2146564618510487487` equals the Gold ledger,
+`verify-gold` passes for all three datasets and all four ledger hashes equal the P6-01 baseline.
+Fix: `iceberg.security=read_only` plus 36500d minimum retention for snapshot/orphan procedures;
+after the fix both procedures are denied and no further metadata version was written.

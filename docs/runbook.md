@@ -494,3 +494,23 @@ dp4_warehouse` for the same logical date. Per-job DAGs can be triggered alone.
   `unreadable_pin_sources` is not empty, fix that JSON before any future real expiry.
 - **Assets tab:** layer assets update when the last task of a per-job DAG succeeds (published or
   verified-identical skip); they do not trigger other DAGs.
+
+## Trino query layer (Phase 6)
+
+Run `make up-query` (PostgreSQL, MinIO, Lakekeeper, Trino on 127.0.0.1:8083; no Spark/Airflow),
+then `make smoke-query`. CLI: `make trino-cli ARGS='--execute "SHOW SCHEMAS FROM iceberg"'`.
+Config is in `docker/query/trino/etc` (read-only mount); after editing rules or catalogs run
+`make restart-query` and `make smoke-query`.
+
+- **`PERMISSION_DENIED` on a read:** the schema is hidden on purpose (`iceberg.bronze` holds raw
+  PII, `iceberg.benchmark` is not a contract) or the catalog is not `iceberg`/`postgresql`/`system`.
+- **`[redacted]` in `walmart.customers`:** column masks for `full_name`/`email`; use Silver/Gold
+  hashes for analysis.
+- **Never relax `iceberg.security=read_only`:** file-based rules do not cover
+  `ALTER TABLE … EXECUTE`, and Lakekeeper would commit metadata changes (for example
+  `expire_snapshots`) on Trino's behalf. Changing access rules requires updating the negative
+  tests in `docker/query/smoke.py`.
+- **Trino cannot reach MinIO/Lakekeeper:** check `TRINO_S3_*`, `S3_ENDPOINT`, `AWS_DEFAULT_REGION`,
+  `LAKEKEEPER_URI`, `LAKEHOUSE_WAREHOUSE` in `.env`; `make smoke-core` checks the S3 user.
+- **Memory:** Trino is capped at 2.5 GiB (heap 1.5 GiB). Avoid running `batch` + `orch` + `query`
+  together on a ~12 GiB host; stop Airflow/Spark with `docker compose stop` when querying.

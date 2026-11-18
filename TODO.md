@@ -1,6 +1,6 @@
 # TODO — Phase 6: Query layer với Trino + DBeaver
 
-Cập nhật: **2026-11-18**. Trạng thái: **đã lập kế hoạch, chưa triển khai Phase 6**.
+Cập nhật: **2026-11-18**. Trạng thái: **đang triển khai Phase 6 (P6-01…P6-04 xong)**.
 
 Mục tiêu: truy vấn lakehouse (Iceberg qua Lakekeeper REST) và PostgreSQL (`sources.walmart`,
 `sources.warehouse`) bằng một Trino single-node chạy local, **chỉ đọc**, không lộ PII thô;
@@ -80,62 +80,66 @@ liệu) thì ghi rõ và hỏi lại trước khi làm.
 
 ### P6-01 — Preflight
 
-- [ ] Git sạch tại tag Phase 5 (+ commit đã push); `make check` xanh.
-- [ ] `verify-gold`, `verify-features`, `verify-labels`, `verify-warehouse` cho ba dataset; ghi hash
+- [x] Git sạch tại tag Phase 5 (+ commit đã push); `make check` xanh.
+- [x] `verify-gold`, `verify-features`, `verify-labels`, `verify-warehouse` cho ba dataset; ghi hash
   ledger làm mốc (Trino không được làm đổi ledger nào).
-- [ ] Liệt kê namespace/bảng trong `lh` và schema `sources` sẽ expose; PII inventory từ DDL
+- [x] Liệt kê namespace/bảng trong `lh` và schema `sources` sẽ expose; PII inventory từ DDL
   (`walmart.customers.full_name`, `email`; kiểm tra thêm các bảng khác).
-- [ ] Đo RAM khi chỉ bật postgres + minio + lakekeeper; tính ngân sách cho Trino; ghi phương án
+- [x] Đo RAM khi chỉ bật postgres + minio + lakekeeper; tính ngân sách cho Trino; ghi phương án
   chạy cùng `orch`.
-- [ ] Ghi số liệu kỳ vọng để đối soát: row count và `content` theo ledger Gold/DP3, tổng tiền
+- [x] Ghi số liệu kỳ vọng để đối soát: row count và `content` theo ledger Gold/DP3, tổng tiền
   warehouse theo run/channel/currency từ `warehouse/export/ledger.json`.
 
 **Đạt khi:** mốc trạng thái, danh sách đối tượng expose và PII, ngân sách RAM ghi vào
 `docs/query-validation.md`.
-**Commit gợi ý:** `docs(query): record Phase 6 preflight baseline and PII inventory`.
+**Bằng chứng:** [query-validation](docs/query-validation.md) §P6-01; phát hiện thêm `iceberg.bronze` chứa PII
+thô trong `_raw` → ẩn. **Commit:** `503801a`.
 
 ### P6-02 — ADR và version
 
-- [ ] Xác minh trên tài liệu chính thức: bản Trino stable, image, JDK đi kèm, Iceberg connector (REST
+- [x] Xác minh trên tài liệu chính thức: bản Trino stable, image, JDK đi kèm, Iceberg connector (REST
   catalog, warehouse, native S3 properties), PostgreSQL connector, file-based access control
   (catalog/schema/table/column rules); ghi exact version + nguồn + ngày vào ADR-0001.
-- [ ] Viết `docs/adr/0015-trino-query-layer.md` (kiểm tra số trước) chốt mọi mục §2, gồm mô hình
+- [x] Viết `docs/adr/0015-trino-query-layer.md` (kiểm tra số trước) chốt mọi mục §2, gồm mô hình
   bảo mật local, quy tắc PII và nhất quán đọc.
-- [ ] Ghi các luồng sơ đồ được hiện thực: Q1 (Iceberg REST + S3), Q2 (PostgreSQL JDBC), Q3 (DBeaver).
+- [x] Ghi các luồng sơ đồ được hiện thực: Q1 (Iceberg REST + S3), Q2 (PostgreSQL JDBC), Q3 (DBeaver).
 
 **Đạt khi:** ADR có nguồn, version pin, không cần ngoại lệ AGENTS hoặc đã hỏi lại.
-**Commit gợi ý:** `docs(adr): define read-only Trino query layer and pin Trino`.
+**Bằng chứng:** Trino 484 (OpenJDK 25) trong ADR-0001; [ADR-0015](docs/adr/0015-trino-query-layer.md). **Commit:** `eec977a`.
 
 ### P6-03 — Compose, config và Make
 
-- [ ] `docker/compose.query.yml` profile `query`: service `trino` (image pin), `127.0.0.1:8083`,
+- [x] `docker/compose.query.yml` profile `query`: service `trino` (image pin), `127.0.0.1:8083`,
   `mem_limit`, healthcheck (`/v1/info` với `starting=false`), `depends_on` postgres/minio/lakekeeper
   healthy; config mount read-only từ `docker/query/trino/` (node, jvm, config, log, catalog,
   access control).
-- [ ] Secret không nằm trong file catalog: dùng `${ENV:...}` của Trino, giá trị từ `.env`
+- [x] Secret không nằm trong file catalog: dùng `${ENV:...}` của Trino, giá trị từ `.env`
   (`TRINO_RO_DB_PASSWORD`, `TRINO_S3_*`); biến mới (nếu có) vào `.env.example`; `make env-query`
   không xoay vòng giá trị cũ.
-- [ ] Make: `config-query`, `up-query` (thay placeholder: core + lakekeeper + trino), `smoke-query`,
+- [x] Make: `config-query`, `up-query` (thay placeholder: core + lakekeeper + trino), `smoke-query`,
   `restart-query`, `trino-cli ARGS=…`; `down`/`logs` bao gồm `query`; yamllint thêm file compose.
-- [ ] Smoke: `SHOW CATALOGS` có `iceberg`, `postgresql`; `SHOW SCHEMAS`; `SELECT 1`; restart vẫn
+- [x] Smoke: `SHOW CATALOGS` có `iceberg`, `postgresql`; `SHOW SCHEMAS`; `SELECT 1`; restart vẫn
   hoạt động; RAM trong ngân sách.
 
 **Đạt khi:** `make up-query && make smoke-query` xanh từ trạng thái dừng và sau restart.
-**Commit gợi ý:** `feat(query): add pinned Trino service with Iceberg and PostgreSQL catalogs`.
+**Bằng chứng:** `up-query` từ trạng thái dừng 36 s, `restart-query`, smoke xanh; Trino ~1,5/2,5 GiB.
 
 ### P6-04 — Quyền chỉ đọc, PII và phạm vi expose
 
-- [ ] Iceberg catalog đọc được `bronze/silver/gold`; `benchmark` bị ẩn.
-- [ ] PostgreSQL catalog chỉ thấy `walmart`, `warehouse`; cột PII thô bị deny/mask (chốt hành vi
+- [x] Iceberg catalog đọc được `bronze/silver/gold`; `benchmark` bị ẩn.
+- [x] PostgreSQL catalog chỉ thấy `walmart`, `warehouse`; cột PII thô bị deny/mask (chốt hành vi
   `SELECT *` trong ADR) và có test tự động.
-- [ ] Test âm tự động: `CREATE TABLE`, `INSERT`, `DELETE`, `ALTER`, `DROP`, `CALL system.*`
+- [x] Test âm tự động: `CREATE TABLE`, `INSERT`, `DELETE`, `ALTER`, `DROP`, `CALL system.*`
   (expire/remove orphan) trên `iceberg` và `postgresql` đều bị từ chối; ledger và snapshot hiện
   tại không đổi sau test.
-- [ ] Kiểm tra credential: `trino_local` không ghi được bucket; `trino_ro` không ghi được DB (chạy
+- [x] Kiểm tra credential: `trino_local` không ghi được bucket; `trino_ro` không ghi được DB (chạy
   lại phần tương ứng của `test-warehouse-dq`).
 
 **Đạt khi:** mọi thao tác ghi/PII bị chặn có bằng chứng; hash ledger không đổi.
-**Commit gợi ý:** `feat(query): enforce read-only access and hide raw PII in Trino`.
+**Bằng chứng:** `make smoke-query` 20/20; `smoke-core` xanh; ledger không đổi. Sự cố: table procedure
+`expire_snapshots` lọt qua file-based rules (ghi 1 phiên bản metadata vô hại cho `gold.dim_channel`,
+snapshot/ledger không đổi, `verify-gold` xanh) → thêm `iceberg.security=read_only`. DROP/ALTER trên
+bảng thật không thử trực tiếp (Trino kiểm tồn tại trước quyền) — được chặn bởi rule + connector.
 
 ### P6-05 — Query mẫu và runner
 
