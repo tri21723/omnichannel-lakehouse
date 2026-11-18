@@ -51,5 +51,10 @@ failure there points to Trino, not DBeaver.
 ## Evidence
 
 The host JDBC check (driver 484, server 484) returned per-dataset counts 375 / 300 / 15,000,
-`[redacted]` for `email`, a parameterized count of 300 and `Access Denied` for DELETE. A DBeaver
-screenshot is added only when a user provides one; no GUI demo is claimed by the automation.
+`[redacted]` for `email`, a parameterized count of 300 and `Access Denied` for DELETE.
+
+DBeaver on the Windows host (WSL2 forwards `localhost:8083`) connected with the settings above
+and returned the same counts; DBeaver downloaded driver 476, which works with server 484. To use
+the exact version, add `.local-data/query/trino-jdbc-484.jar` under *Driver Manager → Trino →
+Libraries*. Screenshots: [connection](images/phase6/dbeaver-connection-test.png),
+[query](images/phase6/dbeaver-query-result.png).

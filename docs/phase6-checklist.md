@@ -180,8 +180,9 @@ bảng thật không thử trực tiếp (Trino kiểm tồn tại trước quy�
   (không auth local), catalog mặc định `iceberg`; hướng dẫn trong runbook hoặc `docs/dbeaver.md`.
 - [x] Hướng dẫn mở và chạy `sql/trino/*.sql`; lưu ý `_dataset_run_id` và snapshot.
 - [x] Kiểm tra JDBC từ host (CLI hoặc client tối thiểu) để chắc DBeaver kết nối được.
-- [ ] Demo DBeaver là thao tác GUI của người dùng: ghi ảnh khi người dùng cung cấp; không ghi nhận
-  "đã demo" khi chưa có bằng chứng. *Chưa có ảnh; JDBC từ host đã kiểm chứng.*
+- [x] Demo DBeaver là thao tác GUI của người dùng: ghi ảnh khi người dùng cung cấp. *Người dùng gửi ảnh
+  2026-11-19: kết nối thành công (Trino 484, driver 476), đếm 375/300/15.000 —
+  `images/phase6/`.*
 
 **Đạt khi:** kết nối JDBC từ host thành công; hướng dẫn đầy đủ.
 **Bằng chứng:** `make query-jdbc-check` (JDBC 484) đạt; [dbeaver.md](dbeaver.md). **Commit:** `b8ad5de`.
@@ -227,7 +228,7 @@ publish trong lúc query: latest 900→1.200, pinned 900).
 
 - [x] Trino pin version có nguồn; profile `query` có healthcheck, `mem_limit`, restart ổn định.
 - [x] Catalog Iceberg (Q1) và PostgreSQL (Q2) đọc được ba dataset; JDBC/DBeaver (Q3) kết nối được (JDBC từ
-  host đã kiểm chứng; ảnh DBeaver chờ người dùng).
+  host và DBeaver trên Windows, có ảnh).
 - [x] Mọi thao tác ghi bị chặn ở Trino và ở credential; không lộ PII thô; `benchmark` bị ẩn.
 - [x] Câu federated khớp Spark; tổng tiền Iceberg = warehouse = ledger; time travel đúng.
 - [x] `make check`, `make smoke-query`, `make verify-query` xanh; ledger không đổi do Trino.

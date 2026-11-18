@@ -128,7 +128,14 @@ ledger changed:
 
 `make query-jdbc-check` (Trino JDBC 484, SHA-1 verified) from the host: driver/server 484,
 per-dataset counts 375 / 300 / 15,000, `email` = `[redacted]`, prepared statement 300, DELETE
-denied. Template and walkthrough: [dbeaver.md](dbeaver.md). No DBeaver GUI screenshot yet.
+denied. Template and walkthrough: [dbeaver.md](dbeaver.md).
+
+DBeaver (Windows host, 2026-11-19, provided by the user): connection to `localhost:8083`
+succeeded (`Connected (1137 ms)`, server Trino 484, DBeaver-downloaded driver Trino JDBC 476),
+and the per-dataset order count returned 375 / 300 / 15,000, equal to the ledgers.
+
+![DBeaver connection test](images/phase6/dbeaver-connection-test.png)
+![DBeaver query result](images/phase6/dbeaver-query-result.png)
 
 ## P6-08 — Operations
 
