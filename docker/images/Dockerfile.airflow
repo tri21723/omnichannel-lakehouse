@@ -1,0 +1,31 @@
+# Airflow 3.3.2 that is also a Spark 3.5.5 client-mode driver (ADR-0013 §2).
+ARG SPARK_IMAGE=omnichannel/spark:3.5.5-iceberg1.9.2
+FROM ${SPARK_IMAGE} AS spark
+
+FROM apache/airflow:3.3.2-python3.11
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-17-jre-headless procps \
+    && rm -rf /var/lib/apt/lists/*
+USER airflow
+# PySpark is outside the Airflow constraints on purpose (only depends on py4j); it must match
+# the Spark cluster version exactly.
+RUN pip install --no-cache-dir pyspark==3.5.5 pytest==8.3.5
+USER root
+ARG PYSPARK_JARS=/home/airflow/.local/lib/python3.11/site-packages/pyspark/jars
+ARG SPARK_JARS=/usr/local/lib/python3.11/site-packages/pyspark/jars
+# Same jar files as the Spark image (checksummed there at build time).
+COPY --from=spark ${SPARK_JARS}/iceberg-spark-runtime-3.5_2.12-1.9.2.jar ${PYSPARK_JARS}/
+COPY --from=spark ${SPARK_JARS}/iceberg-aws-bundle-1.9.2.jar ${PYSPARK_JARS}/
+COPY --from=spark ${SPARK_JARS}/postgresql-42.7.5.jar ${PYSPARK_JARS}/
+RUN ln -s /home/airflow/.local/lib/python3.11/site-packages/pyspark /opt/spark
+COPY spark /app/spark
+COPY sql /app/sql
+COPY docker/batch/ci_events.py /app/docker/batch/ci_events.py
+COPY docker/orch/entrypoint.sh /opt/omnichannel/entrypoint.sh
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    SPARK_HOME=/opt/spark \
+    PYSPARK_PYTHON=python3 \
+    PYTHONPATH=/app \
+    PYTHONUSERBASE=/home/airflow/.local
+USER airflow

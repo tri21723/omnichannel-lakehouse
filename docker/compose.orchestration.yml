@@ -1,0 +1,101 @@
+# Profile orch: Airflow 3.3.2 standalone, also the Spark client-mode driver (ADR-0013).
+# Always merged with compose.core.yml and compose.batch.yml (shared network and volumes).
+x-airflow-env: &airflow-env
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-1}
+  AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
+  AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'True'
+  AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+  AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+  AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/simple_auth_manager_passwords.json
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://localhost:8080/execution/
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+  AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY:-}
+  AIRFLOW__API__EXPOSE_CONFIG: 'False'
+  AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-}
+  AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+  AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-}
+  # Same job environment as the spark-submit service; this container is the driver.
+  SPARK_MASTER_URL: spark://spark-master:7077
+  SPARK_DRIVER_HOST: airflow
+  SPARK_SHUFFLE_PARTITIONS: ${SPARK_SHUFFLE_PARTITIONS}
+  LAKEKEEPER_URI: ${LAKEKEEPER_URI}
+  SPARK_S3_ACCESS_KEY: ${SPARK_S3_ACCESS_KEY}
+  SPARK_S3_SECRET_KEY: ${SPARK_S3_SECRET_KEY}
+  S3_ENDPOINT: ${S3_ENDPOINT}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+  S3_RAW_BUCKET: ${S3_RAW_BUCKET}
+  BRONZE_STAGE_DIR: /staging
+  BRONZE_STAGE_MAX_BYTES: ${BRONZE_STAGE_MAX_BYTES:-67108864}
+  SPARK_READER_DB_PASSWORD: ${SPARK_READER_DB_PASSWORD}
+  BRONZE_JDBC_URL: ${BRONZE_JDBC_URL:-jdbc:postgresql://postgres:5432/sources}
+  SPARK_WRITER_DB_PASSWORD: ${SPARK_WRITER_DB_PASSWORD}
+  WAREHOUSE_JDBC_URL: ${WAREHOUSE_JDBC_URL:-jdbc:postgresql://postgres:5432/sources}
+  SILVER_PII_KEY: ${SILVER_PII_KEY:-}
+  SILVER_PII_KEY_VERSION: ${SILVER_PII_KEY_VERSION:-}
+  OMNI_DATASET_RUN_ID: ${OMNI_DATASET_RUN_ID:-b1e64afaff0176de180a}
+  AIRFLOW_ALERT_WEBHOOK_URL: ${AIRFLOW_ALERT_WEBHOOK_URL:-}
+
+services:
+  airflow-init:
+    image: ${AIRFLOW_IMAGE:-omnichannel/airflow:3.3.2-spark3.5.5}
+    profiles:
+    - orch
+    user: '0:0'
+    environment: *airflow-env
+    command:
+    - bash
+    - -c
+    - >-
+      airflow db migrate &&
+      airflow pools set spark_driver 1 'One Spark driver at a time (ADR-0013)'
+    mem_limit: 1024m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+  airflow:
+    image: ${AIRFLOW_IMAGE:-omnichannel/airflow:3.3.2-spark3.5.5}
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.airflow
+    profiles:
+    - orch
+    hostname: airflow
+    # Root like the spark-submit service: ledgers/staging in the shared volumes are root-owned.
+    user: '0:0'
+    environment: *airflow-env
+    command:
+    - bash
+    - /opt/omnichannel/entrypoint.sh
+    ports:
+    - 127.0.0.1:8081:8080
+    mem_limit: 3072m
+    volumes:
+    - lakehouse-config:/runtime
+    - bronze-staging:/staging
+    - airflow-logs:/opt/airflow/logs
+    - ../airflow/dags:/opt/airflow/dags:ro
+    - ../airflow/plugins:/opt/airflow/plugins:ro
+    - ../airflow/tests:/opt/airflow/tests:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      lakekeeper:
+        condition: service_healthy
+      spark-master:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:8080/api/v2/monitor/health
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+volumes:
+  airflow-logs: {}

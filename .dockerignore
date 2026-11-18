@@ -12,3 +12,8 @@ spark/**/__pycache__/
 !sql/
 !sql/**
 !docker/images/Dockerfile.spark
+!docker/images/Dockerfile.airflow
+!docker/batch/
+!docker/batch/ci_events.py
+!docker/orch/
+!docker/orch/entrypoint.sh

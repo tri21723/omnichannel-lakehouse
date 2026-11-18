@@ -19,7 +19,7 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 
@@ -32,7 +32,7 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-orch up-query up-stream up-cdc up-gov gen-stream e2e:
+up-query up-stream up-cdc up-gov gen-stream:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -62,11 +62,11 @@ restart-core: ## Restart core services while preserving named volumes
 status-core: ## Show core service status
 	$(COMPOSE) ps -a
 
-down: ## Stop core services without deleting volumes
-	$(BATCH) down
+down: ## Stop core, batch and orch services without deleting volumes
+	$(ORCH) down
 
-logs: ## Follow core logs; optionally SVC=postgres or minio
-	$(BATCH) logs --tail=100 -f $(SVC)
+logs: ## Follow logs; optionally SVC=postgres, minio, spark-master or airflow
+	$(ORCH) logs --tail=100 -f $(SVC)
 
 .PHONY: format-sql
 format-sql: ## Format PostgreSQL DDL and smoke assertions
@@ -105,6 +105,8 @@ verify-sources: ## Reconcile local/S3 bytes and SQL rows without rewriting data
 # Every Spark driver (make or Airflow) takes the shared lock in /runtime (ADR-0013 §3).
 DRIVER_LOCK := python -m spark.lib.driver_lock --
 BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml --profile core --profile batch
+ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
+AIRFLOW_EXEC = $(ORCH) exec -T airflow
 .PHONY: env-batch config-batch build-batch init-lakehouse smoke-lakehouse verify-lakehouse restart-lakehouse
 env-batch: env ## Add missing Phase 3 settings without rotating credentials
 	$(PYTHON) docker/batch/env.py
@@ -329,3 +331,28 @@ report-benchmark: ## Export redacted summary CSV/JSON/Markdown of BENCH_CONFIG t
 	$(BENCH_RUN) -v "$(CURDIR)/docs/benchmarks:/out" --entrypoint python spark-submit /app/spark/jobs/benchmark_skew/report.py --experiment $$(python3 -c "import json;print(json.load(open('spark/jobs/benchmark_skew/configs/$(BENCH_CONFIG).json'))['experiment_id'])") --out /out
 test-benchmark: ## Real-Spark correctness tests for salting/broadcast/AQE variants (no tables)
 	$(BENCH_RUN) spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/benchmark_skew/salting_test.py
+
+.PHONY: env-orch config-orch build-orch up-orch smoke-orch restart-orch test-dags airflow-cli e2e
+E2E_RUN_ID ?=
+env-orch: env-silver ## Add Airflow secrets/settings to .env without rotating existing values
+	$(PYTHON) docker/orch/env.py
+config-orch: ## Validate merged core+batch+orch configuration silently
+	$(ORCH) config --quiet
+build-orch: build-batch ## Build the Airflow image (Spark client jars copied from the Spark image)
+	$(ORCH) build airflow
+up-orch: env-orch ## Start core+batch, migrate Airflow metadata, then start Airflow on :8081
+	$(MAKE) up-batch
+	$(ORCH) run --rm --no-deps airflow-init
+	$(ORCH) up -d --wait airflow
+smoke-orch: ## Check Airflow health, DAG imports, pool and a Spark driver run from Airflow
+	$(AIRFLOW_EXEC) curl -fsS http://localhost:8080/api/v2/monitor/health
+	$(AIRFLOW_EXEC) airflow dags list-import-errors
+	$(AIRFLOW_EXEC) airflow pools get spark_driver
+	$(AIRFLOW_EXEC) $(DRIVER_LOCK) spark-submit /app/spark/jobs/smoke.py --verify
+restart-orch: ## Restart Airflow; metadata in PostgreSQL and logs volume are preserved
+	$(ORCH) restart airflow
+	$(ORCH) up -d --wait airflow
+test-dags: ## Run DagBag and DAG contract tests inside the Airflow image
+	$(ORCH) run --rm --no-deps -v "$(CURDIR)/airflow:/opt/omnichannel/airflow:ro" -w /opt/omnichannel --entrypoint python airflow -m pytest -q -p no:cacheprovider airflow/tests
+airflow-cli: ## Run an Airflow CLI command in the running container, e.g. ARGS='dags list'
+	$(AIRFLOW_EXEC) airflow $(ARGS)
