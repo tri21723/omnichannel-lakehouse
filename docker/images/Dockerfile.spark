@@ -2,12 +2,17 @@ FROM python:3.11.11-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless curl procps && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir pyspark==3.5.5 boto3==1.37.9 && ln -s /usr/local/lib/python3.11/site-packages/pyspark /opt/spark
 ENV SPARK_HOME=/opt/spark JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PYTHONPATH=/app PYSPARK_PYTHON=python3
-RUN set -eu; for artifact in iceberg-spark-runtime-3.5_2.12 iceberg-aws-bundle; do \
+# Maven Central rate-limits shared CI IPs (HTTP 429): retry with backoff/Retry-After, verify every JAR.
+RUN set -eu; get() { curl -fsSL --retry 8 --retry-max-time 300 --retry-connrefused "$@"; }; \
+    for artifact in iceberg-spark-runtime-3.5_2.12 iceberg-aws-bundle; do \
     url="https://repo.maven.apache.org/maven2/org/apache/iceberg/$artifact/1.9.2/$artifact-1.9.2.jar"; \
-    curl -fsSL "$url" -o "/opt/spark/jars/$artifact-1.9.2.jar"; \
-    curl -fsSL "$url.sha512" -o /tmp/jar.sha512; \
-    printf '%s  %s\n' "$(cat /tmp/jar.sha512)" "/opt/spark/jars/$artifact-1.9.2.jar" | sha512sum -c -; done
-RUN curl -fsSL https://repo.maven.apache.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar -o /opt/spark/jars/postgresql-42.7.5.jar
+    get "$url" -o "/opt/spark/jars/$artifact-1.9.2.jar"; \
+    get "$url.sha512" -o /tmp/jar.sha512; \
+    printf '%s  %s\n' "$(cat /tmp/jar.sha512)" "/opt/spark/jars/$artifact-1.9.2.jar" | sha512sum -c -; done; \
+    url=https://repo.maven.apache.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar; \
+    get "$url" -o /opt/spark/jars/postgresql-42.7.5.jar; \
+    printf '%s  %s\n' "$(get "$url.sha1")" /opt/spark/jars/postgresql-42.7.5.jar | sha1sum -c -; \
+    rm -f /tmp/jar.sha512
 COPY spark /app/spark
 COPY sql /app/sql
 WORKDIR /app

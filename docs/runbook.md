@@ -525,3 +525,7 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
 - **`query_checks` DAG** is asset-scheduled on `sources.warehouse` and paused at creation; unpause
   it only while the `query` profile runs, otherwise each warehouse export triggers a failing check.
 - **DBeaver:** see [dbeaver.md](dbeaver.md); `make query-jdbc-check` tests the same JDBC path.
+- **`curl: (22) … error: 429` khi build image Spark hoặc tải JDBC jar (hay gặp trên GitHub
+  runner):** Maven Central giới hạn tần suất theo IP dùng chung. Mọi lần tải từ Maven dùng
+  `--retry 8 --retry-max-time 300` (tôn trọng `Retry-After`) và kiểm checksum; nếu vẫn lỗi sau
+  ~5 phút, chạy lại workflow sau. Lần đầu gặp: run `Trino query layer` 44357062344 (2026-11-19).

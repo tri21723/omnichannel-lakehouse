@@ -394,11 +394,13 @@ query-samples: ## Run all sql/trino samples for every dataset and check invarian
 	$(PYTHON) docker/query/samples.py --url $(TRINO_URL)
 .PHONY: query-jdbc-check
 TRINO_JDBC_JAR := .local-data/query/trino-jdbc-484.jar
+# Maven Central rate-limits shared IPs (HTTP 429); retry with backoff/Retry-After.
+MAVEN_CURL := curl -fsSL --retry 8 --retry-max-time 300 --retry-connrefused
 TRINO_JDBC_JAR_URL := https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/484/trino-jdbc-484.jar
 query-jdbc-check: ## Connect like DBeaver with Trino JDBC 484 (needs Java 17+ on the host)
 	mkdir -p .local-data/query
-	test -f $(TRINO_JDBC_JAR) || curl -fsSL -o $(TRINO_JDBC_JAR) $(TRINO_JDBC_JAR_URL)
-	curl -fsSL $(TRINO_JDBC_JAR_URL).sha1 | sed 's|$$|  $(TRINO_JDBC_JAR)|' | sha1sum -c -
+	test -f $(TRINO_JDBC_JAR) || $(MAVEN_CURL) -o $(TRINO_JDBC_JAR) $(TRINO_JDBC_JAR_URL)
+	$(MAVEN_CURL) $(TRINO_JDBC_JAR_URL).sha1 | sed 's|$$|  $(TRINO_JDBC_JAR)|' | sha1sum -c -
 	java -cp $(TRINO_JDBC_JAR) docker/query/JdbcCheck.java
 
 .PHONY: verify-query
