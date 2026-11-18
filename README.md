@@ -17,9 +17,12 @@ Phase 4D hoàn thành local (`v0.4d-features`): Feature Store (`feat_customer_da
 Phase 4E hoàn thành local (`v0.4e-warehouse`): Downstream Data Warehouse Export (`dp4_warehouse`) đồng bộ cửa sổ trượt 30 ngày sang PostgreSQL `warehouse.*` bằng một giao dịch JDBC nguyên tử (`spark_writer`), giữ nguyên vẹn ràng buộc PK/FK, `NUMERIC(18,2)` và quyền đọc `trino_ro`.
 Phase 4F hoàn thành local (`v0.4f-benchmark`): benchmark skew có kiểm soát (AQE, broadcast, salting,
 partition) trên dataset tới ~1M dòng, 240 trial đều đúng kết quả; giữ cấu hình Spark production
-vì không biến thể nào nhanh hơn ổn định. Phase 4 đã đóng; tiếp theo là Phase 5 (Airflow).
+vì không biến thể nào nhanh hơn ổn định. Phase 4 đã đóng.
+Phase 5 hoàn thành local (`v0.5-orchestration`): Airflow 3.3.2 điều phối toàn chuỗi batch theo ngày
+(`batch_daily`), backfill 3 ngày chạy lại cho cùng kết quả, một Spark driver tại một thời điểm.
+Tiếp theo là Phase 6 (Trino + DBeaver).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -159,6 +162,22 @@ từ snapshot đã pin sang PostgreSQL database `sources`, schema `warehouse.*` 
 giao dịch JDBC nguyên tử (`spark_writer`), bảo toàn `NUMERIC(18,2)`, PII hash và quyền đọc
 cho `trino_ro` cùng ledger độc lập `/runtime/warehouse/export/ledger.json`. Xem
 [ADR-0011](docs/adr/0011-warehouse-export.md) và [Warehouse validation](docs/warehouse-validation.md).
+
+## Chạy Airflow (Phase 5)
+
+```sh
+make env-orch
+make build-orch
+make up-orch            # UI: http://localhost:8081 (admin / AIRFLOW_ADMIN_PASSWORD trong .env)
+make smoke-orch
+make test-dags
+make e2e                # backfill batch_daily 2026-01-01..03 hai lần qua Airflow
+```
+
+Mỗi job có một DAG cùng tên (`dp1_bronze` … `dp4_warehouse`); `batch_daily` gọi lần lượt cho cùng
+ngày logic. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
+Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
+[kiểm chứng](docs/orchestration-validation.md).
 
 ## Benchmark data skew (Phase 4F)
 

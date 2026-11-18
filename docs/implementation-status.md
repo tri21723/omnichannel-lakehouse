@@ -132,9 +132,30 @@ See [Warehouse validation](warehouse-validation.md), [ADR-0011](adr/0011-warehou
 See [skew benchmark](benchmarks/skew.md), [ADR-0012](adr/0012-skew-benchmark.md),
 [checklist](phase4f-checklist.md) and [Phase 5 handoff](phase5-handoff.md).
 
-## Next: Phase 5 — Airflow orchestration
+## Phase 5 — Airflow orchestration complete locally
 
-Not started. Operational contract for DAGs: [Phase 5 handoff](phase5-handoff.md).
+- Local milestone `v0.5-orchestration`. Apache Airflow 3.3.2 (`standalone`, LocalExecutor,
+  `parallelism=1`, metadata in PostgreSQL `airflow`) in profile `orch`, UI on 127.0.0.1:8081,
+  simple auth with a generated admin password ([ADR-0013](adr/0013-airflow-orchestration.md)).
+- The Airflow container is the Spark client-mode driver (same jars/code as the Spark image,
+  `SPARK_DRIVER_HOST`); every driver from `make` or Airflow takes `/runtime/locks/spark-driver.lock`
+  and the `spark_driver` pool has one slot.
+- DAGs: `dp1_bronze`, `dp2_silver`, `dp2_gold`, `dp3_features`, `dp3_return_labels`,
+  `dp4_warehouse` (one per job) and controller `batch_daily` (deferrable triggers,
+  `depends_on_past`), plus `make test-dags`, `make e2e`, CI DagBag job and a manual e2e workflow.
+- New orchestration fixture `5f552019ee41c24af95f` was ingested end to end through Airflow for
+  2026-01-01..03 and replayed; the existing datasets still verify and reconcile.
+- Fix found by orchestration: pinned older Gold publications are read from their archive, so
+  warehouse reconciliation keeps working after another dataset publishes Gold.
+- Deferred: `maintenance_iceberg` (needs a snapshot retention ADR), DataHub lineage (Phase 9),
+  `dp1_cdc` (Phase 8). Hosted runs of the new workflows are not claimed.
+
+See [orchestration validation](orchestration-validation.md), [checklist](phase5-checklist.md)
+and [Phase 6 handoff](phase6-handoff.md).
+
+## Next: Phase 6 — Trino + DBeaver
+
+Not started. See [Phase 6 handoff](phase6-handoff.md).
 
 ## Later phases
 
