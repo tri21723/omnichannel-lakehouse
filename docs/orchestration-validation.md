@@ -118,9 +118,11 @@ Recovery checks:
 - All datasets: `verify-gold`, `verify-features`, `verify-labels`, `verify-warehouse`,
   `reconcile-warehouse` (3 runs), `test-review-regressions` (22 cases) pass.
 - `make smoke-orch`, `make test-dags` (7 tests), `make check` (lint + unit tests) pass.
-- Hosted runs of `ci.yml` (dags job) and `orchestration.yml` are not claimed; the DagBag job
-  was reproduced in a clean `python:3.11.11-slim-bookworm` container with the 3.3.2
-  constraints.
+- Hosted CI: `Scaffold checks` run
+  [44335729476](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44335729476) on
+  commit `b528ae3` (push, 2026-11-18): jobs `check` and `dags` (DagBag on Airflow 3.3.2 with
+  constraints) both succeeded. The manual workflows `Airflow orchestration e2e` and
+  `Skew benchmark smoke` had no recorded run at that time and are not claimed.
 
 ## Remaining Phase 5 items (completed after the first close)
 
