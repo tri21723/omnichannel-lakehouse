@@ -18,6 +18,10 @@ ARG SPARK_JARS=/usr/local/lib/python3.11/site-packages/pyspark/jars
 COPY --from=spark ${SPARK_JARS}/iceberg-spark-runtime-3.5_2.12-1.9.2.jar ${PYSPARK_JARS}/
 COPY --from=spark ${SPARK_JARS}/iceberg-aws-bundle-1.9.2.jar ${PYSPARK_JARS}/
 COPY --from=spark ${SPARK_JARS}/postgresql-42.7.5.jar ${PYSPARK_JARS}/
+COPY --from=spark ${SPARK_JARS}/spark-sql-kafka-0-10_2.12-3.5.5.jar ${PYSPARK_JARS}/
+COPY --from=spark ${SPARK_JARS}/spark-token-provider-kafka-0-10_2.12-3.5.5.jar ${PYSPARK_JARS}/
+COPY --from=spark ${SPARK_JARS}/kafka-clients-3.4.1.jar ${PYSPARK_JARS}/
+COPY --from=spark ${SPARK_JARS}/commons-pool2-2.11.1.jar ${PYSPARK_JARS}/
 RUN ln -s /home/airflow/.local/lib/python3.11/site-packages/pyspark /opt/spark
 COPY spark /app/spark
 COPY sql /app/sql

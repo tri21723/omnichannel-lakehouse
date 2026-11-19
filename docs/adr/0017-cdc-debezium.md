@@ -64,9 +64,14 @@ changes of one order are totally ordered by offset.
 
 ## 4. Bronze: `dp1_cdc` → `lh.bronze.walmart_orders_cdc`
 
-- Spark Structured Streaming with `trigger(availableNow=True)` reads the topic, checkpoint
-  `s3://checkpoints/dp1_cdc/`. Each micro-batch is written with `foreachBatch` as
-  `MERGE INTO … ON (_kafka_topic, _kafka_partition, _kafka_offset) WHEN NOT MATCHED THEN INSERT`.
+- Spark Structured Streaming with `trigger(availableNow=True)` reads the topic. The checkpoint is on
+  the `/runtime` volume (`/runtime/checkpoints/dp1_cdc`, shared by Make and Airflow drivers), not
+  `s3://checkpoints/`: the Spark image only has Iceberg's `S3FileIO`, and adding S3A (`hadoop-aws` +
+  AWS SDK) is not worth it because losing the checkpoint only replays — the MERGE below inserts
+  nothing twice (measured in P8-05). Each micro-batch is written with `foreachBatch` as
+  `MERGE INTO … ON (_kafka_topic, _kafka_partition, _kafka_offset) WHEN NOT MATCHED THEN INSERT`,
+  executed through the micro-batch's own session (`batch.sparkSession`: foreachBatch uses a cloned
+  session, so temp views are not visible to the outer one).
   Iceberg's streaming sink does not document exactly-once for a retried micro-batch, while the MERGE
   makes every retry and replay idempotent by construction (AGENTS §7: MERGE or overwrite).
 - Columns: Kafka coordinates and timestamp, the raw key and value (`_raw`, null for tombstones), the

@@ -143,7 +143,7 @@ FEATURES_ARGS ?=
 LABELS_ARGS ?=
 WAREHOUSE_ARGS ?=
 spark-submit: ## Submit smoke, dp1_bronze, dp2_silver, dp2_gold, dp3_features, dp3_return_labels or dp4_warehouse
-	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp4_warehouse) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/main.py $(WAREHOUSE_ARGS) ;; dp3_return_labels) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp3_return_labels/main.py $(LABELS_ARGS) ;; dp3_features) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/main.py $(FEATURES_ARGS) ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp2_silver|dp2_gold|dp3_features|dp3_return_labels|dp4_warehouse'; exit 2 ;; esac
+	@case "$(JOB)" in smoke) $(MAKE) smoke-lakehouse ;; dp4_warehouse) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp4_warehouse/main.py $(WAREHOUSE_ARGS) ;; dp3_return_labels) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp3_return_labels/main.py $(LABELS_ARGS) ;; dp3_features) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp3_features/main.py $(FEATURES_ARGS) ;; dp2_gold) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/gold_main.py $(GOLD_ARGS) ;; dp2_silver) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp2_silver/main.py $(SILVER_ARGS) ;; dp1_bronze) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp1_bronze/main.py $(BRONZE_ARGS) ;; dp1_cdc) $(BATCH) run --rm --no-deps --name omnichannel-spark-driver spark-submit $(DRIVER_LOCK) /opt/spark/bin/spark-submit /app/spark/jobs/dp1_cdc/main.py $(CDC_ARGS) ;; *) echo 'Supported JOB=smoke|dp1_bronze|dp1_cdc|dp2_silver|dp2_gold|dp3_features|dp3_return_labels|dp4_warehouse'; exit 2 ;; esac
 
 .PHONY: verify-objects-lakehouse
 verify-objects-lakehouse: ## Inspect Iceberg objects and Spark read-only raw permissions
@@ -478,7 +478,7 @@ stream-acceptance: ## Live acceptance: start jobs, paced publish, drain, strict 
 GEN_STREAM_CONFIG_ACCEPT ?= generators/fixtures/stream-small.yaml
 
 # Phase 8 CDC (ADR-0017 planned): batch datasets must never change while CDC scenarios run.
-.PHONY: gen-cdc check-cdc-source cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
+.PHONY: bronze-cdc verify-bronze-cdc gen-cdc check-cdc-source cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
 cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal docker/cdc/batch_guard.baseline
 	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql > .local-data/cdc-batch-guard.txt
 	@diff -q docker/cdc/batch_guard.baseline .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
@@ -510,3 +510,8 @@ gen-cdc: ## Apply the deterministic CDC scenario once on PostgreSQL (own id pref
 	$(MAKE) --no-print-directory cdc-batch-guard
 check-cdc-source: ## Compare the scenario rows in PostgreSQL with the ground truth (read-only)
 	$(GEN) cdc-check --config generators/cdc.yaml $(GEN_CDC_ARGS)
+CDC_RUN_DATE ?= $(shell date -u +%Y-%m-%d)
+bronze-cdc: ## dp1_cdc: new CDC records from Kafka into lh.bronze.walmart_orders_cdc (needs up-cdc + up-batch)
+	$(MAKE) spark-submit JOB=dp1_cdc CDC_ARGS="--run-date $(CDC_RUN_DATE) --mode incremental"
+verify-bronze-cdc: ## Bronze CDC: unique Kafka coordinates, gap-free offsets, no invalid record (read-only)
+	$(MAKE) spark-submit JOB=dp1_cdc CDC_ARGS="--run-date $(CDC_RUN_DATE) --mode verify"

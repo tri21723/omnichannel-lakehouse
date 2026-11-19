@@ -13,6 +13,18 @@ RUN set -eu; get() { curl -fsSL --retry 8 --retry-max-time 300 --retry-connrefus
     get "$url" -o /opt/spark/jars/postgresql-42.7.5.jar; \
     printf '%s  %s\n' "$(get "$url.sha1")" /opt/spark/jars/postgresql-42.7.5.jar | sha1sum -c -; \
     rm -f /tmp/jar.sha512
+# Phase 8 (ADR-0017): Kafka source for Structured Streaming, SHA-1 as published on Maven Central.
+RUN set -eu; get() { curl -fsSL --retry 8 --retry-max-time 300 --retry-connrefused "$@"; }; \
+    m=https://repo.maven.apache.org/maven2; \
+    for spec in \
+      "org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.5/spark-sql-kafka-0-10_2.12-3.5.5.jar 5632315de051f608c9de773153764678c99e0852" \
+      "org/apache/spark/spark-token-provider-kafka-0-10_2.12/3.5.5/spark-token-provider-kafka-0-10_2.12-3.5.5.jar 0a0e280414723451a933f66eb3fbf3dd4e5b32bb" \
+      "org/apache/kafka/kafka-clients/3.4.1/kafka-clients-3.4.1.jar a2f55251deb3d31a21903a0cfbd4d1fa6b7463ca" \
+      "org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar 8970fd110c965f285ed4c6e40be7630c62db6f68"; do \
+      set -- $spec; jar=/opt/spark/jars/${1##*/}; \
+      get "$m/$1" -o "$jar"; \
+      printf '%s  %s\n' "$2" "$jar" | sha1sum -c -; \
+    done
 COPY spark /app/spark
 COPY sql /app/sql
 WORKDIR /app

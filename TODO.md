@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-04 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-05 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -160,18 +160,22 @@ tự commit giữ nguyên ở dòng tranh chấp.
 
 ### P8-05 — `dp1_cdc` → Bronze
 
-- [ ] Image Spark thêm connector Kafka (pin + checksum + retry); smoke đọc Kafka từ Spark.
-- [ ] `spark/jobs/dp1_cdc/main.py`:
+- [x] Image Spark thêm connector Kafka (pin + checksum + retry); smoke đọc Kafka từ Spark.
+- [x] `spark/jobs/dp1_cdc/main.py`:
   - Structured Streaming `availableNow`;
   - parse envelope Debezium (`op` c/u/d/r, `ts_ms`, `source.lsn`, `source.txId`, `before`, `after`);
-  - tombstone được ghi nhận (không bỏ im lặng); lỗi parse → `quarantine`/DLQ có lý do;
-  - ghi Iceberg `lh.bronze.walmart_orders_cdc` + cột audit, checkpoint `s3://checkpoints/dp1_cdc/`.
-- [ ] Exactly-once: chạy lại (cùng checkpoint) không nhân đôi; kill driver giữa chừng rồi chạy lại vẫn
+  - tombstone được ghi nhận (không bỏ im lặng); lỗi parse giữ trong Bronze với `_parse_status` +
+    `_error_reason` (quarantine có lý do ở Silver);
+  - ghi Iceberg `lh.bronze.walmart_orders_cdc` + cột audit, checkpoint `/runtime/checkpoints/dp1_cdc`
+    (image Spark không có S3A; xem ADR-0017).
+- [x] Exactly-once: chạy lại (cùng checkpoint) không nhân đôi; kill driver giữa chừng rồi chạy lại vẫn
   đúng; bằng chứng bằng (partition, offset) duy nhất.
-- [ ] Unit test logic parse envelope; Bronze contract (schema, partition) có test.
+- [x] Unit test logic parse envelope; Bronze contract (schema, partition) có test.
 
 **Đạt khi:** số dòng Bronze CDC = số message trên topic; replay/kill không nhân đôi.
-**Commit gợi ý:** `feat(spark): ingest Debezium CDC events into Bronze`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-05: kill driver sau 4 batch → chạy tiếp đủ 6.424 =
+topic; verify 0 trùng/0 hở/0 invalid; replay toàn bộ với checkpoint mới chèn 0. Checkpoint ở `/runtime`
+(không có S3A, ghi ADR).
 
 ### P8-06 — Silver hiện trạng từ CDC
 

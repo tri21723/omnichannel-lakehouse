@@ -127,3 +127,31 @@ Found while bringing it up:
   `c` 43, `u` 77, `d` 8 plus 8 tombstones. For the contested row the last two events are A
   (`shipped`, `10.00`) then B (`delivered`, `20.00`): commit order preserved, amounts as decimal
   strings.
+
+## P8-05 — `dp1_cdc` into Bronze
+
+- Spark image: + `spark-sql-kafka-0-10_2.12-3.5.5`, `spark-token-provider-kafka-0-10_2.12-3.5.5`,
+  `kafka-clients-3.4.1`, `commons-pool2-2.11.1` (SHA-1 verified in the build, retries on Maven);
+  the Airflow image copies the same jars. No Spark version change.
+- `spark/lib/cdc.py` (pure, used as the UDF): Debezium envelope → `op`, `ts_ms`, `lsn`, `tx_id`,
+  `before`/`after` as JSON text, `_parse_status` (`valid`, `tombstone`, `invalid` + reason: invalid
+  key/JSON, bad op, missing LSN, key/image mismatch); MERGE SQL keyed on Kafka coordinates; offset
+  contiguity check. 14 unit tests.
+- `spark/jobs/dp1_cdc/main.py`: `availableNow`, `foreachBatch` MERGE into
+  `lh.bronze.walmart_orders_cdc` (partitioned by day of the Kafka timestamp), checkpoint
+  `/runtime/checkpoints/dp1_cdc`; `--mode verify` (read-only): no duplicate coordinates, offsets
+  per partition gap-free from Kafka's earliest, no `invalid` record. Make: `bronze-cdc`,
+  `verify-bronze-cdc`, `spark-submit JOB=dp1_cdc`.
+
+| Step | Result |
+|---|---|
+| First run with 500 records per micro-batch, `docker kill omnichannel-spark-driver` after 4 batches (1,994 records written) | killed |
+| Rerun, same checkpoint | 4,430 inserted; total 6,424 = every record on the topic (6,288 after the smokes + 136 scenario records) |
+| `--mode verify` | ok: 0 duplicates, no gaps, 6,412 valid + 12 tombstones, 0 invalid |
+| Rerun | 0 records |
+| Full replay with a new checkpoint | 6,424 read, **0 inserted** |
+| `--mode verify` again; `cdc-batch-guard`; batch ledgers | ok; ok; SHA-256 unchanged |
+
+Found: the first attempt failed on `TABLE_OR_VIEW_NOT_FOUND cdc_batch` — the MERGE ran on the outer
+session while the view was registered on foreachBatch's cloned session; the batch was not committed
+in the checkpoint, so the fixed rerun picked it up again.
