@@ -585,3 +585,19 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   ngày event). `stream-close` từ chối khi còn file in-progress hoặc số dòng lệch ground truth.
 - **Script Spark chạy tay treo "Initial job has not accepted any resources":** container driver phải
   có `--name omnichannel-spark-driver` (executor kết nối ngược về tên này).
+
+## CDC (Phase 8)
+
+- **Bật:** `make up-cdc` (core + Kafka + Kafka Connect, tạo topic, đăng ký connector), kiểm tra
+  `make smoke-cdc` (gồm `cdc-batch-guard`). Connect không có port host (8083 là Trino): dùng
+  `make status-cdc` hoặc `docker compose … exec kafka-connect curl localhost:8083/…`.
+- **Connector FAILED với `topic.creation.default.replication.factor`:** đừng đặt khoá `topic.creation.*`
+  trong connector; topic được tạo sẵn ở `make init-cdc`.
+- **Task kẹt, log lặp `UNKNOWN_TOPIC_OR_PARTITION` cho `platform_cdc.message`:** heartbeat logical
+  message đang được phát ra Kafka; cần `message.prefix.exclude.list=debezium-heartbeat` (đã có).
+- **Snapshot lặp lại sau restart:** khi offset "snapshot xong" chưa commit, Debezium snapshot lại
+  (at-least-once). Bronze/Silver chịu được bản trùng; không xoá topic để "sửa".
+- **Pull image Debezium treo (`TLS handshake timeout` tới `cdn*.quay.io`):** CDN quay.io qua proxy
+  Docker Desktop không ổn định; huỷ và pull lại (không dùng `pkill -f` với chuỗi trùng lệnh đang chạy).
+- **Không UPDATE/DELETE dòng của 3 dataset batch** khi thử CDC; dùng tiền tố riêng và `make
+  cdc-batch-guard` để chứng minh.

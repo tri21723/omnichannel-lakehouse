@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-02 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-03 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -118,24 +118,25 @@ Debezium 3.6.3.Final (quay.io), Bronze MERGE theo tọa độ Kafka, Silver hi�
 
 ### P8-03 — Hạ tầng `cdc`
 
-- [ ] `docker/compose.cdc.yml` profile `cdc`: `kafka-connect` (Debezium image, distributed mode, topic
+- [x] `docker/compose.cdc.yml` profile `cdc`: `kafka-connect` (Debezium image, distributed mode, topic
   nội bộ, `mem_limit`, healthcheck REST nội bộ, không host port); gộp với `compose.stream.yml` để
   dùng lại `kafka` (không bật Flink).
-- [ ] Bootstrap idempotent:
+- [x] Bootstrap idempotent:
   - topic CDC + heartbeat + topic nội bộ Connect (compact) trong `kafka-init`;
   - publication `dbz_pub` (nếu cần tạo bằng owner bảng);
   - đăng ký/cập nhật connector qua REST bằng file JSON trong repo
     (`docker/cdc/connectors/walmart-orders.json`); secret qua biến môi trường (Connect
     `FileConfigProvider`/env), không ghi password vào file.
-- [ ] Make: `env-cdc`, `build-cdc` (nếu cần), `up-cdc` (thay placeholder), `register-cdc`,
+- [x] Make: `env-cdc`, `build-cdc` (nếu cần), `up-cdc` (thay placeholder), `register-cdc`,
   `status-cdc`, `smoke-cdc`, `restart-cdc`; `down`/`logs` gồm `cdc`; yamllint.
-- [ ] Smoke:
+- [x] Smoke:
   - connector `RUNNING`, snapshot xong (số message = số order hiện có);
   - một INSERT/UPDATE/DELETE thử trên dòng tiền tố smoke xuất hiện trên topic theo thứ tự;
   - slot `dbz_walmart` active, heartbeat có, secret không có trong log Connect.
 
 **Đạt khi:** `make up-cdc && make smoke-cdc` xanh từ trạng thái dừng và sau restart; batch không đổi.
-**Commit gợi ý:** `feat(cdc): add Kafka Connect with the Debezium Postgres connector`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-03: `smoke-cdc` 12/12 + batch guard sau lần
+sửa đầu, sau `restart-cdc`, sau `down` + `up-cdc` (76 s); không snapshot lại. 4 phát hiện đã ghi ADR/runbook.
 
 ### P8-04 — Generator kịch bản CDC
 

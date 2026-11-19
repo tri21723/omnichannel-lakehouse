@@ -1,0 +1,48 @@
+# Profile cdc: Kafka Connect with the Debezium PostgreSQL connector (ADR-0017). Merged with
+# compose.core.yml and compose.stream.yml (only `kafka` is started from the stream profile).
+# CDC-only variables default to empty so `make down` works before `make env-cdc`.
+services:
+  kafka-connect:
+    image: ${DEBEZIUM_CONNECT_IMAGE:-quay.io/debezium/connect:3.6.3.Final}
+    profiles: [cdc]
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: cdc-connect
+      CONFIG_STORAGE_TOPIC: _connect.configs
+      OFFSET_STORAGE_TOPIC: _connect.offsets
+      STATUS_STORAGE_TOPIC: _connect.status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      # Connector configs reference ${env:DEBEZIUM_REPL_DB_PASSWORD}; only that variable is readable.
+      CONNECT_CONFIG_PROVIDERS: env
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+      CONNECT_CONFIG_PROVIDERS_ENV_PARAM_ALLOWLIST_PATTERN: ^DEBEZIUM_REPL_DB_PASSWORD$$
+      DEBEZIUM_REPL_DB_PASSWORD: ${DEBEZIUM_REPL_DB_PASSWORD:-}
+      HEAP_OPTS: -Xms256m -Xmx512m
+    mem_limit: 1024m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:8083/connectors >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  cdc-kafka-init:
+    image: ${KAFKA_IMAGE:-apache/kafka:4.3.2}
+    profiles: [cdc]
+    entrypoint: [/bin/bash, /bootstrap/kafka-init.sh]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+    volumes:
+    - ./cdc:/bootstrap:ro

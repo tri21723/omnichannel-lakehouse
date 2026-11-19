@@ -1,0 +1,22 @@
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "tasks.max": "1",
+  "database.hostname": "postgres",
+  "database.port": "5432",
+  "database.user": "debezium_repl",
+  "database.password": "${env:DEBEZIUM_REPL_DB_PASSWORD}",
+  "database.dbname": "sources",
+  "topic.prefix": "platform_cdc",
+  "plugin.name": "pgoutput",
+  "slot.name": "dbz_walmart",
+  "publication.name": "dbz_pub",
+  "publication.autocreate.mode": "disabled",
+  "table.include.list": "walmart.orders",
+  "snapshot.mode": "initial",
+  "decimal.handling.mode": "string",
+  "time.precision.mode": "adaptive_time_microseconds",
+  "heartbeat.interval.ms": "10000",
+  "heartbeat.action.query": "SELECT pg_logical_emit_message(false, 'debezium-heartbeat', now()::text)",
+  "tombstones.on.delete": "true",
+  "message.prefix.exclude.list": "debezium-heartbeat"
+}

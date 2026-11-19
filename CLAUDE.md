@@ -25,7 +25,9 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 - Kiểm tra nhanh không cần Docker: `make check` (lint + unit test). Các target
   `smoke-*`, `integration-*`, `test-*-recovery`, `test-review-regressions` cần
   `make up-batch` và chạy tuần tự (không chạy song song nhiều Spark driver).
-- Target chưa triển khai (`up-cdc`, `up-gov`) cố ý `exit 2`.
+- Target chưa triển khai (`up-gov`) cố ý `exit 2`.
+- CDC (`make up-cdc`, ADR-0017): Kafka Connect không có port host; thử CDC chỉ trên dòng có tiền tố
+  riêng (không bao giờ đụng 3 dataset batch), kiểm bằng `make cdc-batch-guard`.
 - Streaming (`make up-stream`): Kafka 127.0.0.1:9092 (container: `kafka:29092`), kafka-ui 8085,
   Flink 8082; không bật cùng batch/orch/query khi đo Flink. Job Flink viết Java (ADR-0016), đổi
   `flink/jobs` cần `make build-stream`. Mỗi stream run chỉ publish một lần (seed mới để chạy lại);

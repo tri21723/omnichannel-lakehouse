@@ -75,3 +75,39 @@ coordinates (Iceberg does not document exactly-once for retried micro-batches); 
 current state with soft deletes (owner decision). Pulling from quay.io through the Docker Desktop
 proxy hit repeated `TLS handshake timeout`s on the quay CDN (also for a tiny busybox image); the
 third attempt succeeded.
+
+## P8-03 — CDC profile
+
+- `docker/compose.cdc.yml` (profile `cdc`, merged with core + stream; only `kafka` is started from
+  stream): `kafka-connect` (Debezium 3.6.3, distributed, internal topics `_connect.*`, `mem_limit`
+  1 GiB, healthcheck, no host port) and `cdc-kafka-init` (topics `platform_cdc.walmart.orders` with 3
+  partitions and `__debezium-heartbeat.platform_cdc`). Connector config
+  `docker/cdc/connectors/walmart-orders.json` is registered with an idempotent `PUT`; the password is
+  `${env:DEBEZIUM_REPL_DB_PASSWORD}` through `EnvVarConfigProvider` with an allowlist for that variable.
+- `debezium_repl` may call `pg_logical_emit_message` (default EXECUTE), so the heartbeat action query
+  needs no extra table or grant.
+- Make: `env-cdc`, `config-cdc`, `up-cdc` (replaces the placeholder), `init-cdc`, `register-cdc`,
+  `status-cdc`, `smoke-cdc`, `restart-cdc`; `down`/`logs` include `cdc`. Unit tests (3) for the
+  connector file (no secret, orders only, no autocreate, heartbeat excluded, no `topic.creation.*`)
+  and `env.py`.
+- `make smoke-cdc`, 12 checks + batch guard: connector and task RUNNING, slot `dbz_walmart` active
+  with `pgoutput`, publication = `walmart.orders` only, no customers topic, snapshot covered all 3,135
+  orders, a probe (insert, two updates, delete on `cdcsmoke-<epoch>` ids with the `generator` role)
+  arrives as `c,u,u,d,tombstone` in order, `total_amount` as a decimal string, heartbeat flowing,
+  slot lag < 100 MB (632–2,944 bytes observed), password absent from Connect logs and only the
+  placeholder stored in `_connect.configs`; `cdc-batch-guard` ok.
+- Passed after the first fixes, after `make restart-cdc`, and after `make down` + `make up-cdc` from a
+  stopped stack (76 s). Topic totals rose by exactly the 5 probe records per smoke (6,278 → 6,283 →
+  6,288): no resnapshot on restart. Kafka Connect uses ~477 MiB.
+
+Found while bringing it up:
+
+1. A connector-level `topic.creation.enable` made Connect demand
+   `topic.creation.default.replication.factor` (connector FAILED); removed.
+2. The heartbeat action query emits a logical message that Debezium routes to
+   `platform_cdc.message`; with broker auto-creation off the producer retried forever and blocked
+   every later event. Fixed with `message.prefix.exclude.list=debezium-heartbeat`.
+3. Because the snapshot-done offset was never committed while blocked, the restart repeated the
+   snapshot (3,135 more `r` records) and the earlier probe changes appear only as the new snapshot's
+   state — at-least-once behaviour now documented in ADR-0017.
+4. The smoke compared a boolean cast as `t`; PostgreSQL prints `true`.

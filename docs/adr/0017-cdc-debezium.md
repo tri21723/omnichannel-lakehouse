@@ -45,8 +45,17 @@ Details and sources in ADR-0001.
 | `time.precision.mode` | `adaptive_time_microseconds` | `TIMESTAMPTZ` arrive as ISO-8601 UTC strings |
 | `heartbeat.interval.ms` | `10000` | slot keeps advancing |
 | `heartbeat.action.query` | `SELECT pg_logical_emit_message(false, 'debezium-heartbeat', now()::text)` | the same database receives heavy warehouse writes outside the publication; a logical message moves the slot without a heartbeat table (privilege verified in P8-03) |
+| `message.prefix.exclude.list` | `debezium-heartbeat` | the heartbeat message still advances the slot but is not published; otherwise Debezium routes it to `platform_cdc.message`, which does not exist (broker auto-creation off), and the task blocks |
 | `tombstones.on.delete` | `true` (default) | delete = event with `op = d` and a following null-value tombstone; both land in Bronze |
 | `skipped.operations` | `t` (default) | `TRUNCATE` is not propagated; a truncate of the source requires a resnapshot (runbook) |
+
+No connector-level `topic.creation.*` key is set: any such key switches on Connect's topic-creation
+groups and then requires `topic.creation.default.*`; topics are pre-created instead.
+
+Delivery is at-least-once: if Connect could not commit the offset that marks the snapshot as done
+(observed in P8-03 while the task was blocked), a restart repeats the snapshot, and changes that
+happened before the new snapshot are visible only as its `r` rows. Bronze keeps every record by its
+Kafka coordinates and Silver applies the latest `(lsn, offset)` per key, so duplicates are harmless.
 
 Topics are created explicitly and idempotently in the `cdc` bootstrap: `platform_cdc.walmart.orders`
 (3 partitions, key = primary key, `retention.ms` 7 days) and the heartbeat topic

@@ -19,9 +19,9 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml docker/compose.cdc.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
-	for script in docker/stream/*.sh; do bash -n "$$script" || exit; done
+	for script in docker/stream/*.sh docker/cdc/*.sh; do bash -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 	cd sql/trino && ../../$(BIN)/sqlfluff lint .
 
@@ -34,7 +34,7 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-cdc up-gov:
+up-gov:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -109,7 +109,8 @@ DRIVER_LOCK := python -m spark.lib.driver_lock --
 BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml --profile core --profile batch
 ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
 QUERY := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.query.yml --profile core --profile batch --profile query
-ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml --profile core --profile batch --profile orch --profile query --profile stream
+ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml --profile core --profile batch --profile orch --profile query --profile stream --profile cdc
+CDC := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml --profile core --profile stream --profile cdc
 STREAM := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml --profile core --profile stream
 AIRFLOW_EXEC = $(ORCH) exec -T airflow
 .PHONY: env-batch config-batch build-batch init-lakehouse smoke-lakehouse verify-lakehouse restart-lakehouse
@@ -477,7 +478,29 @@ stream-acceptance: ## Live acceptance: start jobs, paced publish, drain, strict 
 GEN_STREAM_CONFIG_ACCEPT ?= generators/fixtures/stream-small.yaml
 
 # Phase 8 CDC (ADR-0017 planned): batch datasets must never change while CDC scenarios run.
-.PHONY: cdc-batch-guard
+.PHONY: cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
 cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal docker/cdc/batch_guard.baseline
 	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql > .local-data/cdc-batch-guard.txt
 	@diff -q docker/cdc/batch_guard.baseline .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
+env-cdc: env-stream ## Add Phase 8 settings (Debezium Connect image) without rotating credentials
+	$(PYTHON) docker/cdc/env.py
+config-cdc: ## Validate merged core+stream+cdc configuration silently
+	$(CDC) config --quiet
+up-cdc: env-cdc ## Start core + Kafka + Kafka Connect (Debezium), create CDC topics, register the connector
+	$(MAKE) up-core
+	$(CDC) up -d --wait kafka
+	$(MAKE) init-cdc
+	$(CDC) up -d --wait kafka-connect
+	$(MAKE) register-cdc
+init-cdc: ## Idempotent CDC topics (data + heartbeat)
+	$(CDC) run --rm --no-deps cdc-kafka-init
+register-cdc: ## Create or update the walmart-orders connector from docker/cdc/connectors (idempotent)
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh register
+status-cdc: ## Connector and task state (exit 1 unless RUNNING)
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh status
+smoke-cdc: ## Connector, slot, snapshot, ordered DML probe, heartbeat, no secret leak, batch guard
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/smoke.sh
+	$(MAKE) --no-print-directory cdc-batch-guard
+restart-cdc: ## Restart Kafka Connect; offsets and connector config live in Kafka
+	$(CDC) restart kafka-connect
+	$(CDC) up -d --wait kafka-connect
