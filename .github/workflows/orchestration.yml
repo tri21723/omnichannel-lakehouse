@@ -6,7 +6,8 @@ permissions:
 jobs:
   orchestration-e2e:
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    # Measured on a fresh 4-CPU host: ingest ~65 min, each replay ~40 min (three e2e passes).
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -16,8 +17,11 @@ jobs:
       - run: make build-generator build-orch
       - run: make up-orch
       - run: make test-dags
+      # smoke-orch only verifies the Iceberg smoke fixture; create it on a fresh runner first.
+      - run: sh docker/batch/ci_run.sh make smoke-lakehouse
       - run: sh docker/batch/ci_run.sh make smoke-orch
-      # Backfill 2026-01-01..03 twice through Airflow; the replay must not change ledgers.
+      # Backfill 2026-01-01..03 through Airflow: ingest, converging replay (only DP3 may change),
+      # then a replay that must not change any ledger.
       - run: sh docker/batch/ci_run.sh make e2e
       - run: make restart-orch
       - run: sh docker/batch/ci_run.sh make smoke-orch

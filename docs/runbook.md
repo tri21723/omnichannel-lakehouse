@@ -541,3 +541,10 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
 - **Tái hiện workflow cục bộ mà không đụng dữ liệu thật:** `git clone` repo ra thư mục khác, đặt
   `COMPOSE_PROJECT_NAME` khác (shell + `.env` của bản clone) để có volume riêng, dừng stack chính
   trước (trùng port), chạy lần lượt các bước của workflow.
+- **`make e2e` lượt replay báo `ledgers changed on replay: ['dp3/publication/ledger.json']`:**
+  sau một backfill nhiều ngày trên môi trường mới, replay đầu tiên tính lại DP3 cho các ngày cũ vì
+  DP3 ghim publication Gold mới nhất (ADR-0013 addendum). `make e2e` cho phép điều này ở lượt hội
+  tụ (`--allow-changed dp3/publication/ledger.json`); lượt cuối không được đổi ledger nào. Nếu
+  Silver/Gold/warehouse đổi ở lượt hội tụ thì đó là lỗi thật.
+- **`smoke-orch` lỗi `fixture.json` trên môi trường mới:** chạy `make smoke-lakehouse` trước
+  (tạo fixture smoke một lần, các lần sau chỉ kiểm tra).

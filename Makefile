@@ -360,9 +360,10 @@ test-dags: ## Run DagBag and DAG contract tests inside the Airflow image
 	$(ORCH) run --rm --no-deps -v "$(CURDIR)/airflow:/opt/omnichannel/airflow:ro" -w /opt/omnichannel --entrypoint python airflow -m pytest -q -p no:cacheprovider airflow/tests
 airflow-cli: ## Run an Airflow CLI command in the running container, e.g. ARGS='dags list'
 	$(AIRFLOW_EXEC) airflow $(ARGS)
-e2e: ## Backfill batch_daily via Airflow on the orchestration fixture twice; replay must not change ledgers (needs up-orch)
+e2e: ## Backfill batch_daily via Airflow: ingest, converging replay (only DP3 may change), replay that changes nothing (needs up-orch)
 	$(MAKE) gen-sources GEN_ARGS='--config generators/fixtures/orchestration.yaml'
 	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) < docker/orch/e2e.py
+	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) --reprocess completed --expect-unchanged --allow-changed dp3/publication/ledger.json < docker/orch/e2e.py
 	$(ORCH) exec -T airflow python - --run-id $(E2E_RUN_ID) --reprocess completed --expect-unchanged < docker/orch/e2e.py
 
 .PHONY: iceberg-report

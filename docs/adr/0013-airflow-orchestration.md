@@ -78,7 +78,12 @@
 - The warehouse mirrors the latest 30-day window. With `--no-regress`, a date older than the
   committed export for the same Gold publication is skipped, so a backfill of history never
   moves the window backwards; the newest date's run exports it.
-- A rerun of the same dates therefore publishes nothing new (checked by `make e2e`).
+- A rerun of the same dates therefore publishes nothing new (checked by `make e2e`), with one
+  documented exception: DP3 pins the **latest** Gold publication, so the first replay after a
+  fresh multi-date backfill recomputes earlier dates (their recorded Gold publication was the
+  one current when that date first ran). This is intended — labels mature as later data
+  arrives — and converges: the next replay skips every step. Addendum 2026-11-19, found by the
+  first hosted run on an empty environment.
 
 ## 5. Task contract
 
@@ -101,7 +106,8 @@
   rendered commands for a sample date, param validation.
 - `make test` skips Airflow tests when Airflow is not installed in `.venv`.
 - `make e2e` runs `batch_daily` end to end through Airflow on a dedicated small dataset and
-  asserts ledgers and verifiers; reruns must skip.
+  asserts ledgers and verifiers in three passes: ingest; converging replay where only the DP3
+  ledger may change (`--allow-changed`); replay where no ledger may change.
 
 ## 7. Consequences
 

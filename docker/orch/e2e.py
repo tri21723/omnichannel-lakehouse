@@ -2,7 +2,13 @@
 
 Runs inside the Airflow container (`make e2e` pipes it to `python -`). Prints one JSON line
 per step and a final summary; exits non-zero on failure, timeout or a changed ledger when
-`--expect-unchanged` is given. Never prints credentials.
+`--expect-unchanged` is given (except ledgers named by `--allow-changed`). Never prints
+credentials.
+
+The first replay after a fresh backfill legitimately refreshes DP3 for earlier dates: DP3 pins
+the latest Gold publication, which moved on after later dates were published. `make e2e`
+therefore runs ingest → converging replay (only the DP3 ledger may change) → replay that must
+change nothing.
 """
 
 from __future__ import annotations
@@ -113,6 +119,15 @@ def xcom(client: Client, dag_id: str, run_id: str, task_id: str):
         return None
 
 
+def unexpected_changes(
+    changed: list[str], expect_unchanged: bool, allowed: list[str] | None = None
+) -> list[str]:
+    """Ledgers that changed although the pass expected them unchanged."""
+    if not expect_unchanged:
+        return []
+    return sorted(set(changed) - set(allowed or []))
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--run-id", required=True)
@@ -121,6 +136,13 @@ def main(argv=None) -> int:
     parser.add_argument("--reprocess", choices=("none", "completed", "failed"), default="failed")
     parser.add_argument("--timeout", type=int, default=7200)
     parser.add_argument("--expect-unchanged", action="store_true")
+    parser.add_argument(
+        "--allow-changed",
+        action="append",
+        choices=LEDGERS,
+        default=[],
+        help="ledger that may change despite --expect-unchanged (repeatable)",
+    )
     args = parser.parse_args(argv)
     if len(args.run_id) != 20 or any(c not in "0123456789abcdef" for c in args.run_id):
         parser.error("--run-id must be 20 lowercase hex characters")
@@ -188,8 +210,9 @@ def main(argv=None) -> int:
                 }
     after = ledger_hashes()
     changed = sorted(name for name in after if before.get(name) != after[name])
-    if args.expect_unchanged and changed:
-        problems.append(f"ledgers changed on replay: {changed}")
+    unexpected = unexpected_changes(changed, args.expect_unchanged, args.allow_changed)
+    if unexpected:
+        problems.append(f"ledgers changed on replay: {unexpected}")
     emit(
         "e2e_summary",
         backfill_id=backfill["id"],

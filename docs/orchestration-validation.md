@@ -160,3 +160,30 @@ A `dp2_gold` run recorded an event for `iceberg://lakekeeper/lh/gold/star_schema
 - No `expire_snapshots`, `remove_orphan_files` or `rewrite_data_files` call exists in the code
   (asserted by the DAG test for the rendered command).
 
+
+## Fresh-environment reproduction (2026-11-19)
+
+The first hosted run of `Airflow orchestration e2e`
+([44449903218](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44449903218), commit
+`3fe9364`) failed in `smoke-orch`: it only verifies the Iceberg smoke fixture, which a fresh runner
+does not have. The workflow now runs `make smoke-lakehouse` first (creates once, then verifies).
+
+The whole workflow was then reproduced locally in an isolated Compose project (own `.env` and
+volumes; the real volumes were untouched):
+
+| Pass | Result |
+|---|---|
+| build, `up-orch`, `test-dags`, `smoke-lakehouse`, `smoke-orch` | pass |
+| 1: ingest 2026-01-01..03 | success, 0 problems, 3,929 s; every layer published |
+| 2: replay, expect unchanged | **failed**: only the DP3 ledger changed; features/labels for 01-01 and 01-02 republished, 01-03 and all Gold/warehouse steps skipped |
+| 3: replay, expect unchanged | success, 2,342 s, no ledger changed, all 12 publish steps skipped |
+| `restart-orch`, `smoke-orch` | pass |
+
+Cause: DP3 pins the latest Gold publication. During ingest, 01-01 and 01-02 recorded the Gold
+publication current at that time; after 01-03, the first replay sees a newer publication and
+recomputes those dates (after pass 2 all nine table/date scopes point to the same Gold
+publication). This is the same behaviour as pass C above, which was then read as a repair
+specific to fix 7; it is in fact inherent to any fresh backfill, and the system converges after
+one replay. `make e2e` now runs three passes (ingest; replay where only the DP3 ledger may change;
+replay where nothing may change) and the workflow timeout is 300 minutes. See the ADR-0013
+addendum.
