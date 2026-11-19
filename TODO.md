@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-02 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -103,17 +103,18 @@ publication); `walmart.orders` = 3.135 dòng; RAM còn ≈ 8 GiB.
 
 ### P8-02 — ADR và version
 
-- [ ] Xác minh trên tài liệu chính thức:
+- [x] Xác minh trên tài liệu chính thức:
   - Debezium: dòng stable, Postgres 16, pgoutput, quyền tối thiểu, heartbeat,
     `decimal.handling.mode`, `time.precision.mode`, topic creation khi broker tắt auto-create;
   - image Connect (registry, digest), Kafka Connect ↔ Kafka 4.3.2;
   - `spark-sql-kafka-0-10_2.12:3.5.5` + phụ thuộc (checksum), Iceberg streaming sink (exactly-once).
-- [ ] Viết `docs/adr/0017-cdc-debezium.md` chốt mọi mục §2: định danh CDC, thứ tự theo LSN, soft
+- [x] Viết `docs/adr/0017-cdc-debezium.md` chốt mọi mục §2: định danh CDC, thứ tự theo LSN, soft
   delete, PII, xử lý tombstone, snapshot ban đầu, đổi schema, slot/WAL.
-- [ ] Ghi pin vào ADR-0001; hợp đồng event CDC + bảng Bronze/Silver trong `docs/data-model.md`.
+- [x] Ghi pin vào ADR-0001; hợp đồng event CDC + bảng Bronze/Silver trong `docs/data-model.md`.
 
 **Đạt khi:** ADR có nguồn, version pin, không cần ngoại lệ AGENTS hoặc đã hỏi lại.
-**Commit gợi ý:** `docs(adr): define CDC contract and pin Debezium`.
+**Bằng chứng:** [ADR-0017](docs/adr/0017-cdc-debezium.md), ADR-0001 §Phase 8, data-model §CDC. Chốt:
+Debezium 3.6.3.Final (quay.io), Bronze MERGE theo tọa độ Kafka, Silver hiện trạng + xoá mềm (người dùng chọn).
 
 ### P8-03 — Hạ tầng `cdc`
 

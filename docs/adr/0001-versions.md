@@ -117,3 +117,23 @@ Sources checked (2026-11-19):
 - [kafka-python compatibility](https://kafka-python.readthedocs.io/en/master/compatibility.html)
   and [KafkaProducer](https://kafka-python.readthedocs.io/en/master/apidoc/KafkaProducer.html)
 - [apache-flink on PyPI](https://pypi.org/project/apache-flink/2.2.1/) (PyFlink option rejected, ADR-0016)
+
+## Phase 8 selected pins (2026-11-19)
+
+See ADR-0017. Debezium **3.6.3.Final** with Kafka Connect from `quay.io/debezium/connect:3.6.3.Final`
+(released 2026-11-02; 3.6.4.Final and 3.7.x were less than two weeks old; Debezium stopped publishing
+on Docker Hub after 3.0.0). Debezium 3.6 supports PostgreSQL 14–18 with `pgoutput`, Java 17 and
+Kafka Connect ≥ 3.1; the image (`sha256:99aa63f4…5e1c`, 777 MiB) bundles Kafka Connect 4.3.0, Java 25
+and PostgreSQL JDBC 42.7.13; the broker stays Kafka 4.3.2 (ADR-0016). Spark gains the Kafka source for
+Spark 3.5.5 without changing Spark: `spark-sql-kafka-0-10_2.12-3.5.5`
+(`5632315de051f608c9de773153764678c99e0852`), `spark-token-provider-kafka-0-10_2.12-3.5.5`
+(`0a0e280414723451a933f66eb3fbf3dd4e5b32bb`), `kafka-clients-3.4.1`
+(`a2f55251deb3d31a21903a0cfbd4d1fa6b7463ca`), `commons-pool2-2.11.1`
+(`8970fd110c965f285ed4c6e40be7630c62db6f68`) — SHA-1 as published on Maven Central, verified
+in the image build. No existing pin or port was changed; Kafka Connect gets no host port.
+
+Sources checked (2026-11-19):
+- [Debezium releases](https://debezium.io/releases/) and [3.6 tested versions](https://debezium.io/releases/3.6/)
+- [quay.io/debezium/connect tags](https://quay.io/repository/debezium/connect?tab=tags)
+- [spark-sql-kafka-0-10_2.12 3.5.5 POM](https://repo.maven.apache.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.5/)
+- [Iceberg Structured Streaming](https://iceberg.apache.org/docs/1.9.2/spark-structured-streaming/) (no documented exactly-once for retried micro-batches → MERGE by Kafka coordinates)

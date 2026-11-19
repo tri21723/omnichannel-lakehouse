@@ -63,3 +63,15 @@ MinIO 395 MiB, workers 186/217 MiB, master 180 MiB, PostgreSQL 68 MiB; host used
 ### Placeholders
 
 `make up-cdc` still `exit 2`; `spark/jobs/dp1_cdc/` contains only `.gitkeep`.
+
+## P8-02 — Decisions
+
+[ADR-0017](adr/0017-cdc-debezium.md): Debezium 3.6.3.Final from `quay.io/debezium/connect`
+(`sha256:99aa63f4…5e1c`; Kafka Connect 4.3.0, Java 25, PostgreSQL JDBC 42.7.13), connector on the
+existing `dbz_pub` (`publication.autocreate.mode=disabled`), `walmart.orders` only, decimals as
+strings, heartbeat with a logical-message action query, no host port for Connect; Spark gains
+`spark-sql-kafka-0-10` 3.5.5 + three jars (SHA-1 pinned); Bronze by `foreachBatch` MERGE on Kafka
+coordinates (Iceberg does not document exactly-once for retried micro-batches); Silver keeps the
+current state with soft deletes (owner decision). Pulling from quay.io through the Docker Desktop
+proxy hit repeated `TLS handshake timeout`s on the quay CDN (also for a tiny busybox image); the
+third attempt succeeded.

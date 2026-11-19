@@ -143,3 +143,22 @@ Records that fail parsing or the required fields go to `<topic>.dlq`. Flink outp
 `amazon_order_notifications_raw` and `tiktok_shop_order_webhooks_raw` (standard Bronze audit
 schema, partitioned by `_run_date` = event date, `_source_type` = `stream`, `_source_table` =
 branch; `windows` are not ingested). Silver/Gold for streaming data are out of scope in Phase 7.
+
+## CDC of `walmart.orders` (Phase 8)
+
+Debezium (ADR-0017) publishes row changes of `walmart.orders` to `platform_cdc.walmart.orders`
+(key = `{"order_id": …}`, JSON without schemas). Value = Debezium envelope: `op` (`r` snapshot read,
+`c` insert, `u` update, `d` delete), `ts_ms`, `source` (`lsn`, `txId`, …), `before`, `after` (row
+images; `REPLICA IDENTITY FULL` gives full `before`). `total_amount` is a decimal string,
+`order_ts`/`updated_ts` ISO-8601 UTC strings. A delete is followed by a tombstone (null value).
+`walmart.customers` is not captured.
+
+| Table | Grain | Key columns | Notes |
+|---|---|---|---|
+| `bronze.walmart_orders_cdc` | one Kafka record | `_kafka_topic`, `_kafka_partition`, `_kafka_offset` (unique) | raw key/value, parsed envelope fields, `_parse_status`, audit columns; tombstones kept |
+| `silver.walmart_orders_cdc_current` | one order | `order_id` | typed business columns, `is_deleted`, `_cdc_op`, `_cdc_lsn`, `_cdc_ts_ms`, Kafka coordinates of the applied event |
+| `silver.quarantine_walmart_orders_cdc` | one rejected event | Kafka coordinates | `_error_reason` |
+
+Silver keeps the current state with soft deletes; an event is applied only if its `(lsn, offset)` is
+greater than the stored one. These tables are independent of the published batch Silver/Gold tables
+and of the three batch datasets.
