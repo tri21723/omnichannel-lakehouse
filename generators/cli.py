@@ -12,6 +12,7 @@ from generators.batch.dataset import generate, verify_local
 from generators.common.config import read_config
 from generators.common.storage import publish, s3_client, verify_remote
 from generators.load.postgres import connect, load
+from generators.stream.close import close_stream
 from generators.stream.config import read_stream_config
 from generators.stream.events import generate as generate_stream
 from generators.stream.publish import check_stream, kafka_producer, publish_stream, write_json
@@ -185,6 +186,19 @@ def stream_verify(
     )
     if not result["ok"]:
         raise SystemExit(1)
+
+
+@app.command("stream-close")
+def stream_close(
+    config: ConfigPath = Path("generators/stream.yaml"),
+    output: Path = Path(".local-data/generated"),
+    seed: int | None = None,
+    events_per_channel: int | None = None,
+) -> None:
+    """Write the immutable stream_output_manifest.json for a stopped run (Bronze input)."""
+    cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
+    result = close_stream(cfg.stream_run_id, s3_client(), os.environ["S3_RAW_BUCKET"], output)
+    event("stream_closed", run_id=cfg.stream_run_id, files=result["files"], rows=result["rows"])
 
 
 def main() -> None:

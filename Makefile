@@ -440,7 +440,7 @@ restart-stream: ## Restart Kafka, kafka-ui and Flink; data and topics are kept
 status-stream: ## Show stream service state
 	$(STREAM) ps kafka kafka-ui flink-jobmanager flink-taskmanager
 
-.PHONY: gen-stream check-stream-source verify-stream
+.PHONY: gen-stream check-stream-source verify-stream stream-close bronze-stream
 GEN_STREAM_CONFIG ?= generators/stream.yaml
 GEN_STREAM_ARGS ?=
 # Live runs: lag in simulated time ~ rate per topic x (watermark interval + fetch) / density;
@@ -464,3 +464,10 @@ stream-jobs: ## List Flink jobs
 	$(STREAM_JOBS_SH) list
 verify-stream: ## Reconcile committed Flink output + DLQs with the ground truth (read-only; after stream-stop)
 	$(STREAM_GEN) stream-verify --config $(GEN_STREAM_CONFIG) $(GEN_STREAM_ARGS)
+stream-close: ## After stream-stop: write the immutable output manifest that Bronze ingests
+	$(STREAM_GEN) stream-close --config $(GEN_STREAM_CONFIG) --output /data $(GEN_STREAM_ARGS)
+STREAM_RUN_ID ?=
+STREAM_RUN_DATE ?=
+bronze-stream: ## Ingest one closed stream run/date into Bronze for amazon and tiktok_shop (needs up-batch)
+	@test -n "$(STREAM_RUN_ID)" -a -n "$(STREAM_RUN_DATE)" || { echo "set STREAM_RUN_ID and STREAM_RUN_DATE"; exit 2; }
+	for channel in amazon tiktok_shop; do $(MAKE) spark-submit JOB=dp1_bronze BRONZE_ARGS="--run-id $(STREAM_RUN_ID) --run-date $(STREAM_RUN_DATE) --channel $$channel --source stream --mode incremental $(BRONZE_STREAM_ARGS)" || exit 1; done

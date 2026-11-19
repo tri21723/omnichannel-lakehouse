@@ -6,6 +6,7 @@ import pytest
 
 from generators.batch.dataset import generate
 from generators.common.config import GeneratorConfig
+from spark.lib import bronze_input
 from spark.lib.bronze import writer_lock
 from spark.lib.bronze_input import identity, parse_status, select_files, stage
 
@@ -152,3 +153,82 @@ def test_raw_preserves_bare_cr_without_lf(tmp_path):
     paths = stage(Client(tmp_path), "raw", [entry], tmp_path, 1000)
     rows = [json.loads(line)["_raw"] for line in paths[0].read_text().splitlines()]
     assert rows == ['{"a":1}', '{"b":2}\r']
+
+
+STREAM_RUN = "e7a188e49b1e4042ef15"
+
+
+def stream_manifest(**overrides):
+    def entry(branch, date, rows, n=0):
+        return {
+            "path": f"stream/amazon/{branch}/run={STREAM_RUN}/date={date}/amazon-x-{n}.jsonl",
+            "branch": branch,
+            "date": date,
+            "rows": rows,
+            "bytes": rows * 100,
+            "sha256": "a" * 64,
+        }
+
+    manifest = {
+        "contract": "stream-output-v1",
+        "stream_run_id": STREAM_RUN,
+        "ground_truth_sha256": "b" * 64,
+        "channels": {
+            "amazon": {
+                "valid_records": 3000,
+                "dates": ["2026-02-01", "2026-02-02"],
+                "files": [
+                    entry("accepted", "2026-02-01", 2000),
+                    entry("accepted", "2026-02-02", 940, 1),
+                    entry("late", "2026-02-01", 60),
+                    entry("windows", "2026-02-01", 100),
+                ],
+            }
+        },
+    }
+    manifest.update(overrides)
+    return manifest
+
+
+def test_stream_selection_by_date_and_branch_ignores_windows():
+    selected = bronze_input.select_stream_files(
+        stream_manifest(), STREAM_RUN, "2026-02-01", "amazon"
+    )
+    assert {b: [e["rows"] for e in files] for b, files in selected.items()} == {
+        "accepted": [2000],
+        "late": [60],
+        "duplicates": [],
+    }
+    assert bronze_input.identity(STREAM_RUN, "2026-02-01", "amazon", "stream") != (
+        bronze_input.identity(STREAM_RUN, "2026-02-01", "amazon", "jsonl")
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (lambda m: m.update(contract="stream-output-v0"), "Manifest identity mismatch"),
+        (lambda m: m["channels"]["amazon"]["files"].pop(2), "Ground truth mismatch"),
+        (lambda m: m["channels"]["amazon"]["files"].pop(0), "Ground truth mismatch"),
+        (
+            lambda m: m["channels"]["amazon"]["files"][0].update(
+                path="stream/amazon/accepted/x.jsonl"
+            ),
+            "Invalid/duplicate object key",
+        ),
+        (lambda m: m["channels"]["amazon"]["files"][1].update(branch="late"), "Invalid/duplicate"),
+        (lambda m: m["channels"]["amazon"]["files"][0].update(sha256="nope"), "Invalid checksum"),
+    ],
+)
+def test_stream_selection_rejects_inconsistent_manifests(change, message):
+    manifest = stream_manifest()
+    change(manifest)
+    with pytest.raises(ValueError, match=message):
+        bronze_input.select_stream_files(manifest, STREAM_RUN, "2026-02-01", "amazon")
+
+
+def test_stream_source_only_for_stream_channels():
+    with pytest.raises(ValueError, match="Unsupported source"):
+        bronze_input.identity(STREAM_RUN, "2026-02-01", "walmart", "stream")
+    with pytest.raises(ValueError, match="outside manifest"):
+        bronze_input.select_stream_files(stream_manifest(), STREAM_RUN, "2026-02-03", "amazon")

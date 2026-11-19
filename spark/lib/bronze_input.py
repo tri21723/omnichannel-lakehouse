@@ -9,6 +9,13 @@ from pathlib import Path
 from typing import Any
 
 CHANNELS = ("walmart", "amazon", "tiktok_shop", "shopee", "lazada")
+# Phase 7 (ADR-0016 §8): Flink output enters Bronze from stream_output_manifest.json.
+STREAM_TABLES = {
+    "amazon": "amazon_order_notifications_raw",
+    "tiktok_shop": "tiktok_shop_order_webhooks_raw",
+}
+STREAM_BRANCHES = ("accepted", "late", "duplicates")  # raw events; `windows` are aggregates
+STREAM_OUTPUT_CONTRACT = "stream-output-v1"
 
 
 def canonical(value: Any) -> str:
@@ -20,7 +27,11 @@ def identity(run_id: str, run_date: str, channel: str, source: str) -> str:
         raise ValueError("Invalid run ID or channel")
     if date.fromisoformat(run_date).isoformat() != run_date:
         raise ValueError("Date must be ISO YYYY-MM-DD")
-    if source not in {"jsonl", "jdbc"} or (source == "jdbc" and channel != "walmart"):
+    if (
+        source not in {"jsonl", "jdbc", "stream"}
+        or (source == "jdbc" and channel != "walmart")
+        or (source == "stream" and channel not in STREAM_TABLES)
+    ):
         raise ValueError("Unsupported source/channel")
     return hashlib.sha256(
         canonical(["bronze-v1", run_id, run_date, channel, source]).encode()
@@ -79,8 +90,50 @@ def select_files(manifest: dict, run_id: str, run_date: str, channel: str) -> li
     return sorted(selected, key=lambda e: e["path"])
 
 
-def read_manifest(client: Any, bucket: str, run_id: str) -> tuple[dict, str]:
-    response = client.get_object(Bucket=bucket, Key=f"manifests/{run_id}/stream_manifest.json")
+def select_stream_files(
+    manifest: dict, run_id: str, run_date: str, channel: str
+) -> dict[str, list[dict]]:
+    """Committed Flink files of one channel/event date, by branch, from the closed run manifest."""
+    identity(run_id, run_date, channel, "stream")
+    if (
+        manifest.get("contract") != STREAM_OUTPUT_CONTRACT
+        or manifest.get("stream_run_id") != run_id
+    ):
+        raise ValueError("Manifest identity mismatch")
+    summary = manifest["channels"].get(channel)
+    if summary is None or run_date not in summary["dates"]:
+        raise ValueError("Channel/date outside manifest")
+    seen, rows, selected = set(), 0, {branch: [] for branch in STREAM_BRANCHES}
+    for entry in summary["files"]:
+        pattern = (
+            rf"stream/{channel}/(accepted|late|duplicates|windows)/run={run_id}/"
+            rf"date=(\d{{4}}-\d{{2}}-\d{{2}})/[A-Za-z0-9._-]+\.jsonl"
+        )
+        match = re.fullmatch(pattern, entry["path"])
+        if not match or entry["path"] in seen or match[1] != entry["branch"]:
+            raise ValueError("Invalid/duplicate object key")
+        seen.add(entry["path"])
+        if match[2] != entry["date"] or entry["date"] not in summary["dates"]:
+            raise ValueError("Invalid/duplicate object key")
+        if any(type(entry[k]) is not int or entry[k] < 0 for k in ("rows", "bytes")):
+            raise ValueError("Invalid inventory sizes")
+        if not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]):
+            raise ValueError("Invalid checksum")
+        if entry["branch"] in selected:
+            rows += entry["rows"]
+            if entry["date"] == run_date:
+                selected[entry["branch"]].append(entry)
+    if rows != summary["valid_records"]:
+        raise ValueError("Ground truth mismatch")
+    if not any(selected.values()):
+        raise ValueError("No source files")
+    return {branch: sorted(files, key=lambda e: e["path"]) for branch, files in selected.items()}
+
+
+def read_manifest(
+    client: Any, bucket: str, run_id: str, name: str = "stream_manifest.json"
+) -> tuple[dict, str]:
+    response = client.get_object(Bucket=bucket, Key=f"manifests/{run_id}/{name}")
     with response["Body"] as body:
         content = body.read(4 * 1024 * 1024 + 1)
     if len(content) > 4 * 1024 * 1024:

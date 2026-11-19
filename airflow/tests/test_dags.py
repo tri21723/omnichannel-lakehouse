@@ -17,6 +17,7 @@ JOB_DAGS = {
     "dp3_features",
     "dp3_return_labels",
     "dp4_warehouse",
+    "dp1_stream_bronze",
 }
 RUN = "b1e64afaff0176de180a"
 
@@ -172,3 +173,21 @@ def test_maintenance_dag_is_report_only_and_paused(dagbag):
     assert task.pool == "spark_driver"
     for forbidden in ("expire_snapshots", "remove_orphan_files", "rewrite_data_files"):
         assert forbidden not in command
+
+
+def test_stream_bronze_waits_for_closed_run_and_ingests_both_channels(dagbag):
+    dag = dagbag.dags["dp1_stream_bronze"]
+    assert [t.task_id for t in dag.topological_sort()] == [
+        "wait_for_output_manifest",
+        "bronze_amazon_stream",
+        "bronze_tiktok_shop_stream",
+    ]
+    sensor = dag.get_task("wait_for_output_manifest")
+    assert sensor.mode == "reschedule" and sensor.pool != "spark_driver"
+    assert sensor.op_kwargs["name"] == "stream_output_manifest.json"
+    command = render(dag.get_task("bronze_tiktok_shop_stream"), ds="2026-02-01")
+    assert (
+        f"dp1_bronze/main.py --run-id {RUN} --run-date 2026-02-01 --source stream "
+        "--mode incremental --channel tiktok_shop"
+    ) in command
+    assert [a.name for a in dag.get_task("bronze_tiktok_shop_stream").outlets] == ["lh.bronze"]

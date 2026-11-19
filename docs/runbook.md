@@ -579,3 +579,9 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   dụng; `docker start` lại container, job tự khôi phục từ checkpoint khi TaskManager đăng ký lại.
 - **Không restart Kafka khi generator đang publish:** producer hết retry sẽ dừng giữa chừng và run bị
   từ chối publish lại (cần seed mới).
+- **Đưa run stream vào Bronze:** `make stream-stop` → `make stream-close …` (manifest output bất biến) →
+  dừng `stream` nếu thiếu RAM → `make up-batch` → `make bronze-stream STREAM_RUN_ID=<id>
+  STREAM_RUN_DATE=<ngày event>` hoặc DAG `dp1_stream_bronze` (conf `dataset_run_id`, logical date =
+  ngày event). `stream-close` từ chối khi còn file in-progress hoặc số dòng lệch ground truth.
+- **Script Spark chạy tay treo "Initial job has not accepted any resources":** container driver phải
+  có `--name omnichannel-spark-driver` (executor kết nối ngược về tên này).

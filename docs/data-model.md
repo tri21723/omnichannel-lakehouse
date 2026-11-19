@@ -140,5 +140,6 @@ carry JSON events, `schema_version` 1 ([ADR-0016](adr/0016-streaming-kafka-flink
 Records that fail parsing or the required fields go to `<topic>.dlq`. Flink output (JSON Lines,
 `raw/stream/<channel>/<branch>/run=<id>/date=<d>/`) keeps the original event and adds
 `_stream_branch` (`accepted`, `late`, `duplicates`, `windows`). In Bronze the tables are
-`amazon_order_notifications_raw` and `tiktok_shop_order_webhooks_raw`; Silver/Gold for streaming
-data are out of scope in Phase 7.
+`amazon_order_notifications_raw` and `tiktok_shop_order_webhooks_raw` (standard Bronze audit
+schema, partitioned by `_run_date` = event date, `_source_type` = `stream`, `_source_table` =
+branch; `windows` are not ingested). Silver/Gold for streaming data are out of scope in Phase 7.

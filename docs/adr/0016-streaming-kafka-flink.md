@@ -152,9 +152,12 @@ JSON object per Kafka record: `schema_version`, `event_id` (unique per logical e
   SHA-256, rows, branch) **after** all files exist.
 - `dp1_bronze` gets a `stream` source that ingests from that manifest with the ADR-0007 rules
   (fingerprint, completion record, replay without duplicates) into
-  `bronze.amazon_order_notifications_raw` and `bronze.tiktok_shop_order_webhooks_raw`; the branch
-  is kept in `_stream_branch`. Bronze stays hidden from Trino (raw payloads). Details in an
-  ADR-0007 addendum (P7-08). A DAG `dp1_stream_bronze` uses the `spark_driver` pool.
+  `bronze.amazon_order_notifications_raw` and `bronze.tiktok_shop_order_webhooks_raw`. Bronze keeps
+  its single audit schema: the branch is in `_source_table` (and in `_raw._stream_branch`), so no
+  new column or schema variant is needed. Only the raw event branches (`accepted`, `late`,
+  `duplicates`) are ingested; `windows` are Flink aggregates and stay in `raw/stream`. Bronze
+  stays hidden from Trino (raw payloads). Details in the ADR-0007 addendum. A DAG
+  `dp1_stream_bronze` uses the `spark_driver` pool.
 
 ## 9. Verification
 

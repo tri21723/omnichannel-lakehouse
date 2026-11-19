@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-07 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-08 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -149,7 +149,7 @@ core 0,4 GiB / còn 9 GiB, ngân sách stream 4,5 GiB, prefix `raw/stream/*` cho
   tumbling window (aggregate theo channel/currency/window) với `allowedLateness`.
 - [x] Event quá trễ → side output ghi riêng (`late/`), không bỏ; bản ghi lỗi schema → DLQ.
 - [x] Sink output và late theo checkpoint (chỉ file committed).
-- [ ] Manifest output (`stream_output_manifest.json`) — làm ở P7-08 (`stream-close`).
+- [x] Manifest output (`stream_output_manifest.json`) — `make stream-close` (P7-08).
 - [x] Logic thuần (phân loại on-time/late/too-late, key, aggregate) tách hàm có unit test.
 - [x] Tham số watermark/lateness ghi trong docstring + ADR.
 
@@ -188,16 +188,17 @@ trong checkpoint → sau khôi phục chỉ đảm bảo exactly-once, không đ
 
 ### P7-08 — Nạp vào Bronze
 
-- [ ] `dp1_bronze --source stream`: đọc manifest output Flink, kiểm SHA/size/count, slice theo
+- [x] `dp1_bronze --source stream`: đọc manifest output Flink, kiểm SHA/size/count, slice theo
   run/channel/date/source, replay không nhân đôi, completion record (ADR-0007, cập nhật ADR).
-- [ ] Bảng Bronze riêng cho stream (`<channel>_<entity>_raw` theo quy ước), cột audit đầy đủ;
-  nhánh late được nạp riêng hoặc gắn cờ, không bị bỏ.
-- [ ] DAG `dp1_stream_bronze` (pool `spark_driver`, khóa driver, `max_active_runs=1`) chạy sau khi
+- [x] Bảng Bronze riêng cho stream (`<channel>_<entity>_raw` theo quy ước), cột audit đầy đủ;
+  nhánh late/duplicates gắn cờ ở `_source_table`, không bị bỏ; `windows` (tổng hợp) không vào Bronze.
+- [x] DAG `dp1_stream_bronze` (pool `spark_driver`, khóa driver, `max_active_runs=1`) chạy sau khi
   manifest output tồn tại; test DagBag.
-- [ ] Đối soát: số dòng Bronze stream = output Flink = ground truth; 3 dataset batch không đổi.
+- [x] Đối soát: số dòng Bronze stream = output Flink = ground truth; 3 dataset batch không đổi.
 
 **Đạt khi:** Bronze stream khớp ground truth, chạy lại không nhân đôi, ledger batch không đổi.
-**Commit gợi ý:** `feat(spark): ingest Flink stream output into Bronze`.
+**Bằng chứng:** [streaming-validation](docs/streaming-validation.md) §P7-08: `e7a188…` 3.000/3.300 dòng,
+chạy lại bỏ qua, verify đạt; DAG `dp1_stream_bronze` nạp `d02620…` thành công; ledger batch không đổi.
 
 ### P7-09 — Benchmark streaming
 

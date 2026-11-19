@@ -55,3 +55,19 @@ compose.bronze-test.yml override. Normal Spark services retain reader-only DB ac
 Only snapshot-probe-v1 fixture IDs are inserted/updated/deleted by the test.
 All reads are eager on the driver with fetch size 1000 and bounded staging; no
 parallel Spark JDBC partitions are enabled or claimed.
+
+## Addendum 2026-11-19: stream source (Phase 7, ADR-0016)
+
+- `--source stream` for `amazon` and `tiktok_shop` only. Slice identity is unchanged:
+  `(run_id, run_date, channel, source)` with `run_id` = stream run id and `run_date` = event date
+  (the `date=` partition of the Flink output).
+- Input is `manifests/<stream_run_id>/stream_output_manifest.json` (contract `stream-output-v1`),
+  written by `make stream-close` after the jobs were drained: every committed file with branch,
+  date, bytes, SHA-256 and rows; refused while hidden in-progress files exist or when raw event
+  rows differ from the ground truth's valid records. `select_stream_files` re-checks key layout,
+  sizes, checksums and that event rows add up to the ground truth.
+- Files are staged and fingerprint-checked with the same `stage()` as JSONL; each line becomes
+  `_raw`, `_source_table` is the branch (`accepted`, `late`, `duplicates`). Tables
+  `lh.bronze.amazon_order_notifications_raw`, `lh.bronze.tiktok_shop_order_webhooks_raw` use the
+  standard audit schema; replay uses the same delete-marker MERGE and completion records, and an
+  incremental rerun of a completed identical slice is skipped.

@@ -148,8 +148,11 @@ def spark_task(
     )
 
 
-def manifest_exists(run_id: str) -> bool:
-    """True when s3://<raw>/manifests/<run_id>/stream_manifest.json exists (published last)."""
+def manifest_exists(run_id: str, name: str = "stream_manifest.json") -> bool:
+    """True when s3://<raw>/manifests/<run_id>/<name> exists (manifests are published last).
+
+    Batch uses `stream_manifest.json`; a closed Flink run uses `stream_output_manifest.json`.
+    """
     import re
 
     import boto3
@@ -158,6 +161,8 @@ def manifest_exists(run_id: str) -> bool:
 
     if not re.fullmatch(RUN_ID_PATTERN.strip("^$"), run_id):
         raise ValueError("invalid dataset_run_id")
+    if name not in ("stream_manifest.json", "stream_output_manifest.json"):
+        raise ValueError("unknown manifest name")
     client = boto3.client(
         "s3",
         endpoint_url=os.environ["S3_ENDPOINT"],
@@ -169,7 +174,7 @@ def manifest_exists(run_id: str) -> bool:
     try:
         client.head_object(
             Bucket=os.environ.get("S3_RAW_BUCKET", "raw"),
-            Key=f"manifests/{run_id}/stream_manifest.json",
+            Key=f"manifests/{run_id}/{name}",
         )
     except ClientError as exc:
         if exc.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):

@@ -24,7 +24,15 @@ from spark.lib.bronze import (
     verify_state,
     writer_lock,
 )
-from spark.lib.bronze_input import CHANNELS, identity, read_manifest, select_files, stage
+from spark.lib.bronze_input import (
+    CHANNELS,
+    STREAM_TABLES,
+    identity,
+    read_manifest,
+    select_files,
+    select_stream_files,
+    stage,
+)
 from spark.lib.session import get_spark
 
 
@@ -33,7 +41,7 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--run-date", required=True)
     parser.add_argument("--channel", required=True, choices=CHANNELS)
-    parser.add_argument("--source", choices=("jsonl", "jdbc"), default="jsonl")
+    parser.add_argument("--source", choices=("jsonl", "jdbc", "stream"), default="jsonl")
     parser.add_argument("--mode", required=True, choices=("full", "incremental"))
     parser.add_argument("--verify", action="store_true")
     args = parser.parse_args()
@@ -58,8 +66,15 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
             s3={"addressing_style": "path"},
         ),
     )
-    manifest, manifest_hash = read_manifest(client, os.environ["S3_RAW_BUCKET"], args.run_id)
-    entries = select_files(manifest, args.run_id, args.run_date, args.channel)
+    if args.source == "stream":
+        manifest, manifest_hash = read_manifest(
+            client, os.environ["S3_RAW_BUCKET"], args.run_id, "stream_output_manifest.json"
+        )
+        branches = select_stream_files(manifest, args.run_id, args.run_date, args.channel)
+        entries = [entry for files in branches.values() for entry in files]
+    else:
+        manifest, manifest_hash = read_manifest(client, os.environ["S3_RAW_BUCKET"], args.run_id)
+        entries = select_files(manifest, args.run_id, args.run_date, args.channel)
     fingerprint = input_digest(manifest_hash, args)
     root = Path("/runtime/bronze")
     with writer_lock(root):
@@ -75,7 +90,7 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
                     raise ValueError("No valid completed Bronze slice")
                 event("bronze_verified", batch_id=batch, tables=old["tables"])
                 return
-            if args.mode == "incremental" and valid and args.source == "jsonl":
+            if args.mode == "incremental" and valid and args.source in ("jsonl", "stream"):
                 event("bronze_skipped", batch_id=batch)
                 return
             if args.mode == "incremental" and valid and args.source == "jdbc":
@@ -137,6 +152,33 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
                         raise ValueError("Staged row count mismatch")
                     suffix = "_export" if args.channel == "walmart" else ""
                     frames[f"lh.bronze.{args.channel}_orders{suffix}_raw"] = df
+                elif args.source == "stream":
+                    parts = []
+                    for branch, branch_entries in branches.items():
+                        if not branch_entries:
+                            continue
+                        branch_dir = Path(directory) / branch
+                        branch_dir.mkdir()
+                        files = stage(
+                            client,
+                            os.environ["S3_RAW_BUCKET"],
+                            branch_entries,
+                            branch_dir,
+                            int(os.environ["BRONZE_STAGE_MAX_BYTES"]),
+                        )
+                        parts.append(
+                            spark.read.schema(
+                                "_raw string, _source_file string, _parse_status string"
+                            )
+                            .json([str(p) for p in files])
+                            .withColumn("_source_table", F.lit(branch))
+                        )
+                    df = parts[0]
+                    for part in parts[1:]:
+                        df = df.unionByName(part)
+                    if df.count() != sum(e["rows"] for e in entries):
+                        raise ValueError("Staged row count mismatch")
+                    frames[f"lh.bronze.{STREAM_TABLES[args.channel]}"] = df
                 else:
                     from spark.lib.bronze_jdbc import stage_jdbc
 
@@ -154,7 +196,7 @@ def main(args: argparse.Namespace | None = None, spark: Any = None) -> None:
                         spark, table, audit(df, args, batch), args
                     )
                 duration = time.monotonic() - started
-                staged_bytes = sum(p.stat().st_size for p in Path(directory).glob("*.jsonl"))
+                staged_bytes = sum(p.stat().st_size for p in Path(directory).rglob("*.jsonl"))
                 rows = sum(int(e["content"]["rows"]) for e in state["tables"].values())
                 state["metrics"] = {
                     "duration_seconds": round(duration, 3),

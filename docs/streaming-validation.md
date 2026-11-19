@@ -184,3 +184,23 @@ holds; exact class counts are only expected for failure-free runs (ADR-0016 §7)
 `--failover` mode (completeness, disjoint branches, windows equal to the accepted records) with unit
 tests showing that a reclassification fails strict mode but passes failover mode, while a lost or
 duplicated record fails both.
+
+## P7-08 — Into Bronze
+
+- `make stream-close` (generator credentials: read `raw/stream`, write `raw/manifests`) wrote
+  `stream_output_manifest.json` for `e7a188e49b1e4042ef15` (24 files) and `d02620420913a7040f92`
+  (23 files); a second close produced the same immutable object.
+- `dp1_bronze --source stream` (`make bronze-stream STREAM_RUN_ID=… STREAM_RUN_DATE=2026-02-01`) on
+  `e7a188…`: amazon 3,000 rows, tiktok_shop 3,300 rows (`bronze_completed`); second run
+  `bronze_skipped` for both; `--verify` `bronze_verified` for both. Content read back with Spark:
+  amazon `accepted` 2,940 + `late` 60, tiktok_shop `accepted` 3,000 + `duplicates` 300, every row
+  `_parse_status = valid`, accepted event ids distinct (2,940 / 3,000), one consistent audit tuple.
+  These equal the Flink output and the ground truth's valid records.
+- Airflow: DAG `dp1_stream_bronze` (sensor on the output manifest, two Spark tasks in the
+  `spark_driver` pool) ingested `d02620…` for 2026-02-01, run `manual__p708_stream_seed9`
+  success; a following `make bronze-stream` for the same slices was skipped and `--verify`
+  returned 3,000 / 3,300 rows. `make test-dags` 11 passed.
+- Batch unchanged: Silver/Gold/DP3/warehouse ledger SHA-256 identical before and after; Bronze gained
+  only the two new completion records per ingested run.
+- Not a pipeline issue: an ad-hoc Spark script started without `--name omnichannel-spark-driver`
+  waited forever for executors (the workers connect back to that host name); rerun with the name.
