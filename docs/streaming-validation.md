@@ -214,3 +214,14 @@ duplicated record fails both.
 on one slot, TikTok dedup operator saturated with light source backpressure. Both runs: relaxed
 verification 0 failures; exact class counts differ (0.05% live, much more in backlog) because of
 watermark lag, as ADR-0016 §6 predicts.
+
+## P7-10 — CI, documentation and handoff
+
+- Live acceptance packaged as `make stream-acceptance` (`docker/stream/acceptance.sh`): run
+  `0c3e204896cac07752c3` (seed 13) — strict verification 0 failures, run closed (26 files).
+- Manual workflow `.github/workflows/stream.yml`: env, image builds (JUnit inside), `up-stream`,
+  `smoke-stream`, `stream-acceptance`, `restart-stream` + smoke, `up-batch`, `bronze-stream` twice
+  (second skips) and `--verify`; CI output only allowlisted events (stream check names, channel/job
+  names and counts; unit-tested). The hosted run is not claimed here.
+- README ("Chạy streaming"), runbook, data model, ADR-0007/0016, implementation status, CLAUDE.md
+  and the [Phase 8 handoff](phase8-handoff.md) are updated.

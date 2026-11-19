@@ -22,9 +22,11 @@ Phase 5 hoàn thành local (`v0.5-orchestration`): Airflow 3.3.2 điều phối 
 (`batch_daily`), backfill 3 ngày chạy lại cho cùng kết quả, một Spark driver tại một thời điểm.
 Phase 6 hoàn thành local (`v0.6-query`): Trino 484 chỉ đọc trên Iceberg + PostgreSQL, che PII,
 8 query mẫu, đối soát Trino = Spark = ledger = warehouse, DBeaver/JDBC.
-Tiếp theo là Phase 7 (Kafka + Flink).
+Phase 7 hoàn thành local (`v0.7-stream`): Kafka 4.3.2 (KRaft) + Flink 2.2.1 (job Java) xử lý
+event trễ, trùng và burst exactly-once, có ground truth, phục hồi từ checkpoint, nạp vào Bronze.
+Tiếp theo là Phase 8 (CDC với Debezium).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md) · [Phase 7](docs/phase7-checklist.md) · [Streaming](docs/streaming-validation.md) · [Bàn giao Phase 8](docs/phase8-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -183,6 +185,22 @@ ngày logic. `maintenance_iceberg` chỉ báo cáo snapshot có thể dọn (kh�
 chạy tay bằng `make iceberg-report`. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
 Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
 [kiểm chứng](docs/orchestration-validation.md).
+
+## Chạy streaming (Phase 7)
+
+```sh
+make up-stream           # PostgreSQL, MinIO, Kafka 127.0.0.1:9092, kafka-ui :8085, Flink :8082 (không cần Spark/Airflow/Trino)
+make smoke-stream        # topic, Flink ghi S3 qua plugin, quyền user flink, không lộ secret
+make stream-acceptance   # job chạy trước, publish 6.312 record (50 rec/s), drain, đối soát ground truth, đóng run
+make bronze-stream STREAM_RUN_ID=e7a188e49b1e4042ef15 STREAM_RUN_DATE=2026-02-01   # cần up-batch
+```
+
+Generator stream tất định (`generators/stream.yaml`) ghi ground truth vào
+`s3://raw/manifests/<run>/`; job `amazon_late` (watermark 2 phút, window 5 phút, cho trễ 20 phút,
+event quá trễ ra nhánh `late`) và `tiktok_dedup` (loại trùng theo `event_id`, TTL 30 phút) ghi JSON
+Lines vào `s3://raw/stream/`, record hỏng vào DLQ Kafka. Thiết kế:
+[ADR-0016](docs/adr/0016-streaming-kafka-flink.md); bằng chứng:
+[streaming validation](docs/streaming-validation.md); số liệu: [benchmark](docs/benchmarks/streaming.md).
 
 ## Chạy Trino (Phase 6)
 

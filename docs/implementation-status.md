@@ -174,9 +174,32 @@ and [Phase 6 handoff](phase6-handoff.md).
 See [query validation](query-validation.md), [checklist](phase6-checklist.md),
 [DBeaver](dbeaver.md) and [Phase 7 handoff](phase7-handoff.md).
 
-## Next: Phase 7 — Kafka + Flink
+## Phase 7 — Kafka + Flink streaming complete locally
 
-Not started. See [Phase 7 handoff](phase7-handoff.md).
+- Local milestone `v0.7-stream` ([ADR-0016](adr/0016-streaming-kafka-flink.md)). Profile `stream`:
+  Kafka 4.3.2 KRaft (`127.0.0.1:9092`), kafka-ui v1.5.0 (`:8085`, read-only), Flink 2.2.1 session
+  cluster (`:8082`) with S3 plugin and a dedicated MinIO user `flink`; `make up-stream` needs only `core`.
+- Deterministic stream generator with ground truth (separate model, batch run IDs unchanged),
+  publish-once semantics, `make gen-stream`, `make check-stream-source`.
+- Java jobs `amazon_late` (watermark 2 min, 5-min windows, allowed lateness 20 min, too-late branch)
+  and `tiktok_dedup` (event-id state with 30-min TTL, duplicates branch), transactional DLQs, FileSink
+  committed on checkpoint; JUnit incl. operator harness tests in the image build.
+- `make verify-stream` (strict and `--failover`), live acceptance `make stream-acceptance`;
+  recovery from TaskManager kill and JobManager loss (`make stream-resume`) with exactly-once output.
+- `make stream-close` → immutable output manifest → `dp1_bronze --source stream` and DAG
+  `dp1_stream_bronze` into `bronze.amazon_order_notifications_raw` /
+  `bronze.tiktok_shop_order_webhooks_raw`; batch ledgers unchanged.
+- Benchmark (105k records): ~20k rec/s per job in backlog on one slot, processing p95 ≈ 110 ms
+  live, files visible ≤ 33 s (30 s checkpoints). Manual workflow `stream.yml` (hosted run not claimed).
+- Known semantics: watermarks are not checkpointed and trail the ideal one under load, so exact class
+  counts are only an acceptance criterion for failure-free runs at bounded rate.
+
+See [streaming validation](streaming-validation.md), [checklist](phase7-checklist.md),
+[benchmark](benchmarks/streaming.md) and [Phase 8 handoff](phase8-handoff.md).
+
+## Next: Phase 8 — CDC with Debezium
+
+Not started. See [Phase 8 handoff](phase8-handoff.md).
 
 ## Later phases
 

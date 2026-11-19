@@ -8,7 +8,7 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 ## Trạng thái hiện tại
 
 - Phase đang làm: xem `TODO.md` (checklist phase hiện hành) và `docs/implementation-status.md`.
-- Tag đã có: `v0.3-phase3`, `v0.4a-bronze` … `v0.4f-benchmark`, `v0.5-orchestration`, `v0.5.1-orchestration`, `v0.6-query`. Checklist phase cũ lưu ở
+- Tag đã có: `v0.3-phase3`, `v0.4a-bronze` … `v0.4f-benchmark`, `v0.5-orchestration`, `v0.5.1-orchestration`, `v0.6-query`, `v0.7-stream`. Checklist phase cũ lưu ở
   `docs/phase*-checklist.md`; bằng chứng kiểm chứng ở `docs/*-validation.md`.
 - Các dataset phải cùng tồn tại: small fixture `186ae107d0793d2ee237` (375 orders), default
   reference `b1e64afaff0176de180a` (15.000 orders) và orchestration e2e `5f552019ee41c24af95f`
@@ -25,9 +25,12 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 - Kiểm tra nhanh không cần Docker: `make check` (lint + unit test). Các target
   `smoke-*`, `integration-*`, `test-*-recovery`, `test-review-regressions` cần
   `make up-batch` và chạy tuần tự (không chạy song song nhiều Spark driver).
-- Target chưa triển khai (`up-cdc`, `up-gov`, `gen-stream`) cố ý `exit 2`.
+- Target chưa triển khai (`up-cdc`, `up-gov`) cố ý `exit 2`.
 - Streaming (`make up-stream`): Kafka 127.0.0.1:9092 (container: `kafka:29092`), kafka-ui 8085,
-  Flink 8082; không bật cùng batch/orch/query khi đo Flink. Job Flink viết Java (ADR-0016).
+  Flink 8082; không bật cùng batch/orch/query khi đo Flink. Job Flink viết Java (ADR-0016), đổi
+  `flink/jobs` cần `make build-stream`. Mỗi stream run chỉ publish một lần (seed mới để chạy lại);
+  nghiệm thu: `make stream-acceptance`. Hằng số watermark ở `Rules.java` và
+  `generators/stream/config.py` phải khớp (có test).
 - Trino (`make up-query`, 127.0.0.1:8083) chỉ đọc; đổi `docker/query/trino/etc` cần
   `make restart-query` + `make smoke-query`. Không nới `iceberg.security=read_only`.
 - Airflow (`make up-orch`, UI 127.0.0.1:8081) cũng là Spark driver; mọi Spark driver (make hoặc
