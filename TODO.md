@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đã lập kế hoạch, chưa triển khai Phase 7**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -83,15 +83,16 @@ nặng như thư viện Kafka cho generator, xóa dữ liệu) thì ghi rõ và 
 
 ### P7-01 — Preflight
 
-- [ ] Git sạch tại `v0.6-query` (+ commit tài liệu sau tag); `make check` xanh.
-- [ ] Ghi hash ledger Silver/Gold/DP3/warehouse và run ID 3 dataset batch làm mốc (Phase 7 không
+- [x] Git sạch tại `v0.6-query` (+ commit tài liệu sau tag); `make check` xanh.
+- [x] Ghi hash ledger Silver/Gold/DP3/warehouse và run ID 3 dataset batch làm mốc (Phase 7 không
   được đổi).
-- [ ] Đo RAM core khi tắt Spark/Airflow/Trino; tính ngân sách Kafka + kafka-ui + Flink JM/TM.
-- [ ] Kiểm tra bucket `raw`, `checkpoints`, policy hiện có; liệt kê quyền cần thêm cho user `flink`.
-- [ ] Xác nhận các thư mục/placeholder và target `exit 2` cần thay.
+- [x] Đo RAM core khi tắt Spark/Airflow/Trino; tính ngân sách Kafka + kafka-ui + Flink JM/TM.
+- [x] Kiểm tra bucket `raw`, `checkpoints`, policy hiện có; liệt kê quyền cần thêm cho user `flink`.
+- [x] Xác nhận các thư mục/placeholder và target `exit 2` cần thay.
 
 **Đạt khi:** mốc và ngân sách RAM ghi vào `docs/streaming-validation.md`.
-**Commit gợi ý:** `docs(stream): record Phase 7 preflight baseline and resource budget`.
+**Bằng chứng:** [streaming-validation](docs/streaming-validation.md) §P7-01 (mốc run ID/ledger, RAM
+core 0,4 GiB / còn 9 GiB, ngân sách stream 4,5 GiB, prefix `raw/stream/*` cho user `flink`).
 
 ### P7-02 — ADR và version
 
