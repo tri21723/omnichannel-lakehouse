@@ -234,3 +234,10 @@ The first hosted `Kafka and Flink streaming` run
 fresh runner does not have (it fails by design when no key is found). The probe now writes its own
 object `raw/_smoke/flink_read_probe` with the MinIO root user, checks that user `flink` cannot read
 it, and removes it; the check still fails if the probe cannot be created. Local `smoke-stream` 18/18.
+
+Hosted run after the fix: `Kafka and Flink streaming` [44509252927](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44509252927) on commit `ae161cd` (2026-11-19)
+succeeded, 15/15 steps in ~12 min on a fresh runner: image builds with JUnit, `up-stream`,
+`smoke-stream`, `stream-acceptance` (jobs first, 6,312 records at 50 rec/s, drain, strict
+verification against the ground truth of `e7a188e49b1e4042ef15`, close) in 3 min 16 s,
+`restart-stream` + smoke, `up-batch`, `bronze-stream` (ingest), `bronze-stream` again (skip) and
+`--verify`.

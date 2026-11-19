@@ -192,7 +192,8 @@ See [query validation](query-validation.md), [checklist](phase6-checklist.md),
   `dp1_stream_bronze` into `bronze.amazon_order_notifications_raw` /
   `bronze.tiktok_shop_order_webhooks_raw`; batch ledgers unchanged.
 - Benchmark (105k records): ~20k rec/s per job in backlog on one slot, processing p95 ≈ 110 ms
-  live, files visible ≤ 33 s (30 s checkpoints). Manual workflow `stream.yml` (hosted run not claimed).
+  live, files visible ≤ 33 s (30 s checkpoints). Manual workflow `stream.yml` green on GitHub
+  ([run 44509252927](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44509252927), commit `ae161cd`).
 - Known semantics: watermarks are not checkpointed and trail the ideal one under load, so exact class
   counts are only an acceptance criterion for failure-free runs at bounded rate.
 
