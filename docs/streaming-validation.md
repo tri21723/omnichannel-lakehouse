@@ -225,3 +225,12 @@ watermark lag, as ADR-0016 §6 predicts.
   names and counts; unit-tested). The hosted run is not claimed here.
 - README ("Chạy streaming"), runbook, data model, ADR-0007/0016, implementation status, CLAUDE.md
   and the [Phase 8 handoff](phase8-handoff.md) are updated.
+
+### Hosted CI fix
+
+The first hosted `Kafka and Flink streaming` run
+([44502716790](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44502716790), commit
+`27bae0e`) failed in `smoke-stream`: the read-denial probe needed an existing batch manifest, which a
+fresh runner does not have (it fails by design when no key is found). The probe now writes its own
+object `raw/_smoke/flink_read_probe` with the MinIO root user, checks that user `flink` cannot read
+it, and removes it; the check still fails if the probe cannot be created. Local `smoke-stream` 18/18.

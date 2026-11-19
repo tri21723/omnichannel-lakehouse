@@ -47,10 +47,13 @@ probe=$($C run --rm --no-deps --entrypoint sh stream-minio-init -c '
     printf "ckpt_put=%s " "$(echo x | r mc pipe f/checkpoints/flink/_smoke/probe)"
     printf "raw_other_put=%s " "$(echo x | r mc pipe f/raw/_smoke/flink_probe)"
     printf "lakehouse_put=%s " "$(echo x | r mc pipe f/lakehouse/_smoke/flink_probe)"
-    # Listing raw is allowed (ListBucket); reading outside raw/stream/* must not be.
-    key=$(mc ls --recursive f/raw/manifests/ 2>/dev/null | awk "{print \$NF}" | head -1)
-    printf "manifest_found=%s " "$( [ -n "$key" ] && printf 1 || printf 0)"
-    printf "manifest_get=%s " "$( [ -n "$key" ] && r mc cat "f/raw/manifests/$key" || printf 0)"
+    # Reading outside raw/stream/* must be denied. Root writes its own probe object (a fresh
+    # environment has no manifests yet), user flink tries to read it, root removes it.
+    mc alias set root "$S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null || exit 9
+    echo probe | mc pipe root/raw/_smoke/flink_read_probe >/dev/null 2>&1
+    printf "manifest_found=%s " "$(r mc stat root/raw/_smoke/flink_read_probe)"
+    printf "manifest_get=%s " "$(r mc cat f/raw/_smoke/flink_read_probe)"
+    mc rm --force root/raw/_smoke/flink_read_probe >/dev/null 2>&1
     printf "wordcount_files=%s " "$(mc ls --recursive f/'"${out#s3://}"'/ 2>/dev/null | grep -c .)"
     mc rm --recursive --force f/raw/stream/_smoke/ >/dev/null 2>&1
     mc rm --recursive --force f/checkpoints/flink/_smoke/ >/dev/null 2>&1
