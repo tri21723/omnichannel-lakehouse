@@ -43,9 +43,14 @@ def read_branch(s3, bucket: str, channel: str, branch: str, run_id: str) -> tupl
                 hidden += 1
                 continue
             files += 1
+            committed_ms = int(item["LastModified"].timestamp() * 1000)
             body = s3.get_object(Bucket=bucket, Key=item["Key"])["Body"]
             try:
-                lines.extend(json.loads(line) for line in body.read().splitlines() if line.strip())
+                for line in body.read().splitlines():
+                    if line.strip():
+                        row = json.loads(line)
+                        row["_committed_ms"] = committed_ms  # object time; not part of output
+                        lines.append(row)
             finally:
                 body.close()
     return lines, {"files": files, "hidden_files": hidden, "rows": len(lines)}
@@ -191,6 +196,36 @@ def dlq_counts(bootstrap: str, run_id: str) -> dict[str, int]:
         consumer.close()
 
 
+def percentiles(values: list[float], scale: float) -> dict:
+    if not values:
+        return {"p50": None, "p95": None, "max": None}
+    values = sorted(values)
+
+    def pick(q: float) -> float:
+        return round(values[min(len(values) - 1, int(len(values) * q))] / scale, 3)
+
+    return {"p50": pick(0.5), "p95": pick(0.95), "max": round(values[-1] / scale, 3)}
+
+
+def latency(rows: list[dict]) -> dict:
+    """End-to-end latency from the generator's emitted_ts: to Flink processing, and to the
+    committed file (visible to Bronze), which is bounded below by the checkpoint interval."""
+    processing, committed = [], []
+    for row in rows:
+        if "emitted_ts" not in row:
+            continue
+        emitted = ts_ms(row["emitted_ts"])
+        processing.append(row["_processed_ms"] - emitted)
+        committed.append(row["_committed_ms"] - emitted)
+    processed = [row["_processed_ms"] for row in rows if "_processed_ms" in row]
+    span = (max(processed) - min(processed)) / 1000 if processed else None
+    return {
+        "latency_processing_ms": percentiles(processing, 1),
+        "latency_committed_s": percentiles(committed, 1000),
+        "processed_span_s": round(span, 3) if span is not None else None,
+    }
+
+
 def watermark_lag(rows: list[dict], send_ms: dict[str, int]) -> dict:
     """Seconds the recorded watermark trailed the ideal one (send time - bound); diagnostic."""
     lags = sorted(
@@ -220,7 +255,9 @@ def verify_stream(run_id: str, s3, bucket: str, bootstrap: str, failover: bool =
         checks = check_channel(
             channel, channel_truth, branches, dlq.get(channel, 0), expected_ids, failover
         )
-        checks[-1].update(watermark_lag(branches["accepted"][0] + branches["late"][0], send_ms))
+        events = branches["accepted"][0] + branches["late"][0]
+        checks[-1].update(watermark_lag(events, send_ms))
+        checks[-1].update(latency(events))
         results.extend(checks)
     return {
         "stream_run_id": run_id,

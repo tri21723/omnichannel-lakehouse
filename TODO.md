@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-08 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-09 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -161,7 +161,7 @@ nới biên lớp trễ lên 4 phút (contract `stream-v2`), `STREAM_RATE` 50.
 ### P7-06 — Job TikTok (dedup + burst)
 
 - [x] `keyBy(event_id)` + `ValueState` có TTL để loại retry trùng; tumbling window 1–5 phút.
-- [ ] Theo dõi backpressure khi burst (Flink REST metrics); không tăng tài nguyên ngoài ngân sách. *(đo ở P7-09)*
+- [x] Theo dõi backpressure khi burst (Flink REST metrics); không tăng tài nguyên ngoài ngân sách. *(đo ở P7-09)*
 - [x] Sink như P7-05; DLQ cho bản ghi lỗi. (Manifest: P7-08.)
 - [x] Unit test logic dedup (TTL hết hạn, trùng trong/ngoài TTL) và aggregate bằng test harness của
   Flink (`FunctionsTest`, làm ở P7-07).
@@ -202,14 +202,15 @@ chạy lại bỏ qua, verify đạt; DAG `dp1_stream_bronze` nạp `d02620…` 
 
 ### P7-09 — Benchmark streaming
 
-- [ ] Kịch bản 100k event (10% dup, 5% late, có burst) theo plan; chạy trong ngân sách RAM.
-- [ ] Ghi throughput (event/s), latency end-to-end (event_ts/emitted_ts → file committed),
+- [x] Kịch bản 100k event (10% dup, 5% late, có burst) theo plan; chạy trong ngân sách RAM.
+- [x] Ghi throughput (event/s), latency end-to-end (event_ts/emitted_ts → file committed),
   checkpoint duration/size, backpressure khi burst, số late/too-late/dedup.
-- [ ] `docs/benchmarks/streaming.md`: môi trường, cấu hình, số liệu, giới hạn; không đặt ngưỡng
+- [x] `docs/benchmarks/streaming.md`: môi trường, cấu hình, số liệu, giới hạn; không đặt ngưỡng
   wall-clock dễ flaky.
 
 **Đạt khi:** báo cáo có số liệu lặp lại được và đối soát đúng.
-**Commit gợi ý:** `perf(stream): benchmark Kafka and Flink with dup, late and burst`.
+**Bằng chứng:** [benchmark](docs/benchmarks/streaming.md): live 500 rec/s và backlog, 105.200 record mỗi run;
+verify relaxed 0 lỗi; số liệu latency/throughput/checkpoint/backpressure/RAM.
 
 ### P7-10 — CI, tài liệu và bàn giao
 

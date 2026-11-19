@@ -1,0 +1,16 @@
+# Phase 7 benchmark: 100k logical events (50k per channel), 10% TikTok retries, 5% Amazon late
+# arrivals (40% of them too late), 4 TikTok bursts at 50x density, 0.2% malformed records.
+seed: 101
+start_ts: '2026-03-01T00:00:00Z'
+channels: [amazon, tiktok_shop]
+events_per_channel: 50000
+events_per_minute: 60
+late_rate: 0.05
+too_late_share: 0.4
+late_max_minutes: 60
+dup_rate: 0.10
+burst_multiplier: 50
+burst_share: 0.2
+bursts: 4
+malformed_rate: 0.002
+update_share: 0.2

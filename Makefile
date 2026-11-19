@@ -19,7 +19,7 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 	cd sql/trino && ../../$(BIN)/sqlfluff lint .

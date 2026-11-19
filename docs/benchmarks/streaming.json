@@ -1,0 +1,198 @@
+{
+ "environment": {
+  "host": "WSL2, 4 CPU, ~11.7 GiB",
+  "flink": "2.2.1 session, 1 TM x 2 slots, 1800m process",
+  "kafka": "4.3.2 KRaft single broker, 3 partitions/topic",
+  "checkpoint_interval_s": 30
+ },
+ "A_live_500_rps": {
+  "run": "66622bf259497404b72c",
+  "records": 105200,
+  "publish_s": 210.401,
+  "bench": {
+   "event": "stream_bench_sampled",
+   "elapsed_s": 211.2,
+   "samples": 43,
+   "jobs": {
+    "tiktok_dedup": {
+     "peak_source_records_per_s": 328.9,
+     "peak_backpressured_ms_per_s": 0.0,
+     "samples_backpressured_over_100ms": 0,
+     "backpressured_operator_at_peak": "",
+     "peak_busy_ms_per_s": 51.0,
+     "checkpoints": {
+      "completed": 8,
+      "failed": 0,
+      "duration_ms": {
+       "min": 73,
+       "avg": 241,
+       "max": 809
+      },
+      "checkpointed_size_bytes": {
+       "min": 10378,
+       "avg": 1402183,
+       "max": 2614276
+      }
+     }
+    },
+    "amazon_late": {
+     "peak_source_records_per_s": 619.1,
+     "peak_backpressured_ms_per_s": 6.0,
+     "samples_backpressured_over_100ms": 0,
+     "backpressured_operator_at_peak": "Source: amazon-source",
+     "peak_busy_ms_per_s": 92.0,
+     "checkpoints": {
+      "completed": 8,
+      "failed": 0,
+      "duration_ms": {
+       "min": 67,
+       "avg": 194,
+       "max": 525
+      },
+      "checkpointed_size_bytes": {
+       "min": 6320,
+       "avg": 10168,
+       "max": 10860
+      }
+     }
+    }
+   }
+  },
+  "verify": {
+   "relaxed_failures": 0,
+   "strict_failures": [
+    "on_time_ids",
+    "late_accepted_ids",
+    "too_late_ids",
+    "windows_final"
+   ],
+   "amazon": {
+    "on_time": 47527,
+    "late_accepted": 1478,
+    "too_late": 995,
+    "expected": [
+     47500,
+     1500,
+     1000
+    ]
+   },
+   "latency_processing_ms": {
+    "amazon": {
+     "p50": 7,
+     "p95": 104,
+     "max": 2980
+    },
+    "tiktok_shop": {
+     "p50": 45,
+     "p95": 117,
+     "max": 2999
+    }
+   },
+   "latency_committed_s": {
+    "amazon": {
+     "p50": 15.0,
+     "p95": 30.9,
+     "max": 33.1
+    },
+    "tiktok_shop": {
+     "p50": 16.0,
+     "p95": 31.5,
+     "max": 33.1
+    }
+   },
+   "watermark_lag_s": {
+    "amazon": {
+     "p50": 54.0,
+     "max": 983.1
+    },
+    "tiktok_shop": {
+     "p50": 43.3,
+     "max": 650.4
+    }
+   }
+  }
+ },
+ "B_backlog_unpaced": {
+  "run": "d754917ef62734ed7102",
+  "records": 105200,
+  "publish_s": 18.579,
+  "bench": {
+   "event": "stream_bench_sampled",
+   "elapsed_s": 25.5,
+   "samples": 8,
+   "jobs": {
+    "tiktok_dedup": {
+     "peak_source_records_per_s": 918.3,
+     "peak_backpressured_ms_per_s": 56.0,
+     "samples_backpressured_over_100ms": 0,
+     "backpressured_operator_at_peak": "Source: tiktok-source",
+     "peak_busy_ms_per_s": 1000.0,
+     "checkpoints": {
+      "completed": 1,
+      "failed": 0,
+      "duration_ms": {
+       "min": 151,
+       "avg": 151,
+       "max": 151
+      },
+      "checkpointed_size_bytes": {
+       "min": 2614556,
+       "avg": 2614556,
+       "max": 2614556
+      }
+     }
+    },
+    "amazon_late": {
+     "peak_source_records_per_s": 1666.4,
+     "peak_backpressured_ms_per_s": 7.0,
+     "samples_backpressured_over_100ms": 0,
+     "backpressured_operator_at_peak": "Source: amazon-source",
+     "peak_busy_ms_per_s": 0.0,
+     "checkpoints": {
+      "completed": 1,
+      "failed": 0,
+      "duration_ms": {
+       "min": 184,
+       "avg": 184,
+       "max": 184
+      },
+      "checkpointed_size_bytes": {
+       "min": 10926,
+       "avg": 10926,
+       "max": 10926
+      }
+     }
+    }
+   }
+  },
+  "verify": {
+   "relaxed_failures": 0,
+   "strict_failures": [
+    "on_time_ids",
+    "late_accepted_ids",
+    "too_late_ids",
+    "windows_final"
+   ],
+   "amazon": {
+    "on_time": 49723,
+    "late_accepted": 162,
+    "too_late": 115,
+    "expected": [
+     47500,
+     1500,
+     1000
+    ]
+   },
+   "processed": {
+    "amazon": {
+     "records": 50100,
+     "span_s": 2.238
+    },
+    "tiktok_shop": {
+     "records": 55100,
+     "span_s": 2.789
+    }
+   }
+  }
+ }
+}

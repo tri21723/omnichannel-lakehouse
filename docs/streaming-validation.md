@@ -204,3 +204,13 @@ duplicated record fails both.
   only the two new completion records per ingested run.
 - Not a pipeline issue: an ad-hoc Spark script started without `--name omnichannel-spark-driver`
   waited forever for executors (the workers connect back to that host name); rerun with the name.
+
+## P7-09 — Benchmark
+
+[Streaming benchmark](benchmarks/streaming.md): 105,200 records per run (50k events per channel,
+10% retries, 5% late, bursts). Live at 500 rec/s (`66622bf259497404b72c`): processing latency p50
+7–45 ms / p95 ≈ 110 ms, committed-file latency ≤ 33 s (30 s checkpoints), checkpoints 16/16 ok
+(≤ 0.8 s, state ≤ 2.6 MB), no backpressure. Backlog (`d754917ef62734ed7102`): ≈ 20,000 rec/s per job
+on one slot, TikTok dedup operator saturated with light source backpressure. Both runs: relaxed
+verification 0 failures; exact class counts differ (0.05% live, much more in backlog) because of
+watermark lag, as ADR-0016 §6 predicts.
