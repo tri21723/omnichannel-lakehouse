@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from generators.common.config import canonical_json
 
 StreamChannel = Literal["amazon", "tiktok_shop"]
-STREAM_CONTRACT = "stream-v1"
+STREAM_CONTRACT = "stream-v2"  # v2: 4-minute class margins (late 11-16, too late >= 31)
 TOPICS: dict[str, str] = {
     "amazon": "amazon.order-notifications",
     "tiktok_shop": "tiktok_shop.order-webhooks",
@@ -23,11 +23,28 @@ AMAZON_WINDOW_MS = 5 * 60_000
 TIKTOK_WINDOW_MS = 60_000
 ALLOWED_LATENESS_MS = 20 * 60_000
 ON_TIME_MAX_MS = 60_000
-LATE_MIN_MS = 8 * 60_000
-LATE_MAX_MS = 15 * 60_000
-TOO_LATE_MIN_MS = 30 * 60_000
+LATE_MIN_MS = 11 * 60_000
+LATE_MAX_MS = 16 * 60_000
+TOO_LATE_MIN_MS = 31 * 60_000
 RETRY_MIN_MS = 5_000
 RETRY_MAX_MS = 5 * 60_000
+TIKTOK_ALLOWED_LATENESS_MS = 0
+DEDUP_TTL_MS = 30 * 60_000
+# (window, allowed lateness) per channel, as configured in the Flink jobs.
+EVENT_TIME = {
+    "amazon": (AMAZON_WINDOW_MS, ALLOWED_LATENESS_MS),
+    "tiktok_shop": (TIKTOK_WINDOW_MS, TIKTOK_ALLOWED_LATENESS_MS),
+}
+
+
+def classify(event_ts_ms: int, watermark_ms: int, window_ms: int, lateness_ms: int) -> str:
+    """Same boundaries as Flink windows (maxTimestamp = end - 1) and Rules.java."""
+    max_timestamp = event_ts_ms - event_ts_ms % window_ms + window_ms - 1
+    if watermark_ms < max_timestamp:
+        return "on_time"
+    if watermark_ms < max_timestamp + lateness_ms:
+        return "late_accepted"
+    return "too_late"
 
 
 class StreamConfig(BaseModel):
@@ -42,7 +59,7 @@ class StreamConfig(BaseModel):
     events_per_minute: int = Field(default=60, ge=30, le=60_000)
     late_rate: float = Field(default=0.05, ge=0, le=0.5)
     too_late_share: float = Field(default=0.4, ge=0, le=1)
-    late_max_minutes: int = Field(default=60, ge=31, le=240)
+    late_max_minutes: int = Field(default=60, ge=32, le=240)
     dup_rate: float = Field(default=0.10, ge=0, le=0.5)
     burst_multiplier: int = Field(default=50, ge=1, le=1000)
     burst_share: float = Field(default=0.2, ge=0, le=0.9)

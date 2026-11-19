@@ -126,3 +126,40 @@ Images (pulled 2026-11-19):
   printed `stream_publish_skipped` and sent nothing.
 - The canonical small fixture (seed 7, run `d1a1b7eed61ecd0edae9`) is kept unpublished for the live
   Flink acceptance run (P7-05…P7-07), where the jobs must be running before the generator.
+
+## P7-05 / P7-06 — Flink jobs (Java)
+
+- Maven project `flink/jobs/` (Flink 2.2.1 provided, `flink-connector-kafka:5.0.0-2.2` and Jackson
+  2.19.4 shaded into a 24 MB jar), built only in Docker (`docker/images/Dockerfile.flink`, build
+  stage runs JUnit: `RulesTest` 3, `EventParserTest` 2, `JobArgsTest` 2, all pass). The image
+  `omnichannel/flink:2.2.1-jobs` adds the jar to `/opt/flink/usrlib/`.
+- `amazon_late`: validate → DLQ (transactional Kafka sink) | classify against the current watermark
+  (Flink window boundaries: maxTimestamp = end − 1) → too late to branch `late` | accepted → branch
+  `accepted` and 5-min windows with 20-min allowed lateness → branch `windows` (`firing_seq`).
+- `tiktok_dedup`: validate → DLQ | keyBy(`event_id`) + ValueState TTL 30 min (processing time) →
+  retries to branch `duplicates` | unique → classify (1-min window, no lateness) → `accepted`,
+  `late`, 1-min `windows`.
+- One `FileSink` per job: JSON Lines, rolled on checkpoint, bucket
+  `<channel>/<branch>/run=<id>/date=<d>`; each event line keeps the original event plus
+  `_stream_branch`, `_delay_class`, `_watermark_ms`, Kafka partition/offset and `_processed_ms`.
+- Lifecycle: `make stream-start` (start offsets `latest` by default), `make stream-stop`
+  (`flink stop --drain`: fires all windows, final savepoint commits the files),
+  `make verify-stream` (read-only).
+- A checkpoint trigger right after submission reports "task not being executed" once per start;
+  it is the deployment race, later checkpoints complete.
+
+### Live acceptance and what it found
+
+| Run | Contract / rate | Result |
+|---|---|---|
+| `d1a1b7eed61ecd0edae9` (seed 7) | v1, 500 rec/s | counts right, 9 of 90 intended late events classified on time — correct for the recorded watermark (rule check passed), watermark lag median 58 s, max 331 s |
+| `a8c409e4f0c1ffdc2676` (seed 8) | v1, 50 rec/s | all checks pass, but late events saw up to 88 s of lag with a 1-min margin: lag peaks of ~100–133 s recur every ~30 s of wall time (checkpoints) |
+| **`e7a188e49b1e4042ef15` (seed 7)** | **v2 (4-min margins), 50 rec/s** | **0 failures**: Amazon 2,850 on time / 90 late accepted / 60 too late, TikTok 3,000 unique / 300 duplicates / 0 late, final windows equal, DLQ 6 + 6, nothing lost; lag median 28 s, max 100 s |
+
+`make verify-stream` checks per channel: committed files only (no hidden in-progress parts),
+no duplicate `event_id` in `accepted`, SHA-256 of the event-id set per class (on time, late
+accepted, too late, duplicates) equal to ground truth, the rule per record from `_watermark_ms`,
+the last firing of every window, DLQ counts (read_committed) and that accepted + late +
+duplicates equals the valid records. It also regenerates the ground truth and refuses to verify
+if it differs from the S3 copy. The v1 runs stay in Kafka/S3 as history; they no longer
+regenerate under v2 and are not verified again.

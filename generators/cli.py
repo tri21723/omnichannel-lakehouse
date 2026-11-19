@@ -15,6 +15,7 @@ from generators.load.postgres import connect, load
 from generators.stream.config import read_stream_config
 from generators.stream.events import generate as generate_stream
 from generators.stream.publish import check_stream, kafka_producer, publish_stream, write_json
+from generators.stream.verify import verify_stream
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)
 log = logging.getLogger("generators")
@@ -149,6 +150,28 @@ def stream_check(
     cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
     result = check_stream(cfg, os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092"))
     event("stream_checked", run_id=cfg.stream_run_id, ok=result["ok"], topics=result["actual"])
+    if not result["ok"]:
+        raise SystemExit(1)
+
+
+@app.command("stream-verify")
+def stream_verify(
+    config: ConfigPath = Path("generators/stream.yaml"),
+    seed: int | None = None,
+    events_per_channel: int | None = None,
+) -> None:
+    """Reconcile committed Flink output and DLQs with the ground truth (read-only)."""
+    cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
+    result = verify_stream(
+        cfg.stream_run_id,
+        s3_client(),
+        os.environ["S3_RAW_BUCKET"],
+        os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092"),
+    )
+    for check in result["checks"]:
+        event("stream_verify_check", run_id=cfg.stream_run_id, **check)
+    failed = sum(not c["ok"] for c in result["checks"])
+    event("stream_verified", run_id=cfg.stream_run_id, ok=result["ok"], failures=failed)
     if not result["ok"]:
         raise SystemExit(1)
 

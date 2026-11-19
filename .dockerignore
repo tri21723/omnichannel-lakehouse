@@ -17,3 +17,9 @@ spark/**/__pycache__/
 !docker/batch/ci_events.py
 !docker/orch/
 !docker/orch/entrypoint.sh
+!docker/images/Dockerfile.flink
+!flink/
+!flink/jobs/
+!flink/jobs/pom.xml
+!flink/jobs/src/
+!flink/jobs/src/**

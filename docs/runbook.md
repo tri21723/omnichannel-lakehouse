@@ -562,3 +562,12 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   `raw/stream/*` và `checkpoints/flink/*` (chạy lại `make init-stream`), endpoint path-style.
 - **Kiểm tra quyền MinIO bằng `mc`:** với user bị giới hạn, `mc find` không trả về object ngoài
   prefix được đọc; dùng `mc ls --recursive`.
+- **Chạy nghiệm thu live:** `make up-stream` → `make stream-start` → chờ checkpoint đầu →
+  `make gen-stream GEN_STREAM_CONFIG=generators/fixtures/stream-small.yaml` (mặc định 50 record/s) →
+  chờ lag consumer group `flink-*` về 0 → `make stream-stop` → `make verify-stream …`. Mỗi run chỉ
+  publish được một lần; chạy lại cần seed khác (`GEN_STREAM_ARGS=--seed=<n>`).
+- **`on_time_ids`/`late_accepted_ids` lệch nhưng `rule_per_record` đạt:** Flink phân loại đúng theo
+  watermark của nó, nhưng watermark trễ hơn biên (xem `watermark_lag_max_s`). Nguyên nhân thường là
+  `STREAM_RATE` quá cao so với mật độ event; giảm rate, không nới quy tắc.
+- **Job dừng không commit file:** dùng `make stream-stop` (`--drain`), không `cancel`; file đang ghi
+  chỉ thành file thật khi checkpoint/savepoint hoàn tất.

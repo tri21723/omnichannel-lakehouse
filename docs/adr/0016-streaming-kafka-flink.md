@@ -67,7 +67,7 @@ JSON object per Kafka record: `schema_version`, `event_id` (unique per logical e
 
 - A separate `StreamConfig` model; `GeneratorConfig` and its reserved stream fields stay unchanged
   so the three batch run IDs do not change. `stream_run_id` = first 20 hex of SHA-256 over
-  contract `stream-v1` + canonical config.
+  contract `stream-v2` + canonical config.
 - Same seed → same events, same order, same timestamps. The generator advances a simulated
   clock and emits each event when its delay class says so (§6).
 - Ground truth `s3://raw/manifests/<stream_run_id>/stream_ground_truth.json` (not
@@ -86,10 +86,14 @@ JSON object per Kafka record: `schema_version`, `event_id` (unique per logical e
   allowed lateness *L* = 20, minutes):
   with watermark ≈ now − *B* and `event_ts` < window end ≤ `event_ts` + 5:
   - on time: *d* ≤ 1 — the window is still open when *d* ≤ *B* (margin 1);
-  - late, accepted: 8 ≤ *d* ≤ 15 — the window has fired when *d* ≥ *B* + 5 = 7 (margin 1) and is
-    still within lateness when *d* < *B* + *L* = 22 (margin 7);
-  - too late: 30 ≤ *d* ≤ `late_max_minutes` (60) — beyond lateness when *d* ≥ *B* + 5 + *L* = 27
-    (margin 3).
+  - late, accepted: 11 ≤ *d* ≤ 16 — the window has fired when *d* ≥ *B* + 5 = 7 (margin 4) and is
+    still within lateness when *d* < *B* + *L* = 22 (margin 6);
+  - too late: 31 ≤ *d* ≤ `late_max_minutes` (60) — beyond lateness when *d* ≥ *B* + 5 + *L* = 27
+    (margin 4).
+  A watermark that trails can only make a record look *less* late, so only the lower bounds of
+  the two late classes need a margin. Contract `stream-v1` used 8–15 and ≥ 30 (margins 1 and 3);
+  the live run measured watermark lag peaks of up to 133 s every ~30 s of wall time (checkpoints),
+  so `stream-v2` widened both margins to 4 minutes.
   The source watermark is the minimum over partitions (per-split watermarks). When Flink reads
   a backlog, whole fetch batches of one partition can run ahead of another, so the watermark at a
   record depends on runtime interleaving. Therefore:
@@ -97,7 +101,12 @@ JSON object per Kafka record: `schema_version`, `event_id` (unique per logical e
     and writes that watermark into the output record (`_watermark_ms`); the verifier checks the
     rule per record (always) and that nothing is lost (always);
   - acceptance runs are **live**: the job runs first and the generator publishes at a bounded rate,
-    so partitions advance together; then class counts must equal ground truth exactly;
+    so partitions advance together; then class counts must equal ground truth exactly. Watermarks
+    are emitted every 200 ms of wall time and Kafka fetches in batches, so the lag in simulated
+    time is about (records/s per topic) × (watermark interval + fetch latency) ÷ (events per
+    simulated second). Measured: 500 records/s gave a median lag of 58 s and a maximum of 331 s
+    (9 of 90 late events classified on time — correctly for their watermark, but not as
+    intended); the default `STREAM_RATE` is therefore 50 records/s;
   - backlog runs (benchmark) report class agreement but only assert the per-record rule.
   The generator keeps ≥ 30 events per simulated minute (default 60), so the gap inside one of 3
   partitions stays at seconds, far below the 1-minute margin, and late events are only chosen where

@@ -181,7 +181,7 @@ class FakeProducer:
 
 
 def test_publish_once_then_skip_and_refuse_interrupted(tmp_path):
-    config = StreamConfig(events_per_channel=1500, events_per_minute=30, late_max_minutes=31)
+    config = StreamConfig(events_per_channel=1500, events_per_minute=30, late_max_minutes=32)
     s3, sent = MemoryS3(), []
     first = publish_stream(config, tmp_path, s3, "raw", lambda: FakeProducer(sent))
     assert not first["skipped"] and len(sent) == first["records"]
@@ -205,3 +205,31 @@ def test_cli_writes_ground_truth_without_publishing(tmp_path):
     assert result.exit_code == 0, result.exception
     (path,) = (tmp_path / "stream").glob("*/stream_ground_truth.json")
     assert json.loads(path.read_text())["config"]["seed"] == 3
+
+
+def test_flink_rules_match_generator_constants():
+    """Rules.java and config.py must agree, or ground truth and Flink classify differently."""
+    from generators.stream import config
+
+    java = Path("flink/jobs/src/main/java/omnichannel/stream/common/Rules.java").read_text()
+    values = {}
+    for name, expr in re.findall(r"static final long (\w+) = ([^;]+);", java):
+        values[name] = eval(expr.replace("L", ""), {})  # noqa: S307 - literal arithmetic only
+    assert values["WATERMARK_BOUND_MS"] == config.WATERMARK_BOUND_MS
+    assert values["AMAZON_WINDOW_MS"] == config.AMAZON_WINDOW_MS
+    assert values["TIKTOK_WINDOW_MS"] == config.TIKTOK_WINDOW_MS
+    assert values["AMAZON_ALLOWED_LATENESS_MS"] == config.ALLOWED_LATENESS_MS
+    assert values["TIKTOK_ALLOWED_LATENESS_MS"] == config.TIKTOK_ALLOWED_LATENESS_MS
+    assert values["DEDUP_TTL_MS"] == config.DEDUP_TTL_MS
+    assert config.RETRY_MAX_MS < config.DEDUP_TTL_MS
+    for event_ts in range(0, config.AMAZON_WINDOW_MS, 977):
+        for watermark in (event_ts - 1, event_ts + 299_999, event_ts + 1_499_999, event_ts + 10**8):
+            window, lateness = config.EVENT_TIME["amazon"]
+            got = config.classify(event_ts, watermark, window, lateness)
+            max_ts = event_ts - event_ts % window + window - 1
+            want = (
+                "on_time"
+                if watermark < max_ts
+                else "late_accepted" if watermark < max_ts + lateness else "too_late"
+            )
+            assert got == want

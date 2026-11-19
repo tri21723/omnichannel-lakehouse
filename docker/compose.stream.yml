@@ -107,7 +107,12 @@ services:
     restart: unless-stopped
 
   flink-jobmanager:
-    image: ${FLINK_IMAGE:-flink:2.2.1-java17}
+    image: omnichannel/flink:2.2.1-jobs
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.flink
+      args:
+        FLINK_IMAGE: ${FLINK_IMAGE:-flink:2.2.1-java17}
     profiles: [stream]
     command: jobmanager
     environment: *flink-env
@@ -130,7 +135,12 @@ services:
     restart: unless-stopped
 
   flink-taskmanager:
-    image: ${FLINK_IMAGE:-flink:2.2.1-java17}
+    image: omnichannel/flink:2.2.1-jobs
+    build:
+      context: ..
+      dockerfile: docker/images/Dockerfile.flink
+      args:
+        FLINK_IMAGE: ${FLINK_IMAGE:-flink:2.2.1-java17}
     profiles: [stream]
     command: taskmanager
     environment: *flink-env

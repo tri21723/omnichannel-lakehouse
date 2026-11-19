@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-04 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-06 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -145,25 +145,30 @@ core 0,4 GiB / còn 9 GiB, ngân sách stream 4,5 GiB, prefix `raw/stream/*` cho
 
 ### P7-05 — Job Amazon (late arrival)
 
-- [ ] Event-time từ `event_ts`; `WatermarkStrategy.forBoundedOutOfOrderness` + idle timeout;
+- [x] Event-time từ `event_ts`; `WatermarkStrategy.forBoundedOutOfOrderness` + idle timeout;
   tumbling window (aggregate theo channel/currency/window) với `allowedLateness`.
-- [ ] Event quá trễ → side output ghi riêng (`late/`), không bỏ; bản ghi lỗi schema → DLQ.
-- [ ] Sink output và late theo checkpoint (chỉ file committed); manifest output.
-- [ ] Logic thuần (phân loại on-time/late/too-late, key, aggregate) tách hàm có unit test.
-- [ ] Tham số watermark/lateness ghi trong docstring + ADR.
+- [x] Event quá trễ → side output ghi riêng (`late/`), không bỏ; bản ghi lỗi schema → DLQ.
+- [x] Sink output và late theo checkpoint (chỉ file committed).
+- [ ] Manifest output (`stream_output_manifest.json`) — làm ở P7-08 (`stream-close`).
+- [x] Logic thuần (phân loại on-time/late/too-late, key, aggregate) tách hàm có unit test.
+- [x] Tham số watermark/lateness ghi trong docstring + ADR.
 
 **Đạt khi:** số event on-time + late + too-late = ground truth, không mất bản ghi.
-**Commit gợi ý:** `feat(flink): add Amazon late-arrival job with side output`.
+**Bằng chứng:** [streaming-validation](docs/streaming-validation.md) §P7-05/06: run v2 `e7a188e4…` khớp
+ground truth tuyệt đối (2.850/90/60, DLQ 6). Phát hiện: watermark trễ theo chu kỳ checkpoint →
+nới biên lớp trễ lên 4 phút (contract `stream-v2`), `STREAM_RATE` 50.
 
 ### P7-06 — Job TikTok (dedup + burst)
 
-- [ ] `keyBy(event_id)` + `ValueState` có TTL để loại retry trùng; tumbling window 1–5 phút.
-- [ ] Theo dõi backpressure khi burst (Flink REST metrics); không tăng tài nguyên ngoài ngân sách.
-- [ ] Sink + manifest như P7-05; DLQ cho bản ghi lỗi.
-- [ ] Unit test logic dedup (TTL hết hạn, trùng trong/ngoài TTL) và aggregate.
+- [x] `keyBy(event_id)` + `ValueState` có TTL để loại retry trùng; tumbling window 1–5 phút.
+- [ ] Theo dõi backpressure khi burst (Flink REST metrics); không tăng tài nguyên ngoài ngân sách. *(đo ở P7-09)*
+- [x] Sink như P7-05; DLQ cho bản ghi lỗi. (Manifest: P7-08.)
+- [ ] Unit test logic dedup (TTL hết hạn, trùng trong/ngoài TTL) và aggregate bằng test harness của
+  Flink. *Hiện chỉ có kiểm chứng live (300/300 retry, hash khớp); làm cùng P7-07.*
 
 **Đạt khi:** unique count output = ground truth; không còn `event_id` trùng.
-**Commit gợi ý:** `feat(flink): add TikTok dedup and burst job with state TTL`.
+**Bằng chứng:** cùng run: 3.000 unique, 300 `duplicates` (hash tập id khớp), 0 late, window 1 phút
+khớp. Backpressure khi burst đo ở P7-09.
 
 ### P7-07 — Checkpoint, recovery và exactly-once
 

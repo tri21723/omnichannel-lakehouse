@@ -415,11 +415,15 @@ verify-query: ## Reconcile Trino with Spark (same SQL at ledger snapshots), ledg
 	$(PYTHON) docker/query/verify.py --expected .local-data/query/parity.json --url $(TRINO_URL)
 
 # Phase 7 streaming (ADR-0016): Kafka KRaft, kafka-ui and a Flink session cluster.
-.PHONY: env-stream config-stream up-stream init-stream smoke-stream restart-stream status-stream
+.PHONY: env-stream config-stream build-stream test-flink up-stream init-stream smoke-stream restart-stream status-stream stream-start stream-stop stream-jobs
 env-stream: env ## Add Phase 7 settings (images, KRaft id, MinIO user flink) without rotating credentials
 	$(PYTHON) docker/stream/env.py
 config-stream: ## Validate merged core+stream configuration silently
 	$(STREAM) config --quiet
+build-stream: ## Build the Flink image with the stream jobs jar (runs the JUnit tests)
+	$(STREAM) build flink-jobmanager flink-taskmanager
+test-flink: ## Compile and run the Flink jobs' JUnit tests in Docker (no cluster needed)
+	docker build -q --target build -f docker/images/Dockerfile.flink . >/dev/null
 up-stream: env-stream ## Start core + Kafka (topics), kafka-ui and Flink JM/TM; no Spark/Airflow/Trino
 	$(MAKE) up-core
 	$(STREAM) up -d --wait kafka
@@ -436,12 +440,25 @@ restart-stream: ## Restart Kafka, kafka-ui and Flink; data and topics are kept
 status-stream: ## Show stream service state
 	$(STREAM) ps kafka kafka-ui flink-jobmanager flink-taskmanager
 
-.PHONY: gen-stream check-stream-source
+.PHONY: gen-stream check-stream-source verify-stream
 GEN_STREAM_CONFIG ?= generators/stream.yaml
 GEN_STREAM_ARGS ?=
-STREAM_RATE ?= 500
+# Live runs: lag in simulated time ~ rate per topic x (watermark interval + fetch) / density;
+# 50 records/s keeps it in seconds for 60 events/min (ADR-0016 §6).
+STREAM_RATE ?= 50
 STREAM_GEN = $(STREAM) --profile batch run --rm --no-deps -e KAFKA_BOOTSTRAP=kafka:29092 generator
 gen-stream: ## Publish a deterministic order-event stream once (ground truth to S3, records to Kafka; needs up-stream)
 	$(STREAM_GEN) stream --config $(GEN_STREAM_CONFIG) --output /data --publish --rate $(STREAM_RATE) $(GEN_STREAM_ARGS)
 check-stream-source: ## Read the stream run back from Kafka and compare with its ground truth (read-only)
 	$(STREAM_GEN) stream-check --config $(GEN_STREAM_CONFIG) $(GEN_STREAM_ARGS)
+
+STREAM_START ?= latest
+STREAM_JOBS_SH = STREAM_COMPOSE="$(STREAM)" bash docker/stream/jobs.sh
+stream-start: ## Submit amazon_late and tiktok_dedup (STREAM_START=latest|earliest|<epoch ms>)
+	$(STREAM_JOBS_SH) start $(STREAM_START)
+stream-stop: ## Stop both jobs with --drain (fires all windows, final savepoint commits the files)
+	$(STREAM_JOBS_SH) stop
+stream-jobs: ## List Flink jobs
+	$(STREAM_JOBS_SH) list
+verify-stream: ## Reconcile committed Flink output + DLQs with the ground truth (read-only; after stream-stop)
+	$(STREAM_GEN) stream-verify --config $(GEN_STREAM_CONFIG) $(GEN_STREAM_ARGS)

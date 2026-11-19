@@ -93,11 +93,11 @@ No million-row benchmark is claimed here.
 `generators/stream/` (ADR-0016) is separate from the batch model so batch run IDs never change
 (unit-tested). `StreamConfig` (`generators/stream.yaml`, small fixture
 `generators/fixtures/stream-small.yaml`) yields `stream_run_id` = 20 hex of SHA-256 over contract
-`stream-v1` + config.
+`stream-v2` + config (v1 had narrower late-class margins).
 
 - Simulated timeline per channel (`events_per_minute`, default 60); TikTok bursts compress spacing by
   `burst_multiplier`. Each record is sent at `event_ts + delay`, and sends are ordered by send time.
-- Amazon delay classes (on time ≤ 1 min, late 8–15 min, too late 30 min…`late_max_minutes`) are
+- Amazon delay classes (on time ≤ 1 min, late 11–16 min, too late 31 min…`late_max_minutes`) are
   placed only where enough later events exist to move the watermark past them; a stream too short
   for the requested late events is rejected instead of silently producing fewer.
 - TikTok retries repeat `event_id` and payload 5 s–5 min after the first send (`dup_rate`).
