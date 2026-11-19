@@ -10,5 +10,5 @@ Phase 8 (CDC với Debezium) đã hoàn thành local (`v0.8-cdc`):
 
 - [ ] Lập kế hoạch chi tiết Phase 9 (DataHub) dựa trên [bàn giao Phase 9](docs/phase9-handoff.md) và
   `docs/plan.md`; chưa triển khai.
-- [ ] Chạy thủ công trên GitHub: `Debezium CDC` (`cdc.yml`) và ghi run URL/commit (đã tái hiện xanh
-  trên môi trường trắng ở local).
+- [x] `Debezium CDC` xanh trên `f589277` ([44574829186](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44574829186), 22/22 bước, ~11,5 phút); lần đầu fail khi tải jar
+  (Maven Central từ chối IP runner) → thêm mirror Google + pin SHA-256.

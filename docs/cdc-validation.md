@@ -253,3 +253,9 @@ from the files that had passed Maven's published SHA-512/SHA-1; identical to the
 local image). `Dockerfile.flink` retries Maven with `flink/jobs/maven-mirror.xml`. Both builds were
 re-run with `--no-cache` and `--add-host repo.maven.apache.org:127.0.0.1`: every Spark jar came from
 the mirror and passed its SHA-256 check; the Flink build and its JUnit tests passed.
+
+Hosted run after the fix: `Debezium CDC` [44574829186](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44574829186) on commit `f589277` (2026-11-19) succeeded, 22/22
+steps in ~11.5 min on a fresh runner: image builds (1 min), `up-cdc` incl. pulling Debezium from quay.io
+(4.4 min), guard baseline, `smoke-cdc`, `up-batch`, scenario → `bronze-cdc` → `silver-cdc` →
+`verify-cdc`, idempotent reruns, `verify-bronze-cdc`, `verify-silver-cdc`, `cdc-slot-lag`,
+`restart-cdc` + smoke + verify.

@@ -215,7 +215,8 @@ See [streaming validation](streaming-validation.md), [checklist](phase7-checklis
 - Operations: slot lag monitoring, pause/resume without event loss, Kafka/Connect restart, blocking
   re-snapshot without dropping the slot; DAG `dp1_cdc` every 10 minutes (commit → Silver 9.5 min via
   the schedule, 77 s run manually). Manual workflow `cdc.yml`, reproduced green in a clean environment
-  (hosted run not claimed).
+  and green on GitHub
+  ([run 44574829186](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44574829186), commit `f589277`).
 
 See [CDC validation](cdc-validation.md), [checklist](phase8-checklist.md) and
 [Phase 9 handoff](phase9-handoff.md).
