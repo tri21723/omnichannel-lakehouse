@@ -620,3 +620,7 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   NULLABLE bằng migration; Debezium tự đưa cột mới vào `after`; Bronze lưu JSON nên không đổi
   schema; Silver bỏ qua cột chưa có trong contract cho đến khi `typed_row`/`SILVER_SCHEMA` được cập
   nhật kèm migration Iceberg; chạy lại `verify-cdc`. Đổi kiểu/xoá cột cần ADR riêng.
+- **Build image fail `curl: (22)` sau vài chục giây trên CI (Maven Central trả 403/429 cho IP runner):**
+  `Dockerfile.spark` thử Maven Central rồi tới mirror chính thức của Google, mọi jar được pin SHA-256;
+  `Dockerfile.flink` chạy lại Maven với `flink/jobs/maven-mirror.xml`. Kiểm đường dự phòng:
+  `docker build --no-cache --add-host repo.maven.apache.org:127.0.0.1 -f docker/images/Dockerfile.spark .`

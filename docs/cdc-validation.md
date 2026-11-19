@@ -240,3 +240,16 @@ CDC changes are durable in Kafka (7 days) and Bronze in the meantime.
   unchanged, Bronze/Silver verification, slot lag, restart + smoke + verify, guard ok.
 - README ("Chạy CDC"), runbook, data model, ADR-0001/0017, implementation status, CLAUDE.md and the
   [Phase 9 handoff](phase9-handoff.md) are updated. The hosted run is not claimed here.
+
+### Hosted CI fix
+
+The first hosted `Debezium CDC` run
+([44570987827](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44570987827), commit
+`ef9443e`) failed after 47 s in `make build-generator build-batch`: `curl` exit 22 while downloading
+the Spark jars — an HTTP error from Maven Central that `--retry` does not retry (a 429 would have
+been retried for minutes), i.e. the runner IP was refused. `Dockerfile.spark` now tries Maven
+Central and then Google's official Maven Central mirror, and pins every jar by SHA-256 (values taken
+from the files that had passed Maven's published SHA-512/SHA-1; identical to the jars in the verified
+local image). `Dockerfile.flink` retries Maven with `flink/jobs/maven-mirror.xml`. Both builds were
+re-run with `--no-cache` and `--add-host repo.maven.apache.org:127.0.0.1`: every Spark jar came from
+the mirror and passed its SHA-256 check; the Flink build and its JUnit tests passed.

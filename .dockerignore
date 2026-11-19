@@ -21,5 +21,6 @@ spark/**/__pycache__/
 !flink/
 !flink/jobs/
 !flink/jobs/pom.xml
+!flink/jobs/maven-mirror.xml
 !flink/jobs/src/
 !flink/jobs/src/**

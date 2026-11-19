@@ -2,12 +2,13 @@
 ARG FLINK_IMAGE=flink:2.2.1-java17
 FROM maven:3.9.16-eclipse-temurin-17 AS build
 WORKDIR /build
-COPY flink/jobs/pom.xml pom.xml
-# Maven Central rate-limits shared CI IPs; the resolver retries 429/503 honouring Retry-After.
+COPY flink/jobs/pom.xml flink/jobs/maven-mirror.xml ./
+# Maven Central rate-limits shared CI IPs; the resolver retries 429/503 honouring Retry-After, and
+# a refused host (403) falls back to Google's Maven Central mirror (checksums still verified).
 ENV MAVEN_OPTS="-Daether.connector.http.retryHandler.count=8"
-RUN mvn -B -q dependency:go-offline
+RUN mvn -B -q dependency:go-offline || mvn -B -q -s maven-mirror.xml dependency:go-offline
 COPY flink/jobs/src src
-RUN mvn -B -q package
+RUN mvn -B -q package || mvn -B -q -s maven-mirror.xml package
 
 FROM ${FLINK_IMAGE}
 COPY --from=build /build/target/stream-jobs.jar /opt/flink/usrlib/stream-jobs.jar

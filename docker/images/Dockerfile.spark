@@ -2,29 +2,28 @@ FROM python:3.11.11-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless curl procps && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir pyspark==3.5.5 boto3==1.37.9 && ln -s /usr/local/lib/python3.11/site-packages/pyspark /opt/spark
 ENV SPARK_HOME=/opt/spark JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PYTHONPATH=/app PYSPARK_PYTHON=python3
-# Maven Central rate-limits shared CI IPs (HTTP 429): retry with backoff/Retry-After, verify every JAR.
-RUN set -eu; get() { curl -fsSL --retry 8 --retry-max-time 300 --retry-connrefused "$@"; }; \
-    for artifact in iceberg-spark-runtime-3.5_2.12 iceberg-aws-bundle; do \
-    url="https://repo.maven.apache.org/maven2/org/apache/iceberg/$artifact/1.9.2/$artifact-1.9.2.jar"; \
-    get "$url" -o "/opt/spark/jars/$artifact-1.9.2.jar"; \
-    get "$url.sha512" -o /tmp/jar.sha512; \
-    printf '%s  %s\n' "$(cat /tmp/jar.sha512)" "/opt/spark/jars/$artifact-1.9.2.jar" | sha512sum -c -; done; \
-    url=https://repo.maven.apache.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar; \
-    get "$url" -o /opt/spark/jars/postgresql-42.7.5.jar; \
-    printf '%s  %s\n' "$(get "$url.sha1")" /opt/spark/jars/postgresql-42.7.5.jar | sha1sum -c -; \
-    rm -f /tmp/jar.sha512
-# Phase 8 (ADR-0017): Kafka source for Structured Streaming, SHA-1 as published on Maven Central.
-RUN set -eu; get() { curl -fsSL --retry 8 --retry-max-time 300 --retry-connrefused "$@"; }; \
-    m=https://repo.maven.apache.org/maven2; \
-    for spec in \
-      "org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.5/spark-sql-kafka-0-10_2.12-3.5.5.jar 5632315de051f608c9de773153764678c99e0852" \
-      "org/apache/spark/spark-token-provider-kafka-0-10_2.12/3.5.5/spark-token-provider-kafka-0-10_2.12-3.5.5.jar 0a0e280414723451a933f66eb3fbf3dd4e5b32bb" \
-      "org/apache/kafka/kafka-clients/3.4.1/kafka-clients-3.4.1.jar a2f55251deb3d31a21903a0cfbd4d1fa6b7463ca" \
-      "org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar 8970fd110c965f285ed4c6e40be7630c62db6f68"; do \
-      set -- $spec; jar=/opt/spark/jars/${1##*/}; \
-      get "$m/$1" -o "$jar"; \
-      printf '%s  %s\n' "$2" "$jar" | sha1sum -c -; \
-    done
+# Jars from Maven Central, falling back to Google's official Maven Central mirror: CI runners get
+# HTTP 429/403 from repo.maven.apache.org. Every jar is pinned by SHA-256 (taken from files that
+# passed Maven's published SHA-512/SHA-1), so either source must deliver identical bytes.
+RUN set -eu; \
+    fetch() { \
+      for base in https://repo.maven.apache.org/maven2 https://maven-central.storage-download.googleapis.com/maven2; do \
+        if curl -fsSL --retry 5 --retry-max-time 120 --retry-connrefused "$base/$1" -o "$2"; then return 0; fi; \
+        echo "download failed from $base, trying next source" >&2; \
+      done; return 1; }; \
+    while read -r path sum; do \
+      jar=/opt/spark/jars/${path##*/}; \
+      fetch "$path" "$jar"; \
+      printf '%s  %s\n' "$sum" "$jar" | sha256sum -c -; \
+    done <<'JARS'
+org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.9.2/iceberg-spark-runtime-3.5_2.12-1.9.2.jar c40ae0a8e2673bb5c01951b7d15aae2224a534f8331f4274ce2082776116a044
+org/apache/iceberg/iceberg-aws-bundle/1.9.2/iceberg-aws-bundle-1.9.2.jar ea5b6fec1b547e2fe936f804c737943f5ee322d038560f63a8261deb766def1b
+org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar 69020b3bd20984543e817393f2e6c01a890ef2e37a77dd11d6d8508181d079ab
+org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.5/spark-sql-kafka-0-10_2.12-3.5.5.jar 26e2ada52ed32d9310960749da074f3bfa9c20354c282303d1bd87b78856814c
+org/apache/spark/spark-token-provider-kafka-0-10_2.12/3.5.5/spark-token-provider-kafka-0-10_2.12-3.5.5.jar 475f1ba3d06afef4ab0ddb9e27f0490c07c1f5870212c7f178e7dfbbc433ec1d
+org/apache/kafka/kafka-clients/3.4.1/kafka-clients-3.4.1.jar 9d0a9058c8ede79db6e54ae378ed16fe8d1bead2894635a4aa6aa0b7981668c6
+org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar ea0505ee7515e58b1ac0e686e4d1a5d9f7d808e251a61bc371aa0595b9963f83
+JARS
 COPY spark /app/spark
 COPY sql /app/sql
 WORKDIR /app
