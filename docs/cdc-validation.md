@@ -155,3 +155,36 @@ Found while bringing it up:
 Found: the first attempt failed on `TABLE_OR_VIEW_NOT_FOUND cdc_batch` — the MERGE ran on the outer
 session while the view was registered on foreachBatch's cloned session; the batch was not committed
 in the checkpoint, so the fixed rerun picked it up again.
+
+## P8-06 — Silver current state
+
+- `spark/jobs/dp1_cdc/silver.py` (`make silver-cdc`, `make verify-silver-cdc`): latest valid Bronze
+  event per order by `(lsn, offset)` → typed (`typed_row`: row image `before` for deletes,
+  DECIMAL(18,2) from the decimal string, UTC timestamps, problems → `_error_reason`) → MERGE into
+  `lh.silver.walmart_orders_cdc_current` only when strictly newer; deletes set `is_deleted`, a
+  later insert revives the row; untypable or invalid records go to
+  `lh.silver.quarantine_walmart_orders_cdc` (MERGE on Kafka coordinates).
+- Unit tests: typing (delete uses `before`, +07:00 normalised to UTC, exact money) and seven
+  quarantine reasons; the "strictly newer" rule gives the same final state for all 24 arrival orders
+  of four events including a duplicate delivery; the MERGE never deletes rows.
+- First run: 3,179 orders (3,135 batch orders + 40 scenario + 4 smoke probes), 3,170 live, 9 deleted,
+  0 quarantined. Second run `changed: false`. `--mode verify`: one row per order and equal to the
+  latest Bronze event per key.
+- Found: after rebuilding the Spark image the workers must be recreated (`make up-batch`), otherwise
+  executors import the old `spark/lib` (UDF `typed_row` not found).
+
+## P8-07 — Reconciliation
+
+`spark/jobs/dp1_cdc/verify_cdc.py` (`make verify-cdc`, scenario id derived from
+`generators/cdc.yaml`; read-only): PostgreSQL `walmart.orders` (JDBC, `spark_reader`) vs Silver and
+the scenario ground truth in S3, with the generator's checksum algorithm (cross-tested).
+
+| Run | Result |
+|---|---|
+| Scenario 1 `4f8191192d5abf939dbd` | 8/8 checks: live ids/count/checksum equal PostgreSQL, deleted ids absent from the source, scenario 35 live + checksum + 5 deletes = ground truth, Bronze ops exactly `c` 43 / `u` 77 / `d` 8 |
+| Scenario 2 `f1862db408369e74a13b` (seed 43) end to end | apply 4 s → `bronze-cdc` 136 records (30 s) → `silver-cdc` changed (47 s): 3,205 live = 3,205 source orders, 14 deleted; `verify-cdc` twice ok, exact ops, `r` = 0 |
+| Rerun of the whole chain | Bronze 0 records, Silver `changed: false`, `verify-silver-cdc` ok, `verify-bronze-cdc` ok (6,560 rows, 0 duplicates, no gaps, 6,540 valid + 20 tombstones), scenario 1 still exact |
+| Batch isolation | `cdc-batch-guard` ok; Silver/Gold/DP3/warehouse ledger SHA-256 unchanged |
+
+Run manually in sequence, a commit in PostgreSQL reached Silver in 77 s (dominated by two Spark
+application start-ups); scheduling is P8-09.

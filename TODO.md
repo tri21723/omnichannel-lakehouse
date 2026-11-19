@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-05 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-07 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -179,31 +179,33 @@ topic; verify 0 trùng/0 hở/0 invalid; replay toàn bộ với checkpoint mớ
 
 ### P8-06 — Silver hiện trạng từ CDC
 
-- [ ] `lh.silver.walmart_orders_cdc_current`:
+- [x] `lh.silver.walmart_orders_cdc_current`:
   - một dòng/`order_id`, cột nghiệp vụ đã typed (DECIMAL, TIMESTAMP UTC);
   - cột `is_deleted`, `_cdc_lsn`, `_cdc_ts_ms`, `_cdc_op`;
   - MERGE theo khóa, chỉ áp bản có LSN (rồi `ts_ms`, offset) lớn hơn;
   - delete → `is_deleted = true` (giữ dòng); insert lại sau delete → sống lại.
-- [ ] Xử lý trong một micro-batch có nhiều thay đổi cùng khóa: lấy bản mới nhất theo LSN trước khi
+- [x] Xử lý trong một micro-batch có nhiều thay đổi cùng khóa: lấy bản mới nhất theo LSN trước khi
   MERGE; idempotent khi replay Bronze.
-- [ ] Không đổi bảng Silver batch đã công bố (`silver.orders` …); bảng mới ghi vào `data-model.md`.
-- [ ] Unit test chọn bản mới nhất, thứ tự, soft delete, tái tạo; quarantine có `_error_reason`.
+- [x] Không đổi bảng Silver batch đã công bố (`silver.orders` …); bảng mới ghi vào `data-model.md`.
+- [x] Unit test chọn bản mới nhất, thứ tự, soft delete, tái tạo; quarantine có `_error_reason`.
 
 **Đạt khi:** Silver hiện trạng khớp ground truth kịch bản; replay không đổi kết quả.
-**Commit gợi ý:** `feat(spark): maintain current-state Silver orders from CDC with soft deletes`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-06: 3.179 order (3.170 sống, 9 xoá), chạy lại
+`changed: false`, verify đạt; unit test thứ tự cho mọi hoán vị đến.
 
 ### P8-07 — Đối soát và kịch bản
 
-- [ ] `make verify-cdc` (đọc-only): PostgreSQL (`spark_reader`/`trino_ro`) ↔ Silver hiện trạng:
+- [x] `make verify-cdc` (đọc-only): PostgreSQL (`spark_reader`/`trino_ro`) ↔ Silver hiện trạng:
   - count dòng sống, count đã xoá theo ground truth;
   - checksum (order_id, status, total_amount, updated_ts) trên toàn bảng và trên tiền tố kịch bản.
-- [ ] Chạy đủ kịch bản P8-04 (INSERT/UPDATE nhiều lần/DELETE/UPDATE nhiều dòng/đồng thời/xoá-chèn
+- [x] Chạy đủ kịch bản P8-04 (INSERT/UPDATE nhiều lần/DELETE/UPDATE nhiều dòng/đồng thời/xoá-chèn
   lại); chạy lại `dp1_cdc` + Silver 2 lần → không đổi.
-- [ ] Kiểm tra thứ tự: dòng cập nhật nhiều lần cuối cùng đúng giá trị cuối; không có bản cũ đè bản mới
+- [x] Kiểm tra thứ tự: dòng cập nhật nhiều lần cuối cùng đúng giá trị cuối; không có bản cũ đè bản mới
   khi replay.
 
 **Đạt khi:** `verify-cdc` xanh hai lần; 3 dataset batch + JDBC evidence không đổi.
-**Commit gợi ý:** `test(cdc): reconcile PostgreSQL with CDC Silver across mutation scenarios`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-07: `verify-cdc` 8/8 cho 2 kịch bản (op khớp
+chính xác), chạy lại cả chuỗi không đổi, batch guard + ledger không đổi.
 
 ### P8-08 — Vận hành
 

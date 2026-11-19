@@ -90,3 +90,112 @@ def contiguous(
         if count != high - low + 1 or low != earliest.get(partition, low):
             problems.append(partition)
     return problems
+
+
+# --- Silver current state (ADR-0017 §5) -------------------------------------------------------
+SILVER_TABLE = "lh.silver.walmart_orders_cdc_current"
+QUARANTINE_TABLE = "lh.silver.quarantine_walmart_orders_cdc"
+TYPED_SCHEMA = (
+    "order_id string, customer_id string, order_ts string, updated_ts string, status string, "
+    "currency string, total_amount string, shipping_country string, _error_reason string"
+)
+SILVER_SCHEMA = (
+    "order_id string, customer_id string, order_ts timestamp, updated_ts timestamp, "
+    "status string, currency string, total_amount decimal(18,2), shipping_country string, "
+    "is_deleted boolean, _cdc_op string, _cdc_lsn bigint, _cdc_ts_ms bigint, "
+    "_kafka_partition int, _kafka_offset bigint, _updated_at timestamp"
+)
+QUARANTINE_SCHEMA = (
+    "_kafka_topic string, _kafka_partition int, _kafka_offset bigint, order_id string, "
+    "op string, _raw string, _error_reason string, _quarantined_at timestamp"
+)
+REQUIRED = ("order_id", "customer_id", "order_ts", "updated_ts", "status", "currency")
+
+
+def _utc(value: Any) -> str | None:
+    from datetime import UTC, datetime
+
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+
+def typed_row(op: str | None, before: str | None, after: str | None) -> dict:
+    """Business columns of the row image a change leaves behind (`before` for deletes).
+
+    Values stay strings so Spark casts them exactly (DECIMAL(18,2), UTC timestamp); any problem
+    is returned as `_error_reason` for quarantine instead of a null that looks valid."""
+    out = dict.fromkeys(TYPED_SCHEMA.replace(" string", "").split(", "))
+    image_text = before if op == "d" else after
+    try:
+        image = json.loads(image_text) if image_text else None
+    except ValueError:
+        image = None
+    if not isinstance(image, dict):
+        out["_error_reason"] = "missing_row_image"
+        return out
+    for name in ("order_id", "customer_id", "status", "currency", "shipping_country"):
+        out[name] = image.get(name) if isinstance(image.get(name), str) else None
+    out["order_ts"], out["updated_ts"] = _utc(image.get("order_ts")), _utc(image.get("updated_ts"))
+    amount = image.get("total_amount")
+    try:
+        from decimal import Decimal, InvalidOperation
+
+        value = Decimal(amount) if isinstance(amount, str) else None
+        if (
+            value is None
+            or value != value.quantize(Decimal("0.01"))
+            or value < 0
+            or abs(value) >= 10**16
+        ):
+            raise InvalidOperation
+        out["total_amount"] = f"{value:.2f}"
+    except (InvalidOperation, ValueError):
+        out["_error_reason"] = "bad_amount"
+        return out
+    missing = [name for name in REQUIRED if out[name] is None]
+    if missing:
+        out["_error_reason"] = f"bad_{missing[0]}"
+    return out
+
+
+def newer(candidate: tuple[int, int], current: tuple[int, int] | None) -> bool:
+    """Ordering key (lsn, kafka offset), the same rule as `silver_merge_sql`: only a strictly newer
+    event may replace the stored state. All events of one key share a partition, so the offset
+    breaks LSN ties (duplicate deliveries of the same change)."""
+    return current is None or candidate > current
+
+
+def silver_merge_sql(view: str) -> str:
+    return (
+        f"MERGE INTO {SILVER_TABLE} t USING {view} s ON t.order_id = s.order_id "
+        "WHEN MATCHED AND (s._cdc_lsn > t._cdc_lsn OR (s._cdc_lsn = t._cdc_lsn "
+        "AND s._kafka_offset > t._kafka_offset)) THEN UPDATE SET * "
+        "WHEN NOT MATCHED THEN INSERT *"
+    )
+
+
+def scenario_checksum(rows) -> str:
+    """Same algorithm as generators.cdc.scenario.checksum (cross-tested): SHA-256 over
+    `order_id|status|total_amount|updated_ts` (UTC, microseconds, `Z`) in order_id order."""
+    import hashlib
+    from datetime import UTC, datetime
+
+    def ts(value) -> str:
+        if not isinstance(value, datetime):
+            value = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)  # Spark session time zone is UTC
+        return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    lines = [
+        f"{r['order_id']}|{r['status']}|{r['total_amount']}|{ts(r['updated_ts'])}"
+        for r in sorted(rows, key=lambda r: r["order_id"])
+    ]
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
