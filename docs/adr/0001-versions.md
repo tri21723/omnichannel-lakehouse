@@ -103,7 +103,9 @@ than 4.4.0 (2026-10-22): 4.3 is the newest line kafka-python lists as tested. ka
 `kafbat/kafka-ui:v1.5.0` (2026-04-20). Apache Flink **2.2.1** (`flink:2.2.1-java17`) because the
 newest Kafka connector, `flink-connector-kafka:5.0.0-2.2`, supports Flink 2.1/2.2 but not 2.3.0.
 Jobs are Java, built with `maven:3.9.16-eclipse-temurin-17`. Generator client `kafka-python`
-3.0.x (pure Python). Image digests are recorded when the images are pulled (P7-03). No existing
+3.0.x (pure Python). Digests (pulled 2026-11-19): kafka `sha256:852a0d49…27a7`, kafka-ui
+`sha256:7cda86a3…6fd1`, flink `sha256:55ccb2ad…4ffe`, maven `sha256:1a352420…8584`
+(full values in the streaming validation). No existing
 pin or port was changed; Kafka 9092, kafka-ui 8085 and Flink 8082 are the reserved ports.
 
 Sources checked (2026-11-19):

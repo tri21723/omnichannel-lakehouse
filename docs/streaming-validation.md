@@ -66,3 +66,43 @@ runs afterwards with `up-batch` (Kafka/Flink stopped or idle).
 - `make up-stream` and `make gen-stream` still `exit 2` (shared rule with `up-cdc`, `up-gov`).
 - `generators/stream/`, `flink/jobs/amazon_late/`, `flink/jobs/tiktok_dedup/` contain only
   `.gitkeep`. The reserved generator fields are not read by any batch code.
+
+## P7-02 — Decisions
+
+[ADR-0016](adr/0016-streaming-kafka-flink.md): Kafka 4.3.2 (KRaft), kafka-ui v1.5.0, Flink 2.2.1 with
+`flink-connector-kafka:5.0.0-2.2`, jobs in Java (owner decision; PyFlink would add ~300 MB of
+libraries plus Beam/pandas/pyarrow and a Python worker per slot), `kafka-python` for the
+generator, JSON Lines output, watermark 2 min / allowed lateness 20 min with margin-separated
+delay classes, dedup TTL 30 min. Event contract in [data model](data-model.md#streaming-events-phase-7).
+
+## P7-03 — Stream profile
+
+Images (pulled 2026-11-19):
+
+| Image | Digest | Size |
+|---|---|---|
+| `apache/kafka:4.3.2` | `sha256:852a0d49fc4e656b022e7f23785411802c9a088c78a7c5e39f33969de9c227a7` | 227 MiB |
+| `kafbat/kafka-ui:v1.5.0` | `sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1` | 212 MiB |
+| `flink:2.2.1-java17` | `sha256:55ccb2ad4b98362c3f3503c5a6d7cd00b92eb25e38815ddaf0be5903ade54ffe` | 634 MiB |
+| `maven:3.9.16-eclipse-temurin-17` (build only) | `sha256:1a352420f7aba21f5ad08df31bab55f74c013fb491f1ae8ab1dd7ff9ed698584` | 222 MiB |
+
+- `docker/compose.stream.yml` (profile `stream`): Kafka KRaft single node (`HOST` listener
+  `127.0.0.1:9092`, `INTERNAL` `kafka:29092`, controller internal), kafka-ui read-only on
+  `127.0.0.1:8085`, Flink JobManager on `127.0.0.1:8082`, TaskManager with 2 slots; `mem_limit`,
+  healthchecks, named volume `kafka-data`. The built-in `flink-s3-fs-hadoop` plugin is enabled;
+  S3 credentials come only from the container environment.
+- `make env-stream` appends images, a random KRaft cluster id and the MinIO user `flink` secret
+  without rotating existing lines (unit test). `make init-stream` (idempotent, ran twice): 4 topics
+  + `_smoke.stream` with the configured partitions/retention, user `flink` with policy
+  `raw/stream/*` + `checkpoints/flink/*`.
+- `make smoke-stream`, 18 checks, all pass after `up-stream` from a stopped stack (89 s), after a
+  second `init-stream` and after `restart-stream`:
+  topics and partitions, produce/consume on the internal listener, host port 9092, kafka-ui health,
+  Flink 2 slots, the bundled WordCount job writing a file to `s3://raw/stream/_smoke/` through the
+  plugin, user `flink` allowed in its prefixes and denied in `raw/_smoke`, `lakehouse` and for
+  reading a batch manifest, smoke objects cleaned, the S3 secret absent from Flink logs.
+- Memory after the smoke (stream + core): TaskManager 546 MiB, JobManager 298 MiB, kafka-ui
+  268 MiB, Kafka 434 MiB, MinIO 323 MiB, PostgreSQL 50 MiB; host used 4.5 GiB, available 7.2 GiB.
+- Found while writing the smoke: `mc find` returns nothing for user `flink` outside its prefixes
+  (it needs object reads), so a probe based on it passed without testing anything; the probe now
+  lists with `mc ls --recursive` and fails when no key is found.

@@ -19,7 +19,7 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 	cd sql/trino && ../../$(BIN)/sqlfluff lint .
@@ -33,7 +33,7 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-stream up-cdc up-gov gen-stream:
+up-cdc up-gov gen-stream:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -63,7 +63,7 @@ restart-core: ## Restart core services while preserving named volumes
 status-core: ## Show core service status
 	$(COMPOSE) ps -a
 
-down: ## Stop core, batch, orch and query services without deleting volumes
+down: ## Stop core, batch, orch, query and stream services without deleting volumes
 	$(ALL_PROFILES) down
 
 logs: ## Follow logs; optionally SVC=postgres, minio, spark-master, airflow or trino
@@ -108,7 +108,8 @@ DRIVER_LOCK := python -m spark.lib.driver_lock --
 BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml --profile core --profile batch
 ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
 QUERY := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.query.yml --profile core --profile batch --profile query
-ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml --profile core --profile batch --profile orch --profile query
+ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml --profile core --profile batch --profile orch --profile query --profile stream
+STREAM := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml --profile core --profile stream
 AIRFLOW_EXEC = $(ORCH) exec -T airflow
 .PHONY: env-batch config-batch build-batch init-lakehouse smoke-lakehouse verify-lakehouse restart-lakehouse
 env-batch: env ## Add missing Phase 3 settings without rotating credentials
@@ -412,3 +413,25 @@ verify-query: ## Reconcile Trino with Spark (same SQL at ledger snapshots), ledg
 	mkdir -p .local-data/query
 	$(BATCH) run --rm --no-deps -T --entrypoint cat spark-submit /runtime/query/parity.json > .local-data/query/parity.json
 	$(PYTHON) docker/query/verify.py --expected .local-data/query/parity.json --url $(TRINO_URL)
+
+# Phase 7 streaming (ADR-0016): Kafka KRaft, kafka-ui and a Flink session cluster.
+.PHONY: env-stream config-stream up-stream init-stream smoke-stream restart-stream status-stream
+env-stream: env ## Add Phase 7 settings (images, KRaft id, MinIO user flink) without rotating credentials
+	$(PYTHON) docker/stream/env.py
+config-stream: ## Validate merged core+stream configuration silently
+	$(STREAM) config --quiet
+up-stream: env-stream ## Start core + Kafka (topics), kafka-ui and Flink JM/TM; no Spark/Airflow/Trino
+	$(MAKE) up-core
+	$(STREAM) up -d --wait kafka
+	$(MAKE) init-stream
+	$(STREAM) up -d --wait kafka-ui flink-jobmanager flink-taskmanager
+init-stream: ## Idempotent: Kafka topics + DLQs and the MinIO user flink (services must be healthy)
+	$(STREAM) run --rm --no-deps kafka-init
+	$(STREAM) run --rm --no-deps stream-minio-init
+smoke-stream: ## Kafka produce/consume, Flink cluster + S3 write, MinIO flink limits, no secret in logs
+	STREAM_COMPOSE="$(STREAM)" bash docker/stream/smoke.sh
+restart-stream: ## Restart Kafka, kafka-ui and Flink; data and topics are kept
+	$(STREAM) restart kafka kafka-ui flink-jobmanager flink-taskmanager
+	$(STREAM) up -d --wait kafka kafka-ui flink-jobmanager flink-taskmanager
+status-stream: ## Show stream service state
+	$(STREAM) ps kafka kafka-ui flink-jobmanager flink-taskmanager

@@ -25,7 +25,9 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 - Kiểm tra nhanh không cần Docker: `make check` (lint + unit test). Các target
   `smoke-*`, `integration-*`, `test-*-recovery`, `test-review-regressions` cần
   `make up-batch` và chạy tuần tự (không chạy song song nhiều Spark driver).
-- Target chưa triển khai (`up-stream`, `up-cdc`, `up-gov`, `gen-stream`) cố ý `exit 2`.
+- Target chưa triển khai (`up-cdc`, `up-gov`, `gen-stream`) cố ý `exit 2`.
+- Streaming (`make up-stream`): Kafka 127.0.0.1:9092 (container: `kafka:29092`), kafka-ui 8085,
+  Flink 8082; không bật cùng batch/orch/query khi đo Flink. Job Flink viết Java (ADR-0016).
 - Trino (`make up-query`, 127.0.0.1:8083) chỉ đọc; đổi `docker/query/trino/etc` cần
   `make restart-query` + `make smoke-query`. Không nới `iceberg.security=read_only`.
 - Airflow (`make up-orch`, UI 127.0.0.1:8081) cũng là Spark driver; mọi Spark driver (make hoặc

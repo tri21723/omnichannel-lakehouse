@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-02 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-03 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -111,19 +111,20 @@ core 0,4 GiB / còn 9 GiB, ngân sách stream 4,5 GiB, prefix `raw/stream/*` cho
 
 ### P7-03 — Hạ tầng `stream`
 
-- [ ] `docker/compose.stream.yml` profile `stream`: `kafka` (KRaft, listener nội bộ `kafka:9092`,
+- [x] `docker/compose.stream.yml` profile `stream`: `kafka` (KRaft, listener nội bộ `kafka:9092`,
   host `127.0.0.1:9092`), `kafka-ui` (`127.0.0.1:8085`), `flink-jobmanager` (`127.0.0.1:8082`),
   `flink-taskmanager`; `mem_limit`, healthcheck, volume tên riêng; image Flink tự build nếu cần
   PyFlink/plugin S3/Kafka connector (pin, checksum).
-- [ ] Init idempotent: tạo topic (partition/retention/DLQ), user MinIO `flink` + policy (ghi
+- [x] Init idempotent: tạo topic (partition/retention/DLQ), user MinIO `flink` + policy (ghi
   `raw/stream/*`, `checkpoints/flink/*`), chạy lần 2 không đổi gì.
-- [ ] Make: `env-stream`, `build-stream`, `up-stream` (thay placeholder), `smoke-stream`,
-  `restart-stream`, `logs SVC=…`; `down` gồm `stream`; yamllint thêm compose mới.
-- [ ] Smoke: produce/consume 1 message thử trên topic smoke riêng, Flink cluster nhận TaskManager,
+- [x] Make: `env-stream`, `build-stream`, `up-stream` (thay placeholder), `smoke-stream`,
+  `restart-stream`, `logs SVC=…` (qua `ALL_PROFILES`); `down` gồm `stream`; yamllint thêm compose mới.
+- [x] Smoke: produce/consume 1 message thử trên topic smoke riêng, Flink cluster nhận TaskManager,
   quyền MinIO đúng (user `flink` không ghi được ngoài prefix cho phép).
 
 **Đạt khi:** `make up-stream && make smoke-stream` xanh từ trạng thái dừng và sau restart.
-**Commit gợi ý:** `feat(stream): add Kafka KRaft, kafka-ui and Flink stream profile`.
+**Bằng chứng:** [streaming-validation](docs/streaming-validation.md) §P7-03: `smoke-stream` 18/18 sau
+`up-stream` từ trạng thái dừng (89 s), sau `init-stream` lần 2 và sau `restart-stream`.
 
 ### P7-04 — Generator stream và ground truth
 

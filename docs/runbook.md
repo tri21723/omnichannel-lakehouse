@@ -548,3 +548,17 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   Silver/Gold/warehouse đổi ở lượt hội tụ thì đó là lỗi thật.
 - **`smoke-orch` lỗi `fixture.json` trên môi trường mới:** chạy `make smoke-lakehouse` trước
   (tạo fixture smoke một lần, các lần sau chỉ kiểm tra).
+
+## Streaming (Phase 7)
+
+- **Bật:** `make up-stream` (core + Kafka + kafka-ui + Flink; không cần Spark/Airflow/Trino),
+  kiểm tra `make smoke-stream`. UI: kafka-ui `http://127.0.0.1:8085` (chỉ đọc), Flink
+  `http://127.0.0.1:8082`. Không bật cùng `batch`/`orch`/`query` khi đo Flink (RAM).
+- **Kafka không lên / `Invalid cluster.id`:** `KAFKA_CLUSTER_ID` trong `.env` phải giữ nguyên với
+  volume `kafka-data`; không sinh lại id khi volume còn dữ liệu (không xoá volume khi chưa hỏi).
+- **Client ngoài Docker:** dùng `localhost:9092`; container dùng `kafka:29092`. Sai listener là
+  lỗi kết nối hay gặp nhất.
+- **Flink không ghi được S3:** kiểm tra `ENABLE_BUILT_IN_PLUGINS`, user `flink` chỉ được ghi
+  `raw/stream/*` và `checkpoints/flink/*` (chạy lại `make init-stream`), endpoint path-style.
+- **Kiểm tra quyền MinIO bằng `mc`:** với user bị giới hạn, `mc find` không trả về object ngoài
+  prefix được đọc; dùng `mc ls --recursive`.
