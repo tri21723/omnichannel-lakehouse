@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-06 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-07 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -163,8 +163,8 @@ nới biên lớp trễ lên 4 phút (contract `stream-v2`), `STREAM_RATE` 50.
 - [x] `keyBy(event_id)` + `ValueState` có TTL để loại retry trùng; tumbling window 1–5 phút.
 - [ ] Theo dõi backpressure khi burst (Flink REST metrics); không tăng tài nguyên ngoài ngân sách. *(đo ở P7-09)*
 - [x] Sink như P7-05; DLQ cho bản ghi lỗi. (Manifest: P7-08.)
-- [ ] Unit test logic dedup (TTL hết hạn, trùng trong/ngoài TTL) và aggregate bằng test harness của
-  Flink. *Hiện chỉ có kiểm chứng live (300/300 retry, hash khớp); làm cùng P7-07.*
+- [x] Unit test logic dedup (TTL hết hạn, trùng trong/ngoài TTL) và aggregate bằng test harness của
+  Flink (`FunctionsTest`, làm ở P7-07).
 
 **Đạt khi:** unique count output = ground truth; không còn `event_id` trùng.
 **Bằng chứng:** cùng run: 3.000 unique, 300 `duplicates` (hash tập id khớp), 0 late, window 1 phút
@@ -172,14 +172,19 @@ khớp. Backpressure khi burst đo ở P7-09.
 
 ### P7-07 — Checkpoint, recovery và exactly-once
 
-- [ ] Checkpoint EXACTLY_ONCE lên `s3://checkpoints/flink/`; đo duration/size.
-- [ ] Kill TaskManager giữa lúc chạy → job tự restart từ checkpoint; output cuối khớp ground truth
-  (không mất, không nhân); file chưa commit không bị đọc.
-- [ ] Restart cả profile `stream` → job submit lại/khôi phục theo runbook; offset Kafka không tua lại sai.
-- [ ] `make verify-stream`: đối soát output (on-time/late/dedup) với ground truth, đọc-only.
+- [x] Checkpoint EXACTLY_ONCE lên `s3://checkpoints/flink/checkpoints` (giữ khi huỷ, 2 bản);
+  duration/size đo cùng benchmark ở P7-09.
+- [x] Kill TaskManager giữa lúc chạy → job tự restart từ checkpoint; output cuối không mất/không nhân,
+  DLQ không nhân đôi; chỉ file committed được đọc.
+- [x] Restart JobManager+TaskManager giữa lúc chạy (job mất vì session không HA) → `make stream-resume`
+  từ checkpoint giữ lại; restart cả profile `stream` khi rảnh → dữ liệu/offset Kafka còn nguyên.
+- [x] `make verify-stream` (strict) và `--failover` (sau khôi phục); đọc-only.
+- [x] Unit test dedup TTL, classify, aggregate bằng test harness Flink (chuyển từ P7-06).
 
-**Đạt khi:** recovery có bằng chứng; `verify-stream` xanh hai lần.
-**Commit gợi ý:** `test(flink): verify checkpoint recovery and exactly-once output`.
+**Bằng chứng:** [streaming-validation](docs/streaming-validation.md) §P7-07: kill TM (run seed 9) chạy lại
+sau 5,7 s, restart JM+TM (seed 10) resume từ `chk-2` sau 38,9 s; cả hai `verify-stream --failover`
+0 lỗi; restart cả profile → smoke 18/18, run chuẩn verify strict đạt. Phát hiện: watermark không nằm
+trong checkpoint → sau khôi phục chỉ đảm bảo exactly-once, không đảm bảo đúng số theo lớp (ADR-0016).
 
 ### P7-08 — Nạp vào Bronze
 

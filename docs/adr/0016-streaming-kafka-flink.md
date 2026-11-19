@@ -132,6 +132,16 @@ JSON object per Kafka record: `schema_version`, `event_id` (unique per logical e
   dedicated MinIO user `flink`: list `raw` and `checkpoints`; get/put/delete only `raw/stream/*` and
   `checkpoints/flink/*`.
 - Kafka offsets are part of the checkpoint (committed back to the group only for monitoring).
+- Recovery semantics (measured in P7-07): source offsets, dedup state, window state, pending
+  files and DLQ transactions are restored, so output stays exactly-once. **Watermarks are not
+  checkpointed**: after a restore the watermark restarts from the minimum until every partition
+  has produced again, so records replayed right after the restore can be classified less late than
+  in a failure-free run (window operators see the same watermark, so output stays consistent with
+  the rule). Exact class counts are therefore an acceptance criterion only for failure-free runs;
+  `make verify-stream --failover` checks completeness, uniqueness and window consistency instead.
+- Checkpoints are retained on cancellation (`num-retained: 2`). The session cluster has no HA: a
+  JobManager restart loses running jobs, and `make stream-resume` resubmits them from the newest
+  retained checkpoint (job ids recorded in `.local-data/stream/jobs.env`).
   Source → checkpointed state → committed files/transactional DLQ gives exactly-once output.
 
 ## 8. Closing a run and entering Bronze

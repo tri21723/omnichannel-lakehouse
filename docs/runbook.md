@@ -571,3 +571,11 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   `STREAM_RATE` quá cao so với mật độ event; giảm rate, không nới quy tắc.
 - **Job dừng không commit file:** dùng `make stream-stop` (`--drain`), không `cancel`; file đang ghi
   chỉ thành file thật khi checkpoint/savepoint hoàn tất.
+- **JobManager restart làm mất job (session không HA):** `make stream-resume` submit lại từ checkpoint
+  giữ lại gần nhất (job id lưu ở `.local-data/stream/jobs.env`); không `stream-start` (sẽ đọc từ
+  `latest`, bỏ qua phần chưa xử lý). Sau khôi phục, kiểm bằng `make verify-stream
+  GEN_STREAM_ARGS="… --failover"`.
+- **`docker kill` TaskManager không tự chạy lại:** Docker coi là dừng thủ công, restart policy không áp
+  dụng; `docker start` lại container, job tự khôi phục từ checkpoint khi TaskManager đăng ký lại.
+- **Không restart Kafka khi generator đang publish:** producer hết retry sẽ dừng giữa chừng và run bị
+  từ chối publish lại (cần seed mới).

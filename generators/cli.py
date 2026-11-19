@@ -159,19 +159,30 @@ def stream_verify(
     config: ConfigPath = Path("generators/stream.yaml"),
     seed: int | None = None,
     events_per_channel: int | None = None,
+    failover: bool = False,
 ) -> None:
-    """Reconcile committed Flink output and DLQs with the ground truth (read-only)."""
+    """Reconcile committed Flink output and DLQs with the ground truth (read-only).
+
+    --failover: the run restored from a checkpoint, so exact class counts are not expected
+    (watermarks are not checkpointed); completeness and exactly-once are still required."""
     cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
     result = verify_stream(
         cfg.stream_run_id,
         s3_client(),
         os.environ["S3_RAW_BUCKET"],
         os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092"),
+        failover=failover,
     )
     for check in result["checks"]:
         event("stream_verify_check", run_id=cfg.stream_run_id, **check)
     failed = sum(not c["ok"] for c in result["checks"])
-    event("stream_verified", run_id=cfg.stream_run_id, ok=result["ok"], failures=failed)
+    event(
+        "stream_verified",
+        run_id=cfg.stream_run_id,
+        ok=result["ok"],
+        failures=failed,
+        failover=failover,
+    )
     if not result["ok"]:
         raise SystemExit(1)
 

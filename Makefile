@@ -415,7 +415,7 @@ verify-query: ## Reconcile Trino with Spark (same SQL at ledger snapshots), ledg
 	$(PYTHON) docker/query/verify.py --expected .local-data/query/parity.json --url $(TRINO_URL)
 
 # Phase 7 streaming (ADR-0016): Kafka KRaft, kafka-ui and a Flink session cluster.
-.PHONY: env-stream config-stream build-stream test-flink up-stream init-stream smoke-stream restart-stream status-stream stream-start stream-stop stream-jobs
+.PHONY: env-stream config-stream build-stream test-flink up-stream init-stream smoke-stream restart-stream status-stream stream-start stream-stop stream-jobs stream-resume
 env-stream: env ## Add Phase 7 settings (images, KRaft id, MinIO user flink) without rotating credentials
 	$(PYTHON) docker/stream/env.py
 config-stream: ## Validate merged core+stream configuration silently
@@ -456,6 +456,8 @@ STREAM_START ?= latest
 STREAM_JOBS_SH = STREAM_COMPOSE="$(STREAM)" bash docker/stream/jobs.sh
 stream-start: ## Submit amazon_late and tiktok_dedup (STREAM_START=latest|earliest|<epoch ms>)
 	$(STREAM_JOBS_SH) start $(STREAM_START)
+stream-resume: ## Resubmit jobs that are not running from their newest retained checkpoint
+	$(STREAM_JOBS_SH) resume
 stream-stop: ## Stop both jobs with --drain (fires all windows, final savepoint commits the files)
 	$(STREAM_JOBS_SH) stop
 stream-jobs: ## List Flink jobs

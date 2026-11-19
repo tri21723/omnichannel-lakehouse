@@ -76,7 +76,31 @@ def rule_violations(rows: list[dict], channel: str, branch: str) -> int:
     return bad
 
 
-def check_channel(channel: str, truth: dict, branches: dict, dlq_count: int) -> list[dict]:
+def windows_from_rows(rows: list[dict], window_ms: int) -> list[dict]:
+    """Expected final windows recomputed from the accepted records themselves."""
+    cells: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    for row in rows:
+        ts = ts_ms(row["event_ts"])
+        cell = cells[ts - ts % window_ms]
+        cell[0] += 1
+        cell[1] += int(row["amount"].replace(".", ""))
+    return [
+        {"window_start": iso_ms(start), "events": c[0], "amount": f"{c[1] // 100}.{c[1] % 100:02d}"}
+        for start, c in sorted(cells.items())
+    ]
+
+
+def check_channel(
+    channel: str,
+    truth: dict,
+    branches: dict,
+    dlq_count: int,
+    expected_ids: set[str] | None = None,
+    failover: bool = False,
+) -> list[dict]:
+    """Strict mode compares every class with ground truth. Failover mode (a run that restored
+    from a checkpoint) cannot: watermarks are not checkpointed, so records replayed right after a
+    restore see a lower watermark. It then checks the complete id set and window consistency."""
     accepted, late, dups, windows = (branches[b][0] for b in BRANCHES)
     stats = {b: branches[b][1] for b in BRANCHES}
     by_class: dict[str, list[str]] = defaultdict(list)
@@ -84,18 +108,30 @@ def check_channel(channel: str, truth: dict, branches: dict, dlq_count: int) -> 
         by_class[row["_delay_class"]].append(row["event_id"])
     accepted_ids = [row["event_id"] for row in accepted]
     expect = truth["event_id_sha256"]
+    late_ids = [r["event_id"] for r in late]
+    if failover:
+        class_checks = [
+            ("event_ids_complete", set(accepted_ids) | set(late_ids) == (expected_ids or set())),
+            ("accepted_late_disjoint", not set(accepted_ids) & set(late_ids)),
+            (
+                "windows_match_accepted",
+                final_windows(windows) == windows_from_rows(accepted, truth["window_ms"]),
+            ),
+        ]
+    else:
+        class_checks = [
+            ("on_time_ids", digest(by_class["on_time"]) == expect.get("on_time", digest([]))),
+            (
+                "late_accepted_ids",
+                digest(by_class["late_accepted"]) == expect.get("late_accepted", digest([])),
+            ),
+            ("too_late_ids", digest(late_ids) == expect.get("too_late", digest([]))),
+            ("windows_final", final_windows(windows) == truth["windows"]),
+        ]
     checks = [
         ("committed_files_only", all(s["hidden_files"] == 0 for s in stats.values())),
         ("accepted_unique", len(accepted_ids) == len(set(accepted_ids))),
-        ("on_time_ids", digest(by_class["on_time"]) == expect.get("on_time", digest([]))),
-        (
-            "late_accepted_ids",
-            digest(by_class["late_accepted"]) == expect.get("late_accepted", digest([])),
-        ),
-        (
-            "too_late_ids",
-            digest([r["event_id"] for r in late]) == expect.get("too_late", digest([])),
-        ),
+        *class_checks,
         ("duplicates", len(dups) == truth["retries"]),
         (
             "duplicate_ids",
@@ -103,7 +139,6 @@ def check_channel(channel: str, truth: dict, branches: dict, dlq_count: int) -> 
         ),
         ("rule_per_record", rule_violations(accepted, channel, "accepted") == 0),
         ("rule_per_late_record", rule_violations(late, channel, "late") == 0),
-        ("windows_final", final_windows(windows) == truth["windows"]),
         ("dlq", dlq_count == truth["malformed"]),
         ("nothing_lost", len(accepted) + len(late) + len(dups) == truth["valid_records"]),
     ]
@@ -171,7 +206,7 @@ def watermark_lag(rows: list[dict], send_ms: dict[str, int]) -> dict:
     }
 
 
-def verify_stream(run_id: str, s3, bucket: str, bootstrap: str) -> dict:
+def verify_stream(run_id: str, s3, bucket: str, bootstrap: str, failover: bool = False) -> dict:
     truth = read_json(s3, bucket, f"manifests/{run_id}/stream_ground_truth.json")
     sends, regenerated = generate(StreamConfig.model_validate(truth["config"]))
     if regenerated != truth:
@@ -181,7 +216,15 @@ def verify_stream(run_id: str, s3, bucket: str, bootstrap: str) -> dict:
     results = []
     for channel, channel_truth in sorted(truth["channels"].items()):
         branches = {b: read_branch(s3, bucket, channel, b, run_id) for b in BRANCHES}
-        checks = check_channel(channel, channel_truth, branches, dlq.get(channel, 0))
+        expected_ids = {s.event_id for s in sends if s.kind == "event" and s.channel == channel}
+        checks = check_channel(
+            channel, channel_truth, branches, dlq.get(channel, 0), expected_ids, failover
+        )
         checks[-1].update(watermark_lag(branches["accepted"][0] + branches["late"][0], send_ms))
         results.extend(checks)
-    return {"stream_run_id": run_id, "ok": all(r["ok"] for r in results), "checks": results}
+    return {
+        "stream_run_id": run_id,
+        "failover": failover,
+        "ok": all(r["ok"] for r in results),
+        "checks": results,
+    }

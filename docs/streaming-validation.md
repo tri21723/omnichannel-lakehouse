@@ -163,3 +163,24 @@ the last firing of every window, DLQ counts (read_committed) and that accepted +
 duplicates equals the valid records. It also regenerates the ground truth and refuses to verify
 if it differs from the S3 copy. The v1 runs stay in Kafka/S3 as history; they no longer
 regenerate under v2 and are not verified again.
+
+## P7-07 — Checkpoints, recovery and exactly-once
+
+Checkpoints every 30 s, EXACTLY_ONCE, HashMap state, `s3://checkpoints/flink/checkpoints`, retained on
+cancellation (2 per job). JUnit now includes Flink operator harness tests (`FunctionsTest`: dedup
+with processing-time TTL — retry inside the TTL goes to duplicates, after it passes again; classify
+records the operator watermark and splits too-late; aggregate in cents): 10 tests, all pass.
+
+| Experiment | Run | What happened | Verify |
+|---|---|---|---|
+| A: `docker kill` TaskManager 56 s into publishing | `d02620420913a7040f92` (seed 9) | Docker did not restart a killed container (manual stop); `docker start` → both jobs running again 5.7 s after the kill, restored from the last checkpoint | `--failover`: 0 failures — accepted 2,940 unique, late 60, duplicates 300, DLQ 6 + 6 (transactions: no doubled DLQ records), windows consistent, nothing lost |
+| B: restart JobManager + TaskManager 56 s into publishing | `e594e90faa530b1e0686` (seed 10) | 0 jobs after the restart (no HA); `make stream-resume` from `chk-2` of each job; running again 38.9 s after the restart | `--failover`: 0 failures, same totals |
+| C: `make restart-stream` (Kafka, kafka-ui, Flink) while idle | — | topics, data and group offsets kept | `smoke-stream` 18/18, `check-stream-source` ok, strict `verify-stream` of `e7a188e49b1e4042ef15` ok |
+
+Finding: in A, 53 of 90 intended late-accepted events were classified on time (B: 77), all
+correctly for their recorded watermark. Watermarks are not part of checkpoints, so after a restore
+the watermark restarts from the minimum (lag up to 739 s right after B's restore). Exactly-once
+holds; exact class counts are only expected for failure-free runs (ADR-0016 §7). The verifier got a
+`--failover` mode (completeness, disjoint branches, windows equal to the accepted records) with unit
+tests showing that a reclassification fails strict mode but passes failover mode, while a lost or
+duplicated record fails both.
