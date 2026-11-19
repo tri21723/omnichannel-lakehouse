@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đã lập kế hoạch, chưa triển khai Phase 8**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -33,8 +33,8 @@ Lịch sử: [Phase 7](docs/phase7-checklist.md), [kiểm chứng streaming](doc
     Bronze JDBC của batch lọc theo tiền tố đó, nên kịch bản CDC **chỉ được ghi vào dòng có tiền tố
     riêng** (một `cdc_run_id` 20 hex). Không UPDATE/DELETE dòng của 3 dataset, nếu không replay batch
     sẽ nạp lại JDBC và đổi ledger dây chuyền.
-  - Snapshot ban đầu của Debezium sẽ đọc cả 15.675 order hiện có: hợp lệ, chỉ đọc, nhưng tính vào
-    đối soát và thời gian.
+  - Snapshot ban đầu của Debezium sẽ đọc 3.135 order Walmart hiện có (75 + 3.000 + 60): hợp lệ, chỉ
+    đọc, nhưng tính vào đối soát và thời gian.
   - Cổng REST mặc định của Kafka Connect là 8083, **trùng Trino**; không thêm port host mới (AGENTS
     §5) — quản lý Connect qua `docker compose exec`.
   - `walmart.customers` có PII thô: **không** đưa vào CDC/Kafka trong phase này.
@@ -57,7 +57,7 @@ Lịch sử: [Phase 7](docs/phase7-checklist.md), [kiểm chứng streaming](doc
 |---|---|---|
 | Version Debezium | Dòng 3.x ổn định mới nhất đã ≥ 2 tuần (ứng viên 3.7.x/3.6.x), hỗ trợ PostgreSQL 16, Java 17, Kafka Connect ≥ 3.1; image chính thức (xác minh registry quay.io/Docker Hub), pin digest | Tự build Connect + plugin: chỉ khi image chính thức không hợp |
 | Kafka Connect | 1 worker distributed mode (topic nội bộ configs/offsets/status, replication 1, compact), profile `cdc`, không expose host port | Standalone: offset nằm trong file container, mất khi tạo lại |
-| Connector | `pgoutput`, `slot.name=dbz_walmart`, `publication.name=dbz_pub` (`publication.autocreate.mode=filtered`), `table.include.list=walmart.orders`, `topic.prefix=platform_cdc`, `snapshot.mode=initial`, `heartbeat.interval.ms=10000`, `decimal.handling.mode=string`, `time.precision.mode=adaptive_time_microseconds`, JSON không schema | `decimal.handling.mode=precise` (bytes base64 khó đọc) hoặc `double` (mất chính xác tiền) |
+| Connector | `pgoutput`, `slot.name=dbz_walmart`, `publication.name=dbz_pub` (đã có sẵn, `publication.autocreate.mode=disabled`), `table.include.list=walmart.orders`, `topic.prefix=platform_cdc`, `snapshot.mode=initial`, `heartbeat.interval.ms=10000`, `decimal.handling.mode=string`, `time.precision.mode=adaptive_time_microseconds`, JSON không schema | `decimal.handling.mode=precise` (bytes base64 khó đọc) hoặc `double` (mất chính xác tiền) |
 | Quyền | `debezium_repl` (REPLICATION + SELECT); publication tạo bởi bootstrap Postgres (owner bảng) nếu role không đủ quyền tạo | Superuser: không |
 | Topic | `platform_cdc.walmart.orders` (3 partition, key = PK, retention 7 ngày) + heartbeat `__debezium-heartbeat.platform_cdc`, tạo trong `kafka-init` | Auto-create: đã tắt có chủ đích |
 | `dp1_cdc` | Spark Structured Streaming `trigger(availableNow=True)` đọc Kafka → Iceberg append `lh.bronze.walmart_orders_cdc` (`op`, `ts_ms`, `lsn`, `before`, `after` dạng JSON, partition/offset, cột audit), checkpoint `s3://checkpoints/dp1_cdc/` | foreachBatch + MERGE theo (partition, offset): dùng nếu Iceberg streaming sink không chứng minh được exactly-once |
@@ -88,16 +88,18 @@ xoá dữ liệu) thì ghi rõ và hỏi lại trước khi làm.
 
 ### P8-01 — Preflight
 
-- [ ] Git sạch tại `v0.7-stream` (+ commit sau tag); `make check` xanh.
-- [ ] Ghi hash ledger Silver/Gold/DP3/warehouse, run ID 3 dataset và **source evidence JDBC Walmart**
+- [x] Git sạch tại `v0.7-stream` (+ commit sau tag); `make check` xanh.
+- [x] Ghi hash ledger Silver/Gold/DP3/warehouse, run ID 3 dataset và **source evidence JDBC Walmart**
   (row count + SHA từng bảng của 3 run) làm mốc; Phase 8 không được đổi.
-- [ ] Kiểm tra `pg_replication_slots`, `pg_publication`, `wal_level`, `max_slot_wal_keep_size`, quyền
+- [x] Kiểm tra `pg_replication_slots`, `pg_publication`, `wal_level`, `max_slot_wal_keep_size`, quyền
   `debezium_repl` (REPLICATION, SELECT, khả năng tạo publication), `REPLICA IDENTITY` từng bảng.
-- [ ] Đo RAM core + Kafka (Flink/kafka-ui dừng) + Spark; tính ngân sách Kafka Connect.
-- [ ] Xác nhận target `up-cdc` còn `exit 2`, thư mục `spark/jobs/dp1_cdc` (nếu có) trống.
+- [x] Đo RAM core + Kafka (Flink/kafka-ui dừng) + Spark; tính ngân sách Kafka Connect.
+- [x] Xác nhận target `up-cdc` còn `exit 2`, thư mục `spark/jobs/dp1_cdc` (nếu có) trống.
 
 **Đạt khi:** mốc và ngân sách ghi vào `docs/cdc-validation.md`.
-**Commit gợi ý:** `docs(cdc): record Phase 8 preflight baseline and resource budget`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-01: mốc ledger + evidence JDBC 9 slice +
+`make cdc-batch-guard` (mốc sống theo tiền tố); `dbz_pub` đã có sẵn (`debezium_repl` không tạo được
+publication); `walmart.orders` = 3.135 dòng; RAM còn ≈ 8 GiB.
 
 ### P8-02 — ADR và version
 
@@ -253,7 +255,7 @@ batch không đổi.
 | Trùng port 8083 (Connect ↔ Trino) | Connect không lên khi bật query | Không expose host port; REST qua `docker compose exec` |
 | PII lọt vào Kafka | Topic `customers` xuất hiện | `table.include.list` chỉ `walmart.orders`; smoke kiểm tra danh sách topic |
 | Thiếu RAM khi bật cùng Spark + Kafka + Connect | OOM, container restart | Dừng Flink/kafka-ui/Trino/Airflow; `mem_limit`; đo ở P8-01 |
-| Snapshot ban đầu lớn/chậm | Smoke timeout | Đo thời gian snapshot 15.675 order; timeout có biên |
+| Snapshot ban đầu lớn/chậm | Smoke timeout | Đo thời gian snapshot 3.135 order; timeout có biên |
 
 ## 7. Quy tắc cập nhật
 

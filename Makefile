@@ -475,3 +475,9 @@ bronze-stream: ## Ingest one closed stream run/date into Bronze for amazon and t
 stream-acceptance: ## Live acceptance: start jobs, paced publish, drain, strict verify, close (needs up-stream)
 	STREAM_COMPOSE="$(STREAM)" GEN_STREAM_CONFIG="$(GEN_STREAM_CONFIG_ACCEPT)" GEN_STREAM_ARGS="$(GEN_STREAM_ARGS)" bash docker/stream/acceptance.sh
 GEN_STREAM_CONFIG_ACCEPT ?= generators/fixtures/stream-small.yaml
+
+# Phase 8 CDC (ADR-0017 planned): batch datasets must never change while CDC scenarios run.
+.PHONY: cdc-batch-guard
+cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal docker/cdc/batch_guard.baseline
+	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql > .local-data/cdc-batch-guard.txt
+	@diff -q docker/cdc/batch_guard.baseline .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
