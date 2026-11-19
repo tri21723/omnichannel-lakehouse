@@ -19,7 +19,7 @@ topic_total() { # sum of end offsets
 }
 
 # Connector, slot, publication scope.
-bash docker/cdc/connect.sh status >/dev/null 2>&1
+bash docker/cdc/connect.sh wait >/dev/null 2>&1
 report "connector_running" "$([ $? -eq 0 ] && echo true || echo false)"
 slot=$(psql_admin "SELECT plugin || ',' || active FROM pg_replication_slots WHERE slot_name = 'dbz_walmart'")
 report "slot_active_pgoutput" "$([ "$slot" = "pgoutput,true" ] && echo true || echo false)"

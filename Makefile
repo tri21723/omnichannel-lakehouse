@@ -497,6 +497,7 @@ up-cdc: env-cdc ## Start core + Kafka + Kafka Connect (Debezium), create CDC top
 	$(MAKE) init-cdc
 	$(CDC) up -d --wait kafka-connect
 	$(MAKE) register-cdc
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh wait
 init-cdc: ## Idempotent CDC topics (data + heartbeat)
 	$(CDC) run --rm --no-deps cdc-kafka-init
 register-cdc: ## Create or update the walmart-orders connector from docker/cdc/connectors (idempotent)

@@ -20,6 +20,15 @@ tasks = [t["state"] for t in s.get("tasks", [])]
 print(json.dumps({"event": "cdc_connector_status", "connector": s["name"], "state": s["connector"]["state"], "tasks": tasks}))
 sys.exit(0 if s["connector"]["state"] == "RUNNING" and tasks and all(t == "RUNNING" for t in tasks) else 1)'
     ;;
+wait)
+    # A freshly registered connector is UNASSIGNED/without tasks for a few seconds.
+    deadline=$((SECONDS + ${CDC_WAIT_SECONDS:-120}))
+    until bash "$0" status >/dev/null 2>&1; do
+        [ $SECONDS -lt $deadline ] || { bash "$0" status; exit 1; }
+        sleep 3
+    done
+    bash "$0" status
+    ;;
 pause | resume)
     $C exec -T kafka-connect curl -fsS -X PUT "http://localhost:8083/connectors/$NAME/$1" >/dev/null
     printf '{"event": "cdc_connector_%sd", "connector": "%s"}\n' "$1" "$NAME"
@@ -36,7 +45,7 @@ delete)
     printf '{"event": "cdc_connector_deleted", "connector": "%s"}\n' "$NAME"
     ;;
 *)
-    echo "usage: connect.sh register | status | pause | resume | resnapshot | delete" >&2
+    echo "usage: connect.sh register | status | wait | pause | resume | resnapshot | delete" >&2
     exit 2
     ;;
 esac
