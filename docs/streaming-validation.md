@@ -106,3 +106,23 @@ Images (pulled 2026-11-19):
 - Found while writing the smoke: `mc find` returns nothing for user `flink` outside its prefixes
   (it needs object reads), so a probe based on it passed without testing anything; the probe now
   lists with `mc ls --recursive` and fails when no key is found.
+
+## P7-04 — Stream generator and ground truth
+
+- `generators/stream/` with `StreamConfig` separate from the batch model; unit tests (9) cover:
+  the three batch run IDs unchanged, determinism (same seed → identical sends and ground truth;
+  another seed differs), counts per configuration, delay ranges and the watermark-reachability
+  rule for late events, windows covering exactly the accepted events, the event contract for valid
+  records and its violation for malformed ones, rejection of streams too short for the requested
+  late events, publish-once semantics (send → marker; rerun skipped; interrupted publish refused)
+  and the CLI.
+- Found while sizing fixtures: the first defaults (5,000 events at 120/min) left no room for late
+  events and silently produced none; the generator now rejects such streams and the default
+  density is 60 events per simulated minute.
+- Live run (run `e24dea73b7f127da7c71`, small fixture with `--seed 1001`, `STREAM_RATE` 500):
+  6,312 records published in 12.6 s; `make check-stream-source` read both topics back and matched
+  the ground truth exactly — Amazon 3,000 valid / 3,000 unique / 6 malformed, TikTok 3,300 valid /
+  3,000 unique / 300 retries (equal retry-id SHA-256) / 6 malformed. A second `make gen-stream`
+  printed `stream_publish_skipped` and sent nothing.
+- The canonical small fixture (seed 7, run `d1a1b7eed61ecd0edae9`) is kept unpublished for the live
+  Flink acceptance run (P7-05…P7-07), where the jobs must be running before the generator.

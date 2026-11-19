@@ -19,7 +19,7 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 	cd sql/trino && ../../$(BIN)/sqlfluff lint .
@@ -33,7 +33,7 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-cdc up-gov gen-stream:
+up-cdc up-gov:
 	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
 	@exit 2
 
@@ -435,3 +435,13 @@ restart-stream: ## Restart Kafka, kafka-ui and Flink; data and topics are kept
 	$(STREAM) up -d --wait kafka kafka-ui flink-jobmanager flink-taskmanager
 status-stream: ## Show stream service state
 	$(STREAM) ps kafka kafka-ui flink-jobmanager flink-taskmanager
+
+.PHONY: gen-stream check-stream-source
+GEN_STREAM_CONFIG ?= generators/stream.yaml
+GEN_STREAM_ARGS ?=
+STREAM_RATE ?= 500
+STREAM_GEN = $(STREAM) --profile batch run --rm --no-deps -e KAFKA_BOOTSTRAP=kafka:29092 generator
+gen-stream: ## Publish a deterministic order-event stream once (ground truth to S3, records to Kafka; needs up-stream)
+	$(STREAM_GEN) stream --config $(GEN_STREAM_CONFIG) --output /data --publish --rate $(STREAM_RATE) $(GEN_STREAM_ARGS)
+check-stream-source: ## Read the stream run back from Kafka and compare with its ground truth (read-only)
+	$(STREAM_GEN) stream-check --config $(GEN_STREAM_CONFIG) $(GEN_STREAM_ARGS)

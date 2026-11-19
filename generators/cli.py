@@ -1,4 +1,4 @@
-"""Batch/load CLI. Logs never contain payloads or credentials."""
+"""Batch/load/stream CLI. Logs never contain payloads or credentials."""
 
 import json
 import logging
@@ -12,6 +12,9 @@ from generators.batch.dataset import generate, verify_local
 from generators.common.config import read_config
 from generators.common.storage import publish, s3_client, verify_remote
 from generators.load.postgres import connect, load
+from generators.stream.config import read_stream_config
+from generators.stream.events import generate as generate_stream
+from generators.stream.publish import check_stream, kafka_producer, publish_stream, write_json
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)
 log = logging.getLogger("generators")
@@ -102,8 +105,57 @@ def verify(
     event("reconciliation_passed", run_id=cfg.run_id, remote=remote, database=database)
 
 
+@app.command()
+def stream(
+    config: ConfigPath = Path("generators/stream.yaml"),
+    output: Path = Path(".local-data/generated"),
+    seed: int | None = None,
+    events_per_channel: int | None = None,
+    publish: bool = False,
+    rate: float | None = None,
+) -> None:
+    """Generate an order-event stream and its ground truth; optionally publish to Kafka once."""
+    cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
+    if not publish:
+        _, truth = generate_stream(cfg)
+        write_json(output / "stream" / cfg.stream_run_id / "stream_ground_truth.json", truth)
+        event("stream_ready", run_id=cfg.stream_run_id, records=truth["records_total"])
+        return
+    bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
+    result = publish_stream(
+        cfg,
+        output,
+        s3_client(),
+        os.environ["S3_RAW_BUCKET"],
+        lambda: kafka_producer(bootstrap),
+        rate=rate,
+    )
+    name = "stream_publish_skipped" if result["skipped"] else "stream_published"
+    event(
+        name,
+        run_id=result["stream_run_id"],
+        records=result["records"],
+        seconds=result.get("seconds"),
+    )
+
+
+@app.command("stream-check")
+def stream_check(
+    config: ConfigPath = Path("generators/stream.yaml"),
+    seed: int | None = None,
+    events_per_channel: int | None = None,
+) -> None:
+    """Read the run back from Kafka and compare it with the ground truth (read-only)."""
+    cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
+    result = check_stream(cfg, os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092"))
+    event("stream_checked", run_id=cfg.stream_run_id, ok=result["ok"], topics=result["actual"])
+    if not result["ok"]:
+        raise SystemExit(1)
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger("kafka").setLevel(logging.WARNING)  # client chatter is not an event
     try:
         app()
     except Exception as exc:

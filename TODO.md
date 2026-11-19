@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-03 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-04 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -128,19 +128,20 @@ core 0,4 GiB / còn 9 GiB, ngân sách stream 4,5 GiB, prefix `raw/stream/*` cho
 
 ### P7-04 — Generator stream và ground truth
 
-- [ ] Model cấu hình stream riêng (không đổi `GeneratorConfig.run_id`): số event, tỉ lệ dup
+- [x] Model cấu hình stream riêng (không đổi `GeneratorConfig.run_id`): số event, tỉ lệ dup
   (TikTok retry), late (Amazon, ≤ `late_max_minutes`), burst (`burst_multiplier`), seed; test
   chứng minh run ID 3 dataset batch không đổi.
-- [ ] Publisher tất định: cùng seed → cùng chuỗi event (thứ tự gửi, `event_id`, `event_ts`), key
+- [x] Publisher tất định: cùng seed → cùng chuỗi event (thứ tự gửi, `event_id`, `event_ts`), key
   `order_id`; dependency Kafka cho generator được pin (hỏi lại nếu nặng).
-- [ ] Ground truth `s3://raw/manifests/<stream_run>/stream_ground_truth.json`: số event gửi,
+- [x] Ground truth `s3://raw/manifests/<stream_run>/stream_ground_truth.json`: số event gửi,
   unique `event_id`, số dup, số late theo ngưỡng, số event quá trễ dự kiến, phân bố theo window.
-- [ ] `make gen-stream` (thay placeholder), tham số rõ ràng; publish an toàn khi chạy lại (không
+- [x] `make gen-stream` (thay placeholder), tham số rõ ràng; publish an toàn khi chạy lại (không
   ghi đè ground truth khác nội dung).
-- [ ] Unit test: tất định, đếm dup/late/burst khớp cấu hình, schema event hợp lệ.
+- [x] Unit test: tất định, đếm dup/late/burst khớp cấu hình, schema event hợp lệ.
 
 **Đạt khi:** hai lần chạy cùng seed cho cùng ground truth; event đọc lại từ Kafka khớp ground truth.
-**Commit gợi ý:** `feat(generator): publish deterministic stream events with ground truth`.
+**Bằng chứng:** [streaming-validation](docs/streaming-validation.md) §P7-04: 9 unit test; run
+`e24dea73…` (6.312 record) đọc lại từ Kafka khớp ground truth tuyệt đối; publish lần 2 bỏ qua.
 
 ### P7-05 — Job Amazon (late arrival)
 

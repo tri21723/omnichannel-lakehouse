@@ -86,4 +86,27 @@ PostgreSQL reconciliation against the local core stack.
   do not delete or overwrite raw objects to hide the problem.
 - Docker helper error: use the documented WSL workaround in docs/runbook.md.
 
-No stream publisher, Kafka/Flink behavior or million-row benchmark is claimed here.
+No million-row benchmark is claimed here.
+
+## Stream generator (Phase 7)
+
+`generators/stream/` (ADR-0016) is separate from the batch model so batch run IDs never change
+(unit-tested). `StreamConfig` (`generators/stream.yaml`, small fixture
+`generators/fixtures/stream-small.yaml`) yields `stream_run_id` = 20 hex of SHA-256 over contract
+`stream-v1` + config.
+
+- Simulated timeline per channel (`events_per_minute`, default 60); TikTok bursts compress spacing by
+  `burst_multiplier`. Each record is sent at `event_ts + delay`, and sends are ordered by send time.
+- Amazon delay classes (on time ≤ 1 min, late 8–15 min, too late 30 min…`late_max_minutes`) are
+  placed only where enough later events exist to move the watermark past them; a stream too short
+  for the requested late events is rejected instead of silently producing fewer.
+- TikTok retries repeat `event_id` and payload 5 s–5 min after the first send (`dup_rate`).
+  Malformed records (`malformed_rate`, four kinds) carry the key `<run>-<channel>-malformed-<n>`.
+- Ground truth `s3://raw/manifests/<run>/stream_ground_truth.json`: per channel records, unique
+  events, retries, malformed, class counts, SHA-256 of the event-id sets per class, expected window
+  counts/amounts for accepted events, burst layout.
+- `make gen-stream` publishes once: ground truth (immutable) → Kafka (idempotent producer,
+  `acks=all`, key `order_id`, paced by `STREAM_RATE`) → `stream_published.json`. A rerun sends
+  nothing; ground truth without the marker (interrupted publish) is refused — use a new seed.
+- `make check-stream-source` reads the topics back and compares counts and retry sets with the
+  ground truth (read-only). Both accept `GEN_STREAM_CONFIG` and `GEN_STREAM_ARGS`.

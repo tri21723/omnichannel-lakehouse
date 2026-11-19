@@ -90,9 +90,18 @@ JSON object per Kafka record: `schema_version`, `event_id` (unique per logical e
     still within lateness when *d* < *B* + *L* = 22 (margin 7);
   - too late: 30 ≤ *d* ≤ `late_max_minutes` (60) — beyond lateness when *d* ≥ *B* + 5 + *L* = 27
     (margin 3).
-  The watermark is the minimum over partitions; the generator keeps at least ~30 events per
-  simulated minute so that this lag stays well under the 1-minute margin. The verifier compares
-  each class count with ground truth exactly.
+  The source watermark is the minimum over partitions (per-split watermarks). When Flink reads
+  a backlog, whole fetch batches of one partition can run ahead of another, so the watermark at a
+  record depends on runtime interleaving. Therefore:
+  - the job classifies each record **before** the window operator against the current watermark
+    and writes that watermark into the output record (`_watermark_ms`); the verifier checks the
+    rule per record (always) and that nothing is lost (always);
+  - acceptance runs are **live**: the job runs first and the generator publishes at a bounded rate,
+    so partitions advance together; then class counts must equal ground truth exactly;
+  - backlog runs (benchmark) report class agreement but only assert the per-record rule.
+  The generator keeps ≥ 30 events per simulated minute (default 60), so the gap inside one of 3
+  partitions stays at seconds, far below the 1-minute margin, and late events are only chosen where
+  enough later events follow to move the watermark past them.
 - TikTok: `keyBy(event_id)`, `ValueState` with TTL 30 min (processing time, `OnCreateAndWrite`,
   never return expired). Retries are emitted within 5 min of the first send, far below the TTL.
   Duplicates go to a `duplicates` side output (not dropped). Limitation: TTL is processing time,

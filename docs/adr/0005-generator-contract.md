@@ -1,6 +1,7 @@
 # ADR-0005: Deterministic datasets and source ownership
 
-- Status: Accepted for batch/load; streaming stays in Phase 7.
+- Status: Accepted for batch/load; the stream generator is specified in ADR-0016 (Phase 7) and
+  keeps the batch model and run IDs unchanged.
 - Use Python 3.11, Faker, Pydantic, Typer, YAML, boto3 and Psycopg. Direct dependency
   pins live in generators/requirements.txt. Faker locale and seeds are explicit.
 - Dataset identity is a hash of the full normalized config plus contract version.

@@ -1,0 +1,15 @@
+# Small live stream for smoke/CI: ~50 simulated minutes per channel, late events in the first part.
+seed: 7
+start_ts: '2026-02-01T00:00:00Z'
+channels: [amazon, tiktok_shop]
+events_per_channel: 3000
+events_per_minute: 60
+late_rate: 0.05
+too_late_share: 0.4
+late_max_minutes: 35
+dup_rate: 0.10
+burst_multiplier: 50
+burst_share: 0.2
+bursts: 2
+malformed_rate: 0.002
+update_share: 0.2

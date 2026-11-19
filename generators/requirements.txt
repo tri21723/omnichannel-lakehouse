@@ -5,3 +5,4 @@ typer==0.15.2
 click==8.1.8
 boto3==1.37.9
 psycopg[binary]==3.2.6
+kafka-python==3.0.12
