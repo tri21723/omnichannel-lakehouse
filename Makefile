@@ -478,10 +478,15 @@ stream-acceptance: ## Live acceptance: start jobs, paced publish, drain, strict 
 GEN_STREAM_CONFIG_ACCEPT ?= generators/fixtures/stream-small.yaml
 
 # Phase 8 CDC (ADR-0017 planned): batch datasets must never change while CDC scenarios run.
-.PHONY: bronze-cdc verify-bronze-cdc silver-cdc verify-silver-cdc verify-cdc cdc-slot-lag cdc-pause cdc-resume cdc-resnapshot gen-cdc check-cdc-source cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
-cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal docker/cdc/batch_guard.baseline
-	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql > .local-data/cdc-batch-guard.txt
-	@diff -q docker/cdc/batch_guard.baseline .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
+.PHONY: bronze-cdc verify-bronze-cdc silver-cdc verify-silver-cdc verify-cdc cdc-slot-lag cdc-pause cdc-resume cdc-resnapshot gen-cdc check-cdc-source cdc-batch-guard cdc-batch-guard-record env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
+CDC_GUARD_BASELINE ?= docker/cdc/batch_guard.baseline
+CDC_GUARD_QUERY = docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql
+cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal $(CDC_GUARD_BASELINE)
+	@mkdir -p .local-data && $(CDC_GUARD_QUERY) > .local-data/cdc-batch-guard.txt
+	@diff -q $(CDC_GUARD_BASELINE) .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
+cdc-batch-guard-record: ## Record the guard baseline now (CI: a fresh environment has its own batch rows)
+	@mkdir -p $(dir $(CDC_GUARD_BASELINE)) && $(CDC_GUARD_QUERY) > $(CDC_GUARD_BASELINE)
+	@echo '{"event": "cdc_batch_guard_recorded"}'
 env-cdc: env-stream ## Add Phase 8 settings (Debezium Connect image) without rotating credentials
 	$(PYTHON) docker/cdc/env.py
 config-cdc: ## Validate merged core+stream+cdc configuration silently

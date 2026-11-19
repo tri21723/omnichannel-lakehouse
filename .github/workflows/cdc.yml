@@ -1,0 +1,40 @@
+name: Debezium CDC
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cdc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      # A fresh runner has its own (empty) batch rows: record the guard baseline at the start.
+      CDC_GUARD_BASELINE: .local-data/cdc-batch-guard.baseline
+      CDC_RUN_DATE: '2026-11-19'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-silver env-cdc config-batch config-cdc
+      - run: make build-generator build-batch
+      - run: make up-cdc
+      - run: make cdc-batch-guard-record
+      - run: sh docker/batch/ci_run.sh make smoke-cdc
+      - run: make up-batch
+      # Scenario (own id prefix) → Debezium → Bronze → Silver, reconciled with PostgreSQL.
+      - run: sh docker/batch/ci_run.sh make gen-cdc
+      - run: sh docker/batch/ci_run.sh make bronze-cdc
+      - run: sh docker/batch/ci_run.sh make silver-cdc
+      - run: sh docker/batch/ci_run.sh make verify-cdc
+      # Replays change nothing; Bronze/Silver invariants hold.
+      - run: sh docker/batch/ci_run.sh make bronze-cdc
+      - run: sh docker/batch/ci_run.sh make silver-cdc
+      - run: sh docker/batch/ci_run.sh make verify-bronze-cdc
+      - run: sh docker/batch/ci_run.sh make verify-silver-cdc
+      - run: sh docker/batch/ci_run.sh make cdc-slot-lag
+      - run: make restart-cdc
+      - run: sh docker/batch/ci_run.sh make smoke-cdc
+      - run: sh docker/batch/ci_run.sh make verify-cdc
+      - if: always()
+        run: make down

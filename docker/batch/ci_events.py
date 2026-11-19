@@ -75,6 +75,7 @@ EVENTS = {
     "cdc_smoke_check",
     "cdc_smoke_finished",
     "cdc_batch_guard",
+    "cdc_batch_guard_recorded",
     "cdc_slot_lag",
     "cdc_connector_registered",
     "cdc_connector_status",
@@ -302,7 +303,16 @@ def safe_events(lines):
             clean["error_name"] = item["error_name"]
         if item.get("check") in CDC_CHECKS:
             clean["check"] = item["check"]
-        for key in ("inserted", "live", "deleted", "quarantined", "silver_live", "source_orders"):
+        for key in (
+            "inserted",
+            "live",
+            "deleted",
+            "quarantined",
+            "silver_live",
+            "source_orders",
+            "retained_bytes",
+            "flush_lag_bytes",
+        ):
             if type(item.get(key)) is int:
                 clean[key] = item[key]
         for key in ("changed", "exact_ops", "equals_latest_bronze", "checksum_equal"):
