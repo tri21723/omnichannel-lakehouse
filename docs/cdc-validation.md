@@ -225,3 +225,18 @@ and impact in the runbook and ADR-0017).
 Trade-off: each run holds the Spark driver lock for ~2 minutes; a 5-minute schedule would halve the
 wait but block batch jobs ~40% of the time. The interval is a DAG parameter to tune per environment;
 CDC changes are durable in Kafka (7 days) and Bronze in the meantime.
+
+## P8-10 — CI, documentation and handoff
+
+- Manual workflow `.github/workflows/cdc.yml`: env, image builds, `up-cdc`, `cdc-batch-guard-record`
+  (a fresh runner has its own batch rows; the guard baseline is now configurable), `smoke-cdc`,
+  `up-batch`, `gen-cdc`, `bronze-cdc`, `silver-cdc`, `verify-cdc`, reruns, `verify-bronze-cdc`,
+  `verify-silver-cdc`, `cdc-slot-lag`, `restart-cdc` + smoke + verify. CDC events are allowlisted.
+- Reproduced in an isolated Compose project (own `.env` and volumes) before any hosted run. It found
+  a race: `smoke-cdc` right after `up-cdc` saw the new connector UNASSIGNED. `connect.sh wait` now
+  polls until connector and task are RUNNING (used by `up-cdc` and the smoke). After the fix — with a
+  delete + fresh registration to recreate the race — every step passed: smoke 12/12, scenario
+  `4f8191192d5abf939dbd` → Bronze 146 → Silver 35 live / 7 deleted, `verify-cdc` exact, reruns
+  unchanged, Bronze/Silver verification, slot lag, restart + smoke + verify, guard ok.
+- README ("Chạy CDC"), runbook, data model, ADR-0001/0017, implementation status, CLAUDE.md and the
+  [Phase 9 handoff](phase9-handoff.md) are updated. The hosted run is not claimed here.

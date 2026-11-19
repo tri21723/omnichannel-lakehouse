@@ -8,7 +8,7 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 ## Trạng thái hiện tại
 
 - Phase đang làm: xem `TODO.md` (checklist phase hiện hành) và `docs/implementation-status.md`.
-- Tag đã có: `v0.3-phase3`, `v0.4a-bronze` … `v0.4f-benchmark`, `v0.5-orchestration`, `v0.5.1-orchestration`, `v0.6-query`, `v0.7-stream`. Checklist phase cũ lưu ở
+- Tag đã có: `v0.3-phase3`, `v0.4a-bronze` … `v0.4f-benchmark`, `v0.5-orchestration`, `v0.5.1-orchestration`, `v0.6-query`, `v0.7-stream`, `v0.8-cdc`. Checklist phase cũ lưu ở
   `docs/phase*-checklist.md`; bằng chứng kiểm chứng ở `docs/*-validation.md`.
 - Các dataset phải cùng tồn tại: small fixture `186ae107d0793d2ee237` (375 orders), default
   reference `b1e64afaff0176de180a` (15.000 orders) và orchestration e2e `5f552019ee41c24af95f`
@@ -27,7 +27,9 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
   `make up-batch` và chạy tuần tự (không chạy song song nhiều Spark driver).
 - Target chưa triển khai (`up-gov`) cố ý `exit 2`.
 - CDC (`make up-cdc`, ADR-0017): Kafka Connect không có port host; thử CDC chỉ trên dòng có tiền tố
-  riêng (không bao giờ đụng 3 dataset batch), kiểm bằng `make cdc-batch-guard`.
+  riêng (không bao giờ đụng 3 dataset batch), kiểm bằng `make cdc-batch-guard`. Không đổi schema
+  `walmart.orders` (Bronze JDBC batch đọc `SELECT *`). Sau khi build lại image Spark phải
+  `make up-batch` để worker dùng code mới. Không xoá slot `dbz_walmart` khi chưa hỏi.
 - Streaming (`make up-stream`): Kafka 127.0.0.1:9092 (container: `kafka:29092`), kafka-ui 8085,
   Flink 8082; không bật cùng batch/orch/query khi đo Flink. Job Flink viết Java (ADR-0016), đổi
   `flink/jobs` cần `make build-stream`. Mỗi stream run chỉ publish một lần (seed mới để chạy lại);

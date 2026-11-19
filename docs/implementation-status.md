@@ -200,9 +200,29 @@ See [query validation](query-validation.md), [checklist](phase6-checklist.md),
 See [streaming validation](streaming-validation.md), [checklist](phase7-checklist.md),
 [benchmark](benchmarks/streaming.md) and [Phase 8 handoff](phase8-handoff.md).
 
-## Next: Phase 8 — CDC with Debezium
+## Phase 8 — Debezium CDC complete locally
 
-Not started. See [Phase 8 handoff](phase8-handoff.md).
+- Local milestone `v0.8-cdc` ([ADR-0017](adr/0017-cdc-debezium.md)). Profile `cdc`: Kafka Connect with
+  Debezium 3.6.3 (quay.io), no host port, connector on the existing publication `dbz_pub`
+  (`walmart.orders` only), decimals as strings, heartbeat logical messages kept out of Kafka, Kafka
+  signal channel for blocking re-snapshots; `make up-cdc`, `smoke-cdc` (12 checks).
+- Deterministic CDC scenarios on their own id prefix with ground truth (`make gen-cdc`); the three batch
+  datasets are protected by `make cdc-batch-guard`.
+- `dp1_cdc` (Structured Streaming `availableNow`, foreachBatch MERGE on Kafka coordinates; checkpoint on
+  `/runtime`) → `bronze.walmart_orders_cdc`; Silver `walmart_orders_cdc_current` (latest by
+  `(lsn, offset)`, soft deletes, quarantine); `make verify-cdc` reconciles PostgreSQL, Silver and the
+  ground truth. Driver kill, reruns and full replays insert nothing twice.
+- Operations: slot lag monitoring, pause/resume without event loss, Kafka/Connect restart, blocking
+  re-snapshot without dropping the slot; DAG `dp1_cdc` every 10 minutes (commit → Silver 9.5 min via
+  the schedule, 77 s run manually). Manual workflow `cdc.yml`, reproduced green in a clean environment
+  (hosted run not claimed).
+
+See [CDC validation](cdc-validation.md), [checklist](phase8-checklist.md) and
+[Phase 9 handoff](phase9-handoff.md).
+
+## Next: Phase 9 — DataHub
+
+Not started. See [Phase 9 handoff](phase9-handoff.md).
 
 ## Later phases
 

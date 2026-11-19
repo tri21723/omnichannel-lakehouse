@@ -24,9 +24,11 @@ Phase 6 hoàn thành local (`v0.6-query`): Trino 484 chỉ đọc trên Iceberg 
 8 query mẫu, đối soát Trino = Spark = ledger = warehouse, DBeaver/JDBC.
 Phase 7 hoàn thành local (`v0.7-stream`): Kafka 4.3.2 (KRaft) + Flink 2.2.1 (job Java) xử lý
 event trễ, trùng và burst exactly-once, có ground truth, phục hồi từ checkpoint, nạp vào Bronze.
-Tiếp theo là Phase 8 (CDC với Debezium).
+Phase 8 hoàn thành local (`v0.8-cdc`): Debezium 3.6 đưa thay đổi của `walmart.orders` qua Kafka vào
+Bronze CDC và Silver trạng thái hiện tại (xoá mềm, đúng thứ tự LSN), đối soát PostgreSQL ↔ Silver.
+Tiếp theo là Phase 9 (DataHub).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md) · [Phase 7](docs/phase7-checklist.md) · [Streaming](docs/streaming-validation.md) · [Bàn giao Phase 8](docs/phase8-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md) · [Phase 7](docs/phase7-checklist.md) · [Streaming](docs/streaming-validation.md) · [Bàn giao Phase 8](docs/phase8-handoff.md) · [Phase 8](docs/phase8-checklist.md) · [CDC](docs/cdc-validation.md) · [Bàn giao Phase 9](docs/phase9-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -185,6 +187,22 @@ ngày logic. `maintenance_iceberg` chỉ báo cáo snapshot có thể dọn (kh�
 chạy tay bằng `make iceberg-report`. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
 Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
 [kiểm chứng](docs/orchestration-validation.md).
+
+## Chạy CDC (Phase 8)
+
+```sh
+make up-cdc              # PostgreSQL, Kafka, Kafka Connect + Debezium (không port host), đăng ký connector
+make smoke-cdc           # slot, snapshot, chuỗi c/u/u/d theo thứ tự, không lộ secret, batch guard
+make up-batch            # Spark cho dp1_cdc
+make gen-cdc             # kịch bản INSERT/UPDATE/DELETE trên tiền tố riêng (không đụng 3 dataset batch)
+make bronze-cdc silver-cdc verify-cdc   # Kafka → Bronze → Silver hiện trạng → đối soát PostgreSQL
+make cdc-slot-lag        # giám sát replication slot
+```
+
+Connector chỉ bắt `walmart.orders` (không bắt `customers` có PII), tiền tệ dạng chuỗi decimal chính
+xác; Bronze ghi bằng MERGE theo toạ độ Kafka nên chạy lại/replay không nhân đôi; Silver chỉ nhận bản
+mới hơn theo `(lsn, offset)`. DAG `dp1_cdc` chạy mỗi 10 phút (pause khi tạo). Thiết kế:
+[ADR-0017](docs/adr/0017-cdc-debezium.md); bằng chứng: [CDC validation](docs/cdc-validation.md).
 
 ## Chạy streaming (Phase 7)
 
