@@ -1,6 +1,6 @@
 # TODO — Phase 7: Streaming với Kafka + Flink
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 7 (P7-01…P7-02 xong)**.
 
 Mục tiêu: luồng sự kiện đơn hàng Amazon và TikTok Shop đi từ generator → Kafka → Flink (event
 time, late arrival, dedup, burst) → file output → Bronze, chạy local bằng Docker; output sau
@@ -96,16 +96,18 @@ core 0,4 GiB / còn 9 GiB, ngân sách stream 4,5 GiB, prefix `raw/stream/*` cho
 
 ### P7-02 — ADR và version
 
-- [ ] Xác minh trên tài liệu chính thức: Kafka (KRaft, image, cấu hình single node), kafka-ui,
+- [x] Xác minh trên tài liệu chính thức: Kafka (KRaft, image, cấu hình single node), kafka-ui,
   Flink (bản hỗ trợ Python 3.11, PyFlink DataStream: side output, keyed state TTL, event-time
   timer, FileSink, S3 filesystem plugin), Kafka connector tương thích; ghi exact version + nguồn +
   ngày vào ADR-0001.
-- [ ] Viết `docs/adr/0016-streaming-kafka-flink.md` (kiểm tra số trước) chốt mọi mục §2, gồm
+- [x] Viết `docs/adr/0016-streaming-kafka-flink.md` (kiểm tra số trước) chốt mọi mục §2, gồm
   watermark/lateness/TTL, exactly-once end-to-end và cách ghi ground truth.
-- [ ] Hợp đồng event (JSON schema có version) + quy tắc DLQ trong `docs/data-model.md`.
+- [x] Hợp đồng event (JSON schema có version) + quy tắc DLQ trong `docs/data-model.md`.
 
 **Đạt khi:** ADR có nguồn, version pin, không cần ngoại lệ AGENTS hoặc đã hỏi lại.
-**Commit gợi ý:** `docs(adr): define streaming contract and pin Kafka and Flink`.
+**Bằng chứng:** [ADR-0016](docs/adr/0016-streaming-kafka-flink.md), ADR-0001 §Phase 7, data-model
+§Streaming events. Chốt: Kafka 4.3.2, kafka-ui v1.5.0, Flink 2.2.1 + connector 5.0.0-2.2, job **Java**
+(người dùng chọn 2026-11-19, PyFlink quá nặng), `kafka-python` cho generator, JSON Lines thay CSV/Parquet.
 
 ### P7-03 — Hạ tầng `stream`
 

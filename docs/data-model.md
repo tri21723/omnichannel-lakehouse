@@ -117,3 +117,28 @@ multi-dataset, so filter `_dataset_run_id`; money is summed per `currency` only.
 read mid-chain while `batch_daily` publishes; reproducible results pin
 `FOR VERSION AS OF <snapshot>` from the Gold/DP3 ledgers. See
 [ADR-0015](adr/0015-trino-query-layer.md).
+
+## Streaming events (Phase 7)
+
+Kafka topics `amazon.order-notifications` and `tiktok_shop.order-webhooks` (key `order_id`)
+carry JSON events, `schema_version` 1 ([ADR-0016](adr/0016-streaming-kafka-flink.md)):
+
+| Field | Type | Rule |
+|---|---|---|
+| `schema_version` | integer | `1`; other values go to the DLQ |
+| `event_id` | string | unique per logical event; a retry repeats it |
+| `event_type` | string | `order_created` or `order_updated` |
+| `stream_run_id` | string | 20 lowercase hex; one per generated stream |
+| `channel` | string | `amazon` or `tiktok_shop`, must match the topic |
+| `order_id` | string | channel-scoped, as in batch |
+| `event_ts` | timestamp (UTC, ISO-8601) | business time; drives windows and lateness |
+| `emitted_ts` | timestamp (UTC, ISO-8601) | send time; used for latency |
+| `currency` | string | `USD` (both channels in the fixture) |
+| `amount` | decimal string | never a float |
+| `payload` | object | channel-specific; may contain customer PII, so it stays in Bronze |
+
+Records that fail parsing or the required fields go to `<topic>.dlq`. Flink output (JSON Lines,
+`raw/stream/<channel>/<branch>/run=<id>/date=<d>/`) keeps the original event and adds
+`_stream_branch` (`accepted`, `late`, `duplicates`, `windows`). In Bronze the tables are
+`amazon_order_notifications_raw` and `tiktok_shop_order_webhooks_raw`; Silver/Gold for streaming
+data are out of scope in Phase 7.

@@ -95,3 +95,23 @@ Sources checked (2026-11-18):
 - [Iceberg REST catalog properties](https://trino.io/docs/484/object-storage/metastores.html)
 - [Native S3 file system](https://trino.io/docs/484/object-storage/file-system-s3.html)
 - [File-based access control](https://trino.io/docs/484/security/file-system-access-control.html)
+
+## Phase 7 selected pins (2026-11-19)
+
+See ADR-0016. Apache Kafka **4.3.2** (`apache/kafka:4.3.2`, published 2026-10-20, KRaft) rather
+than 4.4.0 (2026-10-22): 4.3 is the newest line kafka-python lists as tested. kafka-ui
+`kafbat/kafka-ui:v1.5.0` (2026-04-20). Apache Flink **2.2.1** (`flink:2.2.1-java17`) because the
+newest Kafka connector, `flink-connector-kafka:5.0.0-2.2`, supports Flink 2.1/2.2 but not 2.3.0.
+Jobs are Java, built with `maven:3.9.16-eclipse-temurin-17`. Generator client `kafka-python`
+3.0.x (pure Python). Image digests are recorded when the images are pulled (P7-03). No existing
+pin or port was changed; Kafka 9092, kafka-ui 8085 and Flink 8082 are the reserved ports.
+
+Sources checked (2026-11-19):
+- [Kafka downloads](https://kafka.apache.org/community/downloads/) (supported: 4.4.0, 4.3.2, 4.2.2)
+- [apache/kafka tags](https://hub.docker.com/r/apache/kafka/tags)
+- [Flink downloads](https://flink.apache.org/downloads/) (2.3.0 current; connector 5.0.0 for 2.1.x/2.2.x)
+- [flink-connector-kafka versions](https://repo.maven.apache.org/maven2/org/apache/flink/flink-connector-kafka/maven-metadata.xml)
+- [flink tags](https://hub.docker.com/_/flink/tags), [kafbat/kafka-ui tags](https://hub.docker.com/r/kafbat/kafka-ui/tags)
+- [kafka-python compatibility](https://kafka-python.readthedocs.io/en/master/compatibility.html)
+  and [KafkaProducer](https://kafka-python.readthedocs.io/en/master/apidoc/KafkaProducer.html)
+- [apache-flink on PyPI](https://pypi.org/project/apache-flink/2.2.1/) (PyFlink option rejected, ADR-0016)
