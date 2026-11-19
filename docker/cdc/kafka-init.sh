@@ -15,3 +15,4 @@ ensure() {
 }
 ensure platform_cdc.walmart.orders 3
 ensure __debezium-heartbeat.platform_cdc 1
+ensure platform_cdc.signals 1

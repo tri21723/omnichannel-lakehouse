@@ -601,3 +601,22 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   Docker Desktop không ổn định; huỷ và pull lại (không dùng `pkill -f` với chuỗi trùng lệnh đang chạy).
 - **Không UPDATE/DELETE dòng của 3 dataset batch** khi thử CDC; dùng tiền tố riêng và `make
   cdc-batch-guard` để chứng minh.
+- **Giám sát slot:** `make cdc-slot-lag` (fail khi slot không active, `wal_status = lost` hoặc WAL giữ lại
+  vượt `CDC_LAG_MAX_BYTES`). Lag xác nhận (`flush_lag_bytes`) về gần 0 sau heartbeat; WAL giữ lại
+  (`retained_bytes`, theo `restart_lsn`) giảm chậm hơn vài phút — bình thường.
+- **Bảo trì connector:** `make cdc-pause` → … → `make cdc-resume`; khi pause slot vẫn giữ WAL, sau
+  resume connector đọc tiếp, không mất event.
+- **Snapshot lại (không xoá slot):** `make cdc-resnapshot` (blocking snapshot qua topic
+  `platform_cdc.signals`), rồi `make bronze-cdc silver-cdc verify-cdc`. Mọi order còn sống thêm một
+  event `r`; Bronze/Silver chịu được.
+- **Xoá slot/publication (phá huỷ, cần hỏi trước):** `make cdc-pause` → xoá connector
+  (`connect.sh delete`) → `SELECT pg_drop_replication_slot('dbz_walmart')` bằng admin → (nếu cần)
+  xoá offset của connector trong `_connect.offsets` hoặc đổi tên connector → đăng ký lại với
+  `snapshot.mode=initial` → snapshot đầy đủ. Publication `dbz_pub` thuộc core bootstrap; không xoá.
+- **Slot `wal_status = lost`** (vượt `max_slot_wal_keep_size=5GB`): event giữa hai thời điểm đã mất;
+  làm như "xoá slot" ở trên để snapshot lại rồi `verify-cdc`; tìm nguyên nhân (connector dừng lâu).
+- **Đổi schema `walmart.orders` (thêm cột):** không thử trên bảng thật — Bronze JDBC batch đọc
+  `SELECT *` nên evidence của 3 dataset sẽ đổi và replay batch nạp lại. Nếu bắt buộc: thêm cột
+  NULLABLE bằng migration; Debezium tự đưa cột mới vào `after`; Bronze lưu JSON nên không đổi
+  schema; Silver bỏ qua cột chưa có trong contract cho đến khi `typed_row`/`SILVER_SCHEMA` được cập
+  nhật kèm migration Iceberg; chạy lại `verify-cdc`. Đổi kiểu/xoá cột cần ADR riêng.

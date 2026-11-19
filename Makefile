@@ -478,7 +478,7 @@ stream-acceptance: ## Live acceptance: start jobs, paced publish, drain, strict 
 GEN_STREAM_CONFIG_ACCEPT ?= generators/fixtures/stream-small.yaml
 
 # Phase 8 CDC (ADR-0017 planned): batch datasets must never change while CDC scenarios run.
-.PHONY: bronze-cdc verify-bronze-cdc silver-cdc verify-silver-cdc verify-cdc gen-cdc check-cdc-source cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
+.PHONY: bronze-cdc verify-bronze-cdc silver-cdc verify-silver-cdc verify-cdc cdc-slot-lag cdc-pause cdc-resume cdc-resnapshot gen-cdc check-cdc-source cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
 cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal docker/cdc/batch_guard.baseline
 	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql > .local-data/cdc-batch-guard.txt
 	@diff -q docker/cdc/batch_guard.baseline .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
@@ -522,3 +522,13 @@ verify-silver-cdc: ## Silver CDC: one row per order, equal to the latest Bronze 
 CDC_SCENARIO_ID ?= $(shell $(BIN)/python -c "import yaml; from generators.cdc.scenario import CdcConfig; print(CdcConfig.model_validate(yaml.safe_load(open('generators/cdc.yaml'))).cdc_run_id)" 2>/dev/null)
 verify-cdc: ## PostgreSQL walmart.orders = Silver current state; scenario = ground truth (read-only)
 	$(MAKE) spark-submit JOB=verify_cdc CDC_ARGS="--run-date $(CDC_RUN_DATE) --scenario $(CDC_SCENARIO_ID)"
+CDC_LAG_MAX_BYTES ?= 1073741824
+cdc-slot-lag: ## Replication slot health: active, wal_status, retained WAL and flush lag (fails above CDC_LAG_MAX_BYTES)
+	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -c "SELECT slot_name, active, wal_status, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)::bigint, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)::bigint FROM pg_replication_slots WHERE slot_name = '"'"'dbz_walmart'"'"'"' \
+	  | awk -v max=$(CDC_LAG_MAX_BYTES) '{ok = ($$2 == "t" && $$3 != "lost" && $$4 < max) ? "true" : "false"; printf "{\"event\": \"cdc_slot_lag\", \"slot\": \"%s\", \"active\": %s, \"wal_status\": \"%s\", \"retained_bytes\": %s, \"flush_lag_bytes\": %s, \"ok\": %s}\n", $$1, ($$2 == "t" ? "true" : "false"), $$3, $$4, $$5, ok; found = 1; if (ok == "false") exit 1} END {if (!found) {print "{\"event\": \"cdc_slot_lag\", \"ok\": false, \"reason\": \"slot missing\"}"; exit 1}}'
+cdc-pause: ## Pause the connector (slot retains WAL until resumed)
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh pause
+cdc-resume: ## Resume the connector; it continues from its offsets
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh resume
+cdc-resnapshot: ## Blocking re-snapshot of walmart.orders through the Kafka signal channel (no slot drop)
+	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh resnapshot

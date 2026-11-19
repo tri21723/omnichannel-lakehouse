@@ -108,8 +108,17 @@ Owner decision (2026-11-19): current state with soft deletes; history stays in B
 - `make verify-cdc` (read-only): PostgreSQL ↔ Silver — live row count and checksum over
   `(order_id, status, total_amount, updated_ts)` for the whole table and for the scenario prefix,
   deleted ids present in Silver with `is_deleted`, Bronze offsets unique.
-- Slot monitoring (`pg_replication_slots`, `pg_wal_lsn_diff`), connector stop/restart, Kafka/Connect
-  restart, resnapshot and source schema change are exercised and documented in the runbook.
+- Slot monitoring: `make cdc-slot-lag` (active, `wal_status`, WAL retained since `restart_lsn`,
+  lag of `confirmed_flush_lsn`; fails above `CDC_LAG_MAX_BYTES`, default 1 GiB, or when the slot is
+  inactive/lost). `make cdc-pause`/`cdc-resume` for maintenance; a paused connector keeps its slot, so
+  WAL is retained until it resumes.
+- Re-snapshot without dropping the slot: Debezium's Kafka signal channel (`signal.enabled.channels=
+  kafka`, topic `platform_cdc.signals`, key = `topic.prefix`) receives an `execute-snapshot` of type
+  `BLOCKING` (`make cdc-resnapshot`): streaming pauses, every live row is re-emitted as `r`, streaming
+  resumes. No signal table is needed in the database.
+- Source schema changes are **not** exercised on `walmart.orders`: the batch JDBC Bronze reads
+  `SELECT *` of the same table, so a new column would change the batch evidence and trigger
+  re-ingestion of the three datasets. The runbook describes the procedure instead.
 - Scheduling: DAG `dp1_cdc` (Bronze then Silver, pool `spark_driver`, paused at creation) every
   10 minutes plus Make targets; never a long-running Spark streaming query holding the driver lock.
 

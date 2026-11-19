@@ -188,3 +188,20 @@ the scenario ground truth in S3, with the generator's checksum algorithm (cross-
 
 Run manually in sequence, a commit in PostgreSQL reached Silver in 77 s (dominated by two Spark
 application start-ups); scheduling is P8-09.
+
+## P8-08 — Operations
+
+Tooling: `make cdc-slot-lag`, `cdc-pause`, `cdc-resume`, `cdc-resnapshot` (Kafka signal channel,
+topic `platform_cdc.signals` created by `init-cdc`).
+
+| Experiment | Observation |
+|---|---|
+| A: 60 MB of WAL written in another database (`postgres`, a scratch table created and dropped) | right after: retained 72 MB, flush lag 72 MB; 40 s later the heartbeat had moved `confirmed_flush_lsn` (flush lag 424 B) while `restart_lsn` still retained 72 MB; ~3 min later retained WAL was 28 KB |
+| B: connector paused, scenario 3 `ea56b18676b7cf0cf52f` applied | topic +0 while paused, slot flush lag grew to 96 KB (changes kept); after resume +136 records within seconds; `bronze-cdc` 136, `silver-cdc` changed, `verify-cdc` ok with exact ops `c` 43 / `u` 77 / `d` 8, `r` 0 |
+| C: `docker compose restart kafka` | connector back to RUNNING without intervention; `smoke-cdc` 12/12; topic +5 (the probe only) |
+| D: `make cdc-resnapshot` (blocking) | topic +3,240 = the 3,240 live orders, slot not dropped; `bronze-cdc` 3,245 (+5 probe), Silver changed (newer LSNs, same business values), `verify-silver-cdc` ok, `verify-cdc` scenario 3 ok (`r` 35 = its live orders), whole table equal |
+| Batch isolation | `cdc-batch-guard` ok after every step |
+
+Not exercised on purpose: dropping the slot (destructive; procedure in the runbook) and a schema
+change of `walmart.orders` (it would change the batch JDBC evidence of the three datasets; procedure
+and impact in the runbook and ADR-0017).

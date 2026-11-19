@@ -18,5 +18,9 @@
   "heartbeat.interval.ms": "10000",
   "heartbeat.action.query": "SELECT pg_logical_emit_message(false, 'debezium-heartbeat', now()::text)",
   "tombstones.on.delete": "true",
-  "message.prefix.exclude.list": "debezium-heartbeat"
+  "message.prefix.exclude.list": "debezium-heartbeat",
+  "signal.enabled.channels": "kafka",
+  "signal.kafka.topic": "platform_cdc.signals",
+  "signal.kafka.bootstrap.servers": "kafka:29092",
+  "signal.kafka.groupId": "cdc-signals"
 }

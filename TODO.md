@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-07 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-08 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -209,18 +209,20 @@ chính xác), chạy lại cả chuỗi không đổi, batch guard + ledger khô
 
 ### P8-08 — Vận hành
 
-- [ ] Giám sát slot: `make cdc-slot-lag` (`pg_replication_slots`, `pg_wal_lsn_diff`), ngưỡng cảnh
+- [x] Giám sát slot: `make cdc-slot-lag` (`pg_replication_slots`, `pg_wal_lsn_diff`), ngưỡng cảnh
   báo; heartbeat giữ slot tiến khi bảng không đổi.
-- [ ] Dừng connector khi có thay đổi → slot giữ WAL, lag tăng; bật lại → bắt kịp, không mất event.
-- [ ] Restart Kafka Connect/Kafka → connector tiếp tục từ offset; không snapshot lại ngoài ý muốn.
-- [ ] Runbook:
-  - xoá slot/publication an toàn;
-  - resnapshot (incremental snapshot qua signal hoặc slot mới);
-  - đổi schema bảng nguồn (thêm cột) và ảnh hưởng tới Bronze/Silver;
+- [x] Dừng connector khi có thay đổi → slot giữ WAL, lag tăng; bật lại → bắt kịp, không mất event.
+- [x] Restart Kafka Connect/Kafka → connector tiếp tục từ offset; không snapshot lại ngoài ý muốn.
+- [x] Runbook:
+  - xoá slot/publication an toàn *(quy trình; không thực hiện vì phá huỷ)*;
+  - resnapshot: blocking snapshot qua tín hiệu Kafka, đã kiểm chứng (không xoá slot);
+  - đổi schema bảng nguồn (thêm cột) và ảnh hưởng tới Bronze/Silver *(chỉ viết quy trình: thử trên
+    `walmart.orders` sẽ đổi evidence JDBC của 3 dataset batch)*;
   - WAL đầy đĩa.
 
 **Đạt khi:** mỗi tình huống có bằng chứng trong `docs/cdc-validation.md` và mục runbook.
-**Commit gợi ý:** `test(cdc): verify connector restart, slot lag and resnapshot procedures`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-08: heartbeat với WAL ngoài, pause trong lúc
+chạy kịch bản 3 (không mất event), restart Kafka, blocking resnapshot (+3.240 `r`); verify đạt, batch guard ok.
 
 ### P8-09 — Điều phối và độ trễ
 
