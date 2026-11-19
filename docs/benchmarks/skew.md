@@ -81,6 +81,12 @@ Full per-cell tables (medians, min–max, shuffle, spill, plan evidence):
 [matrix-100k](skew-matrix-100k.md) · [smoke](skew-smoke.md) · [ci](skew-ci.md); machine-readable
 `skew-*.json` / `skew-*.csv` next to them.
 
+Hosted CI: manual workflow `Skew benchmark smoke` [run 44449924427](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44449924427) on commit `3fe9364`
+(2026-11-19, ~20 min) succeeded on a fresh runner: small-fixture Gold, `test-benchmark`,
+datasets `ci_control`/`ci_skew80`, experiment `ci`, `verify-benchmark` (every planned trial ok,
+correct, with metrics and plans) and the redacted report uploaded as an artifact. Runner timings
+are not compared with the local numbers; wall-clock time never gates CI.
+
 ## Environment
 
 | Item | Value |

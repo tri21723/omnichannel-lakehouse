@@ -127,7 +127,8 @@ See [Warehouse validation](warehouse-validation.md), [ADR-0011](adr/0011-warehou
   or task failure. AQE skew join (tuned), broadcast alone, salting and more partitions gave no
   reproducible gain; the production session (AQE + broadcast) was consistently fastest
   (paired 1.25× vs B0 on the 1M join), so production config is unchanged.
-- Manual CI workflow `.github/workflows/benchmark.yml` with allowlisted events; hosted run not claimed.
+- Manual CI workflow `.github/workflows/benchmark.yml` with allowlisted events; green on GitHub
+  ([run 44449924427](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44449924427), commit `3fe9364`).
 
 See [skew benchmark](benchmarks/skew.md), [ADR-0012](adr/0012-skew-benchmark.md),
 [checklist](phase4f-checklist.md) and [Phase 5 handoff](phase5-handoff.md).
