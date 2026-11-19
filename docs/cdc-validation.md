@@ -205,3 +205,23 @@ topic `platform_cdc.signals` created by `init-cdc`).
 Not exercised on purpose: dropping the slot (destructive; procedure in the runbook) and a schema
 change of `walmart.orders` (it would change the batch JDBC evidence of the three datasets; procedure
 and impact in the runbook and ADR-0017).
+
+## P8-09 — Orchestration and latency
+
+- DAG `dp1_cdc` (`airflow/dags/dp1_cdc.py`): every 10 minutes, paused at creation, `cdc_bronze` →
+  `cdc_silver` → `cdc_silver_verify`, all through the `spark_driver` pool and the driver lock;
+  `make test-dags` 12 passed (new test for schedule, pause, pool, lock, rendered command). CDC events
+  are allowlisted for task XCom/CI output (unit-tested). The Airflow image carries the Kafka jars.
+- Live: unpaused at 16:16 UTC; the first scheduled run succeeded in 2 min 4 s. Scenario 4
+  `0ec486a6c63bcb84b954` was committed at 16:18:45; the next scheduled run (16:26:29–16:28:14)
+  brought it into Silver; `verify-cdc` exact ops and ok; `cdc-batch-guard` ok; DAG paused again.
+
+| Path | Commit → Silver |
+|---|---|
+| Manual `make bronze-cdc silver-cdc` right after the commit (P8-07) | 77 s |
+| DAG every 10 min (measured) | 9 min 29 s ≈ waiting for the next run + ~1 min 45 s of run time |
+| DAG every 10 min (expected) | average ≈ 6–7 min, worst ≈ 12 min |
+
+Trade-off: each run holds the Spark driver lock for ~2 minutes; a 5-minute schedule would halve the
+wait but block batch jobs ~40% of the time. The interval is a DAG parameter to tune per environment;
+CDC changes are durable in Kafka (7 days) and Bronze in the meantime.

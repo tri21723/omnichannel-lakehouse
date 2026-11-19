@@ -121,6 +121,8 @@ Owner decision (2026-11-19): current state with soft deletes; history stays in B
   re-ingestion of the three datasets. The runbook describes the procedure instead.
 - Scheduling: DAG `dp1_cdc` (Bronze then Silver, pool `spark_driver`, paused at creation) every
   10 minutes plus Make targets; never a long-running Spark streaming query holding the driver lock.
+  Measured: commit → Silver 77 s when run manually, 9.5 min through the 10-minute schedule (wait +
+  ~1.75 min run).
 
 ## 8. Consequences
 

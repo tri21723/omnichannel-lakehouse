@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-08 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-09 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -226,12 +226,13 @@ chạy kịch bản 3 (không mất event), restart Kafka, blocking resnapshot (
 
 ### P8-09 — Điều phối và độ trễ
 
-- [ ] DAG `dp1_cdc` (Bronze rồi Silver, pool `spark_driver`, khóa driver, `max_active_runs=1`, pause
+- [x] DAG `dp1_cdc` (Bronze rồi Silver, pool `spark_driver`, khóa driver, `max_active_runs=1`, pause
   khi tạo, retries/timeout); test DagBag; không chặn `batch_daily` quá lâu.
-- [ ] Đo độ trễ commit Postgres → Kafka → Bronze → Silver với lịch đã chọn; đạt "vài phút".
+- [x] Đo độ trễ commit Postgres → Kafka → Bronze → Silver với lịch đã chọn; đạt "vài phút".
 
 **Đạt khi:** DAG chạy thật thành công; số liệu độ trễ ghi lại.
-**Commit gợi ý:** `feat(airflow): schedule CDC ingestion into Bronze and Silver`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-09: DAG chạy theo lịch thành công, kịch bản 4
+vào Silver sau 9,5 phút (chu kỳ 10 phút + ~1,75 phút chạy; chạy tay 77 s), verify đạt, batch guard ok.
 
 ### P8-10 — CI, tài liệu và bàn giao
 

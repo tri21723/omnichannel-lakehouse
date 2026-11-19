@@ -33,7 +33,12 @@ def render(task, ds="2026-01-02", run=RUN):
 
 def test_dags_import_without_errors(dagbag):
     assert dagbag.import_errors == {}
-    assert set(dagbag.dag_ids) == JOB_DAGS | {"batch_daily", "maintenance_iceberg", "query_checks"}
+    assert set(dagbag.dag_ids) == JOB_DAGS | {
+        "batch_daily",
+        "maintenance_iceberg",
+        "query_checks",
+        "dp1_cdc",
+    }
 
 
 def test_every_dag_follows_defaults(dagbag):
@@ -42,7 +47,7 @@ def test_every_dag_follows_defaults(dagbag):
         assert dag.max_active_runs == 1, dag_id
         assert dag.catchup is False, dag_id
         assert "omnichannel" in dag.tags, dag_id
-        if dag_id not in ("maintenance_iceberg", "query_checks"):  # not tied to one run
+        if dag_id not in ("maintenance_iceberg", "query_checks", "dp1_cdc"):  # not tied to one run
             assert dag.params.get_param("dataset_run_id").value == RUN
         for task in dag.tasks:
             assert task.owner == "data-platform", (dag_id, task.task_id)
@@ -191,3 +196,24 @@ def test_stream_bronze_waits_for_closed_run_and_ingests_both_channels(dagbag):
         "--mode incremental --channel tiktok_shop"
     ) in command
     assert [a.name for a in dag.get_task("bronze_tiktok_shop_stream").outlets] == ["lh.bronze"]
+
+
+def test_cdc_dag_is_scheduled_paused_and_uses_the_driver_lock(dagbag):
+    dag = dagbag.dags["dp1_cdc"]
+    assert type(dag.timetable).__name__ == "DeltaTriggerTimetable"  # every 10 minutes
+    assert dag.is_paused_upon_creation is True
+    assert dag.max_active_runs == 1 and dag.catchup is False
+    assert [t.task_id for t in dag.topological_sort()] == [
+        "cdc_bronze",
+        "cdc_silver",
+        "cdc_silver_verify",
+    ]
+    for task in dag.tasks:
+        assert task.pool == "spark_driver" and task.retries >= 1
+        assert timedelta(0) < task.execution_timeout <= timedelta(minutes=15)
+        command = task.render_template(task.bash_command, {"params": {}, "ds": "2026-11-19"})
+        assert (
+            "python -m spark.lib.driver_lock --wait 300 -- /opt/spark/bin/spark-submit" in command
+        )
+        assert "--run-date 2026-11-19 --channel walmart" in command and "{{" not in command
+    assert "--mode verify" in dag.get_task("cdc_silver_verify").bash_command

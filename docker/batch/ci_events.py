@@ -65,6 +65,23 @@ EVENTS = {
     "e2e_backfill_created",
     "e2e_summary",
     "query_sample",
+    "cdc_bronze_batch",
+    "cdc_bronze_completed",
+    "cdc_bronze_verified",
+    "cdc_silver_completed",
+    "cdc_silver_verified",
+    "cdc_verify_check",
+    "cdc_verified",
+    "cdc_smoke_check",
+    "cdc_smoke_finished",
+    "cdc_batch_guard",
+    "cdc_slot_lag",
+    "cdc_connector_registered",
+    "cdc_connector_status",
+    "cdc_scenario_applied",
+    "cdc_scenario_skipped",
+    "cdc_source_checked",
+    "cdc_resnapshot_requested",
     "stream_smoke_check",
     "stream_smoke_finished",
     "stream_job_started",
@@ -134,6 +151,28 @@ STREAM_CHECKS = {
     "dlq",
     "nothing_lost",
     "counts",
+}
+CDC_CHECKS = {
+    "connector_running",
+    "slot_active_pgoutput",
+    "publication_orders_only",
+    "no_customers_topic",
+    "snapshot_complete",
+    "probe_dml_applied",
+    "probe_events_in_order",
+    "decimal_as_string",
+    "heartbeat_flowing",
+    "slot_lag_bytes",
+    "no_secret_in_connect_logs",
+    "config_stores_placeholder",
+    "live_orders_equal",
+    "live_ids_equal",
+    "checksum_equal",
+    "deleted_absent_in_source",
+    "scenario_live_equal",
+    "scenario_checksum_equal",
+    "scenario_deleted_marked",
+    "scenario_events_present",
 }
 STREAM_NAMES = {"amazon", "tiktok_shop", "amazon_late", "tiktok_dedup"}
 QUERY_CHECKS = {
@@ -261,6 +300,14 @@ def safe_events(lines):
             r"[A-Z_]{1,64}", item["error_name"]
         ):
             clean["error_name"] = item["error_name"]
+        if item.get("check") in CDC_CHECKS:
+            clean["check"] = item["check"]
+        for key in ("inserted", "live", "deleted", "quarantined", "silver_live", "source_orders"):
+            if type(item.get(key)) is int:
+                clean[key] = item[key]
+        for key in ("changed", "exact_ops", "equals_latest_bronze", "checksum_equal"):
+            if type(item.get(key)) is bool:
+                clean[key] = item[key]
         if item.get("check") in STREAM_CHECKS:
             clean["check"] = item["check"]
         for key in ("channel", "job"):

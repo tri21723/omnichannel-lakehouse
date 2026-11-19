@@ -238,3 +238,35 @@ def test_stream_events_keep_fixed_names_and_counts_only():
         {"event": "stream_job_started", "job": "amazon_late"},
         {"event": "stream_verify_check"},
     ]
+
+
+def test_cdc_events_keep_counts_and_fixed_check_names_only():
+    lines = [
+        json.dumps(
+            {"event": "cdc_bronze_completed", "inserted": 136, "records": 136, "seconds": 30.1}
+        ),
+        json.dumps(
+            {
+                "event": "cdc_verified",
+                "ok": True,
+                "exact_ops": True,
+                "silver_live": 3205,
+                "source_orders": 3205,
+                "scenario_ops": {"c": 43},
+            }
+        ),
+        json.dumps({"event": "cdc_verify_check", "check": "checksum_equal", "ok": True}),
+        json.dumps({"event": "cdc_verify_check", "check": "SELECT secret", "ok": True}),
+    ]
+    assert list(module.safe_events(lines)) == [
+        {"event": "cdc_bronze_completed", "inserted": 136, "records": 136},
+        {
+            "event": "cdc_verified",
+            "ok": True,
+            "exact_ops": True,
+            "silver_live": 3205,
+            "source_orders": 3205,
+        },
+        {"event": "cdc_verify_check", "check": "checksum_equal", "ok": True},
+        {"event": "cdc_verify_check", "ok": True},
+    ]
