@@ -1,0 +1,10 @@
+# Phase 8 CDC scenario (ADR-0017): only rows with the scenario's own id prefix are touched.
+seed: 42
+base_ts: '2026-04-01T00:00:00Z'
+customers: 5
+orders: 40
+updated_orders: 20
+updates_per_order: 3
+multi_row_update: 15
+deletes: 5
+reinserts: 3

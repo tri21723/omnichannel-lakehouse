@@ -111,3 +111,19 @@ Found while bringing it up:
    snapshot (3,135 more `r` records) and the earlier probe changes appear only as the new snapshot's
    state — at-least-once behaviour now documented in ADR-0017.
 4. The smoke compared a boolean cast as `t`; PostgreSQL prints `true`.
+
+## P8-04 — CDC scenario generator
+
+- `generators/cdc/` + `generators/cdc.yaml`; unit tests (7): determinism and seed dependence, every
+  id in every statement starts with the scenario prefix and never a batch prefix, expected op
+  counts, ground truth equal to replaying the transactions in memory, the concurrent pair on the
+  same row with B winning, timestamp normalisation, and apply-once semantics against a fake database
+  whose row locks really block the second session (skip on rerun, refuse interrupted runs or
+  pre-existing scenario rows).
+- Live (run `4f8191192d5abf939dbd`, 75 transactions): `make gen-cdc` → `cdc_scenario_applied`,
+  `cdc-batch-guard` ok; `make check-cdc-source` → 35 live orders, checksum equal, the 5 deleted ids
+  absent; a second `make gen-cdc` → `cdc_scenario_skipped`.
+- On `platform_cdc.walmart.orders` the scenario prefix produced exactly the expected events:
+  `c` 43, `u` 77, `d` 8 plus 8 tombstones. For the contested row the last two events are A
+  (`shipped`, `10.00`) then B (`delivered`, `20.00`): commit order preserved, amounts as decimal
+  strings.

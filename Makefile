@@ -19,7 +19,7 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml docker/compose.cdc.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml generators/cdc.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml docker/compose.cdc.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
 	for script in docker/stream/*.sh docker/cdc/*.sh; do bash -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
@@ -478,7 +478,7 @@ stream-acceptance: ## Live acceptance: start jobs, paced publish, drain, strict 
 GEN_STREAM_CONFIG_ACCEPT ?= generators/fixtures/stream-small.yaml
 
 # Phase 8 CDC (ADR-0017 planned): batch datasets must never change while CDC scenarios run.
-.PHONY: cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
+.PHONY: gen-cdc check-cdc-source cdc-batch-guard env-cdc config-cdc up-cdc init-cdc register-cdc status-cdc smoke-cdc restart-cdc
 cdc-batch-guard: ## Fail unless the Walmart rows of the 3 batch datasets equal docker/cdc/batch_guard.baseline
 	@docker compose --env-file .env -f docker/compose.core.yml --profile core exec -T postgres sh -c 'psql -X -U "$$POSTGRES_USER" -d sources -At -F " " -f -' < docker/cdc/batch_guard.sql > .local-data/cdc-batch-guard.txt
 	@diff -q docker/cdc/batch_guard.baseline .local-data/cdc-batch-guard.txt >/dev/null && echo '{"event": "cdc_batch_guard", "ok": true}' || { echo '{"event": "cdc_batch_guard", "ok": false}'; exit 1; }
@@ -504,3 +504,9 @@ smoke-cdc: ## Connector, slot, snapshot, ordered DML probe, heartbeat, no secret
 restart-cdc: ## Restart Kafka Connect; offsets and connector config live in Kafka
 	$(CDC) restart kafka-connect
 	$(CDC) up -d --wait kafka-connect
+GEN_CDC_ARGS ?=
+gen-cdc: ## Apply the deterministic CDC scenario once on PostgreSQL (own id prefix; ground truth to S3)
+	$(GEN) cdc --config generators/cdc.yaml --output /data --apply $(GEN_CDC_ARGS)
+	$(MAKE) --no-print-directory cdc-batch-guard
+check-cdc-source: ## Compare the scenario rows in PostgreSQL with the ground truth (read-only)
+	$(GEN) cdc-check --config generators/cdc.yaml $(GEN_CDC_ARGS)

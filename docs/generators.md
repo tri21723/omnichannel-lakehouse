@@ -110,3 +110,19 @@ No million-row benchmark is claimed here.
   nothing; ground truth without the marker (interrupted publish) is refused — use a new seed.
 - `make check-stream-source` reads the topics back and compares counts and retry sets with the
   ground truth (read-only). Both accept `GEN_STREAM_CONFIG` and `GEN_STREAM_ARGS`.
+
+## CDC scenario generator (Phase 8)
+
+`generators/cdc/` (ADR-0017 §6): `CdcConfig` (`generators/cdc.yaml`) yields `cdc_run_id` = 20 hex of
+SHA-256 over contract `cdc-v1` + config, and every id starts with `<cdc_run_id>-walmart-` — never a
+batch dataset prefix (unit-tested). The scenario is a list of transactions with fixed timestamps:
+customers, inserted orders, repeated single-row updates, one multi-row update transaction, deletes,
+delete-then-reinsert of the same key, and a concurrent pair where session B updates the row session
+A holds, waits for the lock and commits last. Ground truth
+`s3://raw/manifests/<cdc_run_id>/cdc_ground_truth.json`: expected `c`/`u`/`d` counts, final state per
+live order, deleted ids, SHA-256 over `(order_id, status, total_amount, updated_ts)`.
+
+`make gen-cdc` applies it once with the `generator` role (ground truth → transactions →
+`cdc_applied.json`; a rerun is skipped, ground truth or scenario rows without the marker are
+refused) and then runs `make cdc-batch-guard`; `make check-cdc-source` compares PostgreSQL with the
+ground truth read-only.

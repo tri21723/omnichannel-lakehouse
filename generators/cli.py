@@ -9,6 +9,8 @@ from typing import Annotated
 import typer
 
 from generators.batch.dataset import generate, verify_local
+from generators.cdc.apply import apply_scenario, check_source
+from generators.cdc.scenario import CdcConfig
 from generators.common.config import read_config
 from generators.common.storage import publish, s3_client, verify_remote
 from generators.load.postgres import connect, load
@@ -199,6 +201,49 @@ def stream_close(
     cfg = read_stream_config(config, seed=seed, events_per_channel=events_per_channel)
     result = close_stream(cfg.stream_run_id, s3_client(), os.environ["S3_RAW_BUCKET"], output)
     event("stream_closed", run_id=cfg.stream_run_id, files=result["files"], rows=result["rows"])
+
+
+def read_cdc_config(path: Path, seed: int | None) -> CdcConfig:
+    import yaml
+
+    content = yaml.safe_load(path.read_text())
+    if seed is not None:
+        content["seed"] = seed
+    return CdcConfig.model_validate(content)
+
+
+@app.command()
+def cdc(
+    config: ConfigPath = Path("generators/cdc.yaml"),
+    output: Path = Path(".local-data/generated"),
+    seed: int | None = None,
+    apply: bool = False,
+) -> None:
+    """Build a CDC mutation scenario; with --apply run it once on PostgreSQL (role generator)."""
+    cfg = read_cdc_config(config, seed)
+    if not apply:
+        from generators.cdc.scenario import build
+
+        _, truth = build(cfg)
+        write_json(output / "cdc" / cfg.cdc_run_id / "cdc_ground_truth.json", truth)
+        event("cdc_scenario_ready", run_id=cfg.cdc_run_id, ops=truth["expected_ops"])
+        return
+    result = apply_scenario(cfg, output, s3_client(), os.environ["S3_RAW_BUCKET"], connect)
+    name = "cdc_scenario_skipped" if result["skipped"] else "cdc_scenario_applied"
+    event(name, run_id=result["cdc_run_id"], transactions=result["transactions"])
+
+
+@app.command("cdc-check")
+def cdc_check(
+    config: ConfigPath = Path("generators/cdc.yaml"),
+    seed: int | None = None,
+) -> None:
+    """Compare the scenario rows in PostgreSQL with the ground truth (read-only)."""
+    cfg = read_cdc_config(config, seed)
+    result = check_source(cfg, connect)
+    event("cdc_source_checked", run_id=cfg.cdc_run_id, **result)
+    if not result["ok"]:
+        raise SystemExit(1)
 
 
 def main() -> None:

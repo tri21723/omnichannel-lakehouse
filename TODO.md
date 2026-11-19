@@ -1,6 +1,6 @@
 # TODO — Phase 8: CDC với Debezium
 
-Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-03 xong)**.
+Cập nhật: **2026-11-19**. Trạng thái: **đang triển khai Phase 8 (P8-01…P8-04 xong)**.
 
 Mục tiêu: thay đổi trên PostgreSQL `walmart.orders` (INSERT/UPDATE/DELETE) đi qua Debezium → Kafka
 (`platform_cdc.walmart.orders`) → Spark `dp1_cdc` → Bronze `bronze.walmart_orders_cdc` → Silver
@@ -140,21 +140,23 @@ sửa đầu, sau `restart-cdc`, sau `down` + `up-cdc` (76 s); không snapshot l
 
 ### P8-04 — Generator kịch bản CDC
 
-- [ ] Lệnh generator `cdc` (model riêng, `cdc_run_id` 20 hex, cùng seed → cùng kịch bản). Tạo
+- [x] Lệnh generator `cdc` (model riêng, `cdc_run_id` 20 hex, cùng seed → cùng kịch bản). Tạo
   customer/order có tiền tố riêng, rồi chuỗi thay đổi:
   - INSERT, UPDATE nhiều lần cùng dòng, DELETE;
   - UPDATE nhiều dòng trong một transaction;
   - hai transaction đồng thời trên các dòng khác nhau;
   - xoá rồi chèn lại cùng khóa.
-- [ ] Ground truth `s3://raw/manifests/<cdc_run_id>/cdc_ground_truth.json`: trạng thái cuối từng
+- [x] Ground truth `s3://raw/manifests/<cdc_run_id>/cdc_ground_truth.json`: trạng thái cuối từng
   order (hoặc đã xoá), số op c/u/d mong đợi, checksum trạng thái cuối. Ghi một lần; chạy lại không
   ghi lại khác nội dung.
-- [ ] Ghi bằng role `generator` (đã có INSERT/UPDATE/DELETE trên `walmart`); không chạm dòng 3 dataset.
-- [ ] Unit test: tất định, chỉ dùng tiền tố riêng, ground truth = trạng thái mô phỏng.
+- [x] Ghi bằng role `generator` (đã có INSERT/UPDATE/DELETE trên `walmart`); không chạm dòng 3 dataset.
+- [x] Unit test: tất định, chỉ dùng tiền tố riêng, ground truth = trạng thái mô phỏng.
 
 **Đạt khi:** chạy kịch bản lên Postgres, trạng thái cuối trong Postgres = ground truth; JDBC evidence
 batch không đổi.
-**Commit gợi ý:** `feat(generator): add deterministic CDC mutation scenarios with ground truth`.
+**Bằng chứng:** [cdc-validation](docs/cdc-validation.md) §P8-04: 7 unit test; run `4f8191192d5abf939dbd` áp
+dụng, nguồn khớp ground truth, chạy lại bỏ qua, batch guard ok; topic đúng c43/u77/d8 + 8 tombstone, thứ
+tự commit giữ nguyên ở dòng tranh chấp.
 
 ### P8-05 — `dp1_cdc` → Bronze
 
