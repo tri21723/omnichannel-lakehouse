@@ -187,3 +187,9 @@ specific to fix 7; it is in fact inherent to any fresh backfill, and the system 
 one replay. `make e2e` now runs three passes (ingest; replay where only the DP3 ledger may change;
 replay where nothing may change) and the workflow timeout is 300 minutes. See the ADR-0013
 addendum.
+
+Hosted run after the fix: `Airflow orchestration e2e` [44477792746](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44477792746) on commit `87e5bac`
+(2026-11-19) succeeded, 13/13 steps: build, `up-orch`, `test-dags`, `smoke-lakehouse`, `smoke-orch`,
+`make e2e` (ingest, converging replay with only the DP3 ledger allowed to change, replay with no
+ledger change) in 2 h 06 min, `restart-orch`, `smoke-orch`; total 2 h 14 min. The previous 150-minute
+timeout would have cancelled it; the workflow now allows 300 minutes.

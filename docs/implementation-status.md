@@ -152,7 +152,9 @@ See [skew benchmark](benchmarks/skew.md), [ADR-0012](adr/0012-skew-benchmark.md)
   ([ADR-0014](adr/0014-iceberg-snapshot-retention.md)) that excludes pinned snapshots and never
   deletes; Graph/Gantt screenshots in `docs/images/phase5/`.
 - Deferred: real snapshot expiry/compaction, DataHub lineage (Phase 9), `dp1_cdc` (Phase 8).
-  Hosted runs of the new workflows are not claimed.
+  Hosted: `Airflow orchestration e2e` green on `87e5bac`
+  ([run 44477792746](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44477792746),
+  2 h 14 min) and `Skew benchmark smoke` green on `3fe9364`.
 
 See [orchestration validation](orchestration-validation.md), [checklist](phase5-checklist.md)
 and [Phase 6 handoff](phase6-handoff.md).

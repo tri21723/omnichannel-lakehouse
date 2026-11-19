@@ -12,4 +12,4 @@ Phase 7 (Streaming với Kafka + Flink) đã hoàn thành local (`v0.7-stream`):
 - [ ] Lập kế hoạch chi tiết Phase 8 (CDC với Debezium) dựa trên [bàn giao Phase 8](docs/phase8-handoff.md)
   và `docs/plan.md`; chưa triển khai.
 - [ ] Chạy thủ công trên GitHub: `Kafka and Flink streaming` (`stream.yml`) và ghi run URL/commit.
-- [ ] Ghi kết quả workflow `Airflow orchestration e2e` (đang chạy trên GitHub, sau bản sửa `87e5bac`).
+- [x] Workflow `Airflow orchestration e2e` xanh trên `87e5bac` ([44477792746](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44477792746), 2 giờ 14 phút).
