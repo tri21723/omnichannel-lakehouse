@@ -65,6 +65,19 @@ EVENTS = {
     "e2e_backfill_created",
     "e2e_summary",
     "query_sample",
+    "stream_smoke_check",
+    "stream_smoke_finished",
+    "stream_job_started",
+    "stream_job_resumed",
+    "stream_job_stopped",
+    "stream_job_running",
+    "stream_published",
+    "stream_publish_skipped",
+    "stream_checked",
+    "stream_verify_check",
+    "stream_verified",
+    "stream_closed",
+    "stream_acceptance_finished",
     "query_smoke_check",
     "query_smoke_finished",
     "query_verify_check",
@@ -88,6 +101,41 @@ ERROR_TYPES = {
 }
 
 # Fixed check names of docker/query/smoke.py and verify.py (no SQL, values or identifiers).
+# Fixed check names of docker/stream/smoke.sh and the stream verifier; channels and job names.
+STREAM_CHECKS = {
+    "kafka_topic",
+    "kafka_partitions",
+    "kafka_produce_consume",
+    "kafka_host_port",
+    "kafka_ui",
+    "flink_slots",
+    "flink_job_s3_write",
+    "flink_user_stream_write",
+    "flink_user_checkpoint_write",
+    "flink_user_denied_raw_outside_stream",
+    "flink_user_denied_lakehouse",
+    "flink_user_denied_manifest_read",
+    "flink_output_files",
+    "smoke_cleanup",
+    "no_secret_in_flink_logs",
+    "committed_files_only",
+    "accepted_unique",
+    "on_time_ids",
+    "late_accepted_ids",
+    "too_late_ids",
+    "windows_final",
+    "event_ids_complete",
+    "accepted_late_disjoint",
+    "windows_match_accepted",
+    "duplicates",
+    "duplicate_ids",
+    "rule_per_record",
+    "rule_per_late_record",
+    "dlq",
+    "nothing_lost",
+    "counts",
+}
+STREAM_NAMES = {"amazon", "tiktok_shop", "amazon_late", "tiktok_dedup"}
 QUERY_CHECKS = {
     "catalogs",
     "iceberg_schemas",
@@ -213,6 +261,17 @@ def safe_events(lines):
             r"[A-Z_]{1,64}", item["error_name"]
         ):
             clean["error_name"] = item["error_name"]
+        if item.get("check") in STREAM_CHECKS:
+            clean["check"] = item["check"]
+        for key in ("channel", "job"):
+            if item.get(key) in STREAM_NAMES:
+                clean[key] = item[key]
+        for key in ("failover", "drain"):
+            if type(item.get(key)) is bool:
+                clean[key] = item[key]
+        for key in ("records", "accepted", "late", "dlq", "duplicates_found"):
+            if type(item.get(key)) is int:
+                clean[key] = item[key]
         if item.get("check") in QUERY_CHECKS:
             clean["check"] = item["check"]
         if isinstance(item.get("reason"), str) and item["reason"] in REASONS:

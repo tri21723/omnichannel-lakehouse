@@ -1,0 +1,34 @@
+name: Kafka and Flink streaming
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      # Deterministic run id of generators/fixtures/stream-small.yaml (seed 7, contract stream-v2).
+      STREAM_RUN_ID: e7a188e49b1e4042ef15
+      STREAM_RUN_DATE: '2026-02-01'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-silver env-stream config-batch config-stream
+      # The Flink image build runs the JUnit tests (rules, parser, dedup TTL harness).
+      - run: make build-generator build-stream
+      - run: make up-stream
+      - run: sh docker/batch/ci_run.sh make smoke-stream
+      # Jobs first, paced publish, drain, strict ground-truth verification, close the run.
+      - run: sh docker/batch/ci_run.sh make stream-acceptance
+      - run: make restart-stream
+      - run: sh docker/batch/ci_run.sh make smoke-stream
+      # Into Bronze: ingest, replay (must skip), verify; batch data stays untouched.
+      - run: make build-batch up-batch
+      - run: sh docker/batch/ci_run.sh make bronze-stream
+      - run: sh docker/batch/ci_run.sh make bronze-stream
+      - run: sh docker/batch/ci_run.sh make bronze-stream BRONZE_STREAM_ARGS=--verify
+      - if: always()
+        run: make down

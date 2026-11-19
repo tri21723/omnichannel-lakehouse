@@ -208,3 +208,33 @@ def test_query_sample_keeps_file_and_error_code_only():
         },
         {"event": "query_sample"},
     ]
+
+
+def test_stream_events_keep_fixed_names_and_counts_only():
+    lines = [
+        json.dumps(
+            {
+                "event": "stream_verify_check",
+                "run_id": "e7a188e49b1e4042ef15",
+                "channel": "amazon",
+                "check": "nothing_lost",
+                "ok": True,
+                "accepted": 2940,
+                "latency_processing_ms": {"p50": 7},
+            }
+        ),
+        json.dumps({"event": "stream_job_started", "job": "amazon_late", "job_id": "x" * 32}),
+        json.dumps({"event": "stream_verify_check", "channel": "s3://secret", "check": "evil"}),
+    ]
+    assert list(module.safe_events(lines)) == [
+        {
+            "event": "stream_verify_check",
+            "run_id": "e7a188e49b1e4042ef15",
+            "channel": "amazon",
+            "check": "nothing_lost",
+            "ok": True,
+            "accepted": 2940,
+        },
+        {"event": "stream_job_started", "job": "amazon_late"},
+        {"event": "stream_verify_check"},
+    ]
