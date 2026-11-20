@@ -1,294 +1,369 @@
 # Omnichannel Lakehouse
 
-Personal project Data Engineering cho e-commerce 5 kênh: Walmart, Amazon,
-TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-end.
+[![Scaffold checks](https://github.com/tri21723/omnichannel-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/tri21723/omnichannel-lakehouse/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+Nền tảng dữ liệu end-to-end cho thương mại điện tử **5 kênh** (Walmart, Amazon, TikTok Shop, Shopee,
+Lazada): batch, streaming và CDC hội tụ vào một lakehouse Apache Iceberg, được mô hình hoá thành star
+schema, feature store và data warehouse, truy vấn bằng Trino, điều phối bằng Airflow và quản trị bằng
+DataHub. Toàn bộ chạy **local bằng Docker Compose**, mỗi thành phần được pin version và có bằng chứng
+kiểm chứng.
+
+> Dự án học tập / portfolio Data Engineering. Tổng quan chi tiết về mọi luồng dữ liệu:
+> **[docs/project-overview.md](docs/project-overview.md)**.
+
+---
+
+## Mục lục
+
+- [Điểm nổi bật](#điểm-nổi-bật)
+- [Kiến trúc](#kiến-trúc)
+- [Công nghệ](#công-nghệ)
+- [Trạng thái](#trạng-thái)
+- [Yêu cầu hệ thống](#yêu-cầu-hệ-thống)
+- [Bắt đầu nhanh](#bắt-đầu-nhanh)
+- [Chạy từng luồng](#chạy-từng-luồng)
+- [Kiểm thử và CI](#kiểm-thử-và-ci)
+- [Cấu trúc repo](#cấu-trúc-repo)
+- [Tài liệu](#tài-liệu)
+- [Đóng góp](#đóng-góp)
+- [Giấy phép](#giấy-phép)
+
+---
+
+## Điểm nổi bật
+
+- **Medallion trên Iceberg v2** (Bronze → Silver → Gold) qua REST catalog Lakekeeper; mọi job
+  **idempotent** (`MERGE` / thay thế theo slice) — chạy lại không nhân đôi dữ liệu.
+- **Ledger và snapshot pin**: mỗi tầng ghi lại chính xác snapshot của tầng trước mà nó đã đọc, nên kết
+  quả tái lập được và lineage kiểm chứng được.
+- **Dữ liệu "khó" có chủ đích**: generator tất định (`--seed`) sinh trùng, trễ, lệch schema, skew và
+  burst — kèm ground truth để đối soát.
+- **Streaming exactly-once** với Flink: event-time, watermark, cửa sổ, dedup có TTL, event quá trễ đi
+  side output/DLQ, phục hồi từ checkpoint.
+- **CDC đúng thứ tự** từ WAL PostgreSQL qua Debezium, áp dụng theo `(lsn, offset)`, xoá mềm, đối soát
+  PostgreSQL ↔ Silver.
+- **Feature store point-in-time** và return label có right-censoring (không rò rỉ nhãn).
+- **Bảo vệ PII**: hash HMAC từ Silver, che cột trong Trino, ingestion metadata không đọc dòng, tag `PII`
+  trong DataHub.
+- **Lineage tự kiểm**: lineage phát từ ledger, assertion G1 fail khi thiếu bất kỳ cạnh nào.
+- **18 ADR**, runbook, tài liệu kiểm chứng theo từng phase, CI với log chỉ in sự kiện trong allowlist.
+
+---
+
+## Kiến trúc
 
 ![System architecture](docs/architecture.svg)
 
-Chi tiết luồng và bản Mermaid: [docs/architecture.md](docs/architecture.md).
-Tổng quan toàn dự án (các luồng, nguyên tắc, cách chạy): [docs/project-overview.md](docs/project-overview.md).
+| Luồng | Đường đi |
+|---|---|
+| **Batch** | JSONL 5 kênh (MinIO) + PostgreSQL JDBC → Spark → Iceberg Bronze/Silver/Gold → PostgreSQL `warehouse` (30 ngày) |
+| **Streaming** | Generator → Kafka → Flink (trễ, trùng, burst) → MinIO → Bronze |
+| **CDC** | WAL PostgreSQL → Debezium → Kafka → Spark `dp1_cdc` → Bronze/Silver |
+| **Query** | Trino (Iceberg REST + PostgreSQL) → DBeaver |
+| **Orchestration** | Airflow điều phối mọi job, một Spark driver tại một thời điểm |
+| **Governance** | DataHub: catalog, lineage, tag/domain/glossary, assertion G1 |
+
+Chi tiết từng luồng, ledger và nguyên tắc thiết kế: [project overview](docs/project-overview.md) ·
+sơ đồ Mermaid: [architecture](docs/architecture.md).
+
+---
+
+## Công nghệ
+
+| Lớp | Công nghệ (đã pin) |
+|---|---|
+| Storage | PostgreSQL 16 · MinIO (S3) |
+| Table format / catalog | Apache Iceberg 1.9.2 · Lakekeeper (REST catalog) |
+| Batch | Apache Spark 3.5.5 (master + 2 worker) |
+| Streaming | Apache Kafka 4.3.2 (KRaft) · Apache Flink 2.2.1 (Java) |
+| CDC | Debezium 3.6.3 (Kafka Connect) |
+| Orchestration | Apache Airflow 3.3.2 |
+| Query | Trino 484 · DBeaver |
+| Governance | DataHub v1.7.0.1 · OpenSearch 2.19.3 |
+| Tooling | Python 3.11 · Docker Compose · GNU Make · ruff/black/sqlfluff/yamllint · pytest |
+| IaC (dự kiến) | Terraform · Ansible |
+
+Lý do chọn và nguồn của từng phiên bản: [ADR-0001](docs/adr/0001-versions.md).
+
+---
 
 ## Trạng thái
 
-Đã có core storage, generator batch/load và Iceberg + Lakekeeper chạy trên Spark cluster.
-Đã có `dp1_bronze` cho JSONL 5 kênh và JDBC Walmart, kèm replay/recovery và đối soát.
-Phase 4B hoàn thành local (`v0.4b-silver`): Silver 5 entity/5 kênh, HMAC PII, quarantine, replay và recovery.
-Phase 4C hoàn thành local (`v0.4c-gold`): Kimball star schema 8 bảng trong `lh.gold`, đối soát tiền tệ `DECIMAL(18,2)`, multi-dataset coexistence và atomic recovery.
-Phase 4D hoàn thành local (`v0.4d-features`): Feature Store (`feat_customer_daily`, `feat_product_daily`) và Return Labels (`lbl_order_return`) trong `lh.gold` với point-in-time dual-timestamp cutoff và maturity right-censoring.
-Phase 4E hoàn thành local (`v0.4e-warehouse`): Downstream Data Warehouse Export (`dp4_warehouse`) đồng bộ cửa sổ trượt 30 ngày sang PostgreSQL `warehouse.*` bằng một giao dịch JDBC nguyên tử (`spark_writer`), giữ nguyên vẹn ràng buộc PK/FK, `NUMERIC(18,2)` và quyền đọc `trino_ro`.
-Phase 4F hoàn thành local (`v0.4f-benchmark`): benchmark skew có kiểm soát (AQE, broadcast, salting,
-partition) trên dataset tới ~1M dòng, 240 trial đều đúng kết quả; giữ cấu hình Spark production
-vì không biến thể nào nhanh hơn ổn định. Phase 4 đã đóng.
-Phase 5 hoàn thành local (`v0.5-orchestration`): Airflow 3.3.2 điều phối toàn chuỗi batch theo ngày
-(`batch_daily`), backfill 3 ngày chạy lại cho cùng kết quả, một Spark driver tại một thời điểm.
-Phase 6 hoàn thành local (`v0.6-query`): Trino 484 chỉ đọc trên Iceberg + PostgreSQL, che PII,
-8 query mẫu, đối soát Trino = Spark = ledger = warehouse, DBeaver/JDBC.
-Phase 7 hoàn thành local (`v0.7-stream`): Kafka 4.3.2 (KRaft) + Flink 2.2.1 (job Java) xử lý
-event trễ, trùng và burst exactly-once, có ground truth, phục hồi từ checkpoint, nạp vào Bronze.
-Phase 8 hoàn thành local (`v0.8-cdc`): Debezium 3.6 đưa thay đổi của `walmart.orders` qua Kafka vào
-Bronze CDC và Silver trạng thái hiện tại (xoá mềm, đúng thứ tự LSN), đối soát PostgreSQL ↔ Silver.
-Phase 9 hoàn thành local (`v0.9-governance`): DataHub 1.7 (dùng lại PostgreSQL và Kafka) catalog
-PostgreSQL, Iceberg, Kafka và Airflow; lineage nguồn → Bronze → Silver → Gold → warehouse (batch, stream,
-CDC) phát từ ledger; tag `PII`, domain, glossary, owner quản lý bằng code; assertion G1.
-Tiếp theo là Phase 10 (AWS, Terraform/Ansible).
+| Phase | Nội dung | Trạng thái |
+|---|---|---|
+| 0–3 | Nền tảng, core storage, generator, Iceberg + Lakekeeper + Spark | ✅ `v0.3-phase3` |
+| 4A–4F | Bronze, Silver, Gold, feature/label, warehouse export, benchmark skew | ✅ `v0.4a-bronze` … `v0.4f-benchmark` |
+| 5 | Airflow orchestration, backfill idempotent | ✅ `v0.5-orchestration` |
+| 6 | Trino query layer chỉ đọc + DBeaver | ✅ `v0.6-query` |
+| 7 | Kafka + Flink streaming | ✅ `v0.7-stream` |
+| 8 | Debezium CDC | ✅ `v0.8-cdc` |
+| 9 | DataHub governance | ✅ `v0.9-governance` |
+| 10 | AWS với Terraform + Ansible | ⏸️ tạm hoãn (chi phí) |
+| 11 | Hoàn thiện & portfolio (observability, demo) | ⬜ chưa bắt đầu |
+
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md) · [Phase 7](docs/phase7-checklist.md) · [Streaming](docs/streaming-validation.md) · [Bàn giao Phase 8](docs/phase8-handoff.md) · [Phase 8](docs/phase8-checklist.md) · [CDC](docs/cdc-validation.md) · [Bàn giao Phase 9](docs/phase9-handoff.md) · [Phase 9](docs/phase9-checklist.md) · [Governance](docs/governance-validation.md) · [Bàn giao Phase 10](docs/phase10-handoff.md).
 
-## Bắt đầu phát triển
+---
 
-Cần Python 3.11 và GNU Make. Python 3.12 được hỗ trợ cho scaffold checks.
+## Yêu cầu hệ thống
+
+- Docker Engine hoặc Docker Desktop có Compose v2; internet cho lần build đầu.
+- Python 3.11 (3.12 được hỗ trợ cho kiểm tra scaffold) và GNU Make.
+- RAM: **16 GB tối thiểu**, 32 GB thoải mái. Mỗi cụm là một profile riêng — **không bật tất cả cùng
+  lúc** (bảng RAM theo profile trong [project overview](docs/project-overview.md#4-hạ-tầng-local)).
+- WSL2 được hỗ trợ (xem [runbook](docs/runbook.md) về Docker credential helper).
+
+---
+
+## Bắt đầu nhanh
 
 ```sh
-make setup
-make env
-make check
-make help
+git clone https://github.com/tri21723/omnichannel-lakehouse.git
+cd omnichannel-lakehouse
+
+make setup               # virtualenv + công cụ dev đã pin
+make env                 # sinh .env với credential ngẫu nhiên (không commit)
+make check               # lint + unit test, không cần Docker
+make help                # liệt kê mọi lệnh
 ```
 
-`make setup` cài công cụ phát triển vào `.venv`. `make env` tạo `.env` nếu chưa có.
-Các target batch/stream chưa triển khai sẽ báo lỗi rõ ràng. Không cần Docker để chạy unit test.
-
-## Chạy core storage
-
-Cần Docker Engine/Desktop với Compose và kết nối internet cho lần build đầu.
+Dựng core storage và sinh dữ liệu nguồn:
 
 ```sh
-make env
-make up-core
-make smoke-core
-make init-core
-make restart-core
-make verify-persistence-core
-```
-
-PostgreSQL: `localhost:5432`; MinIO API: `localhost:9000`; console: `localhost:9001`.
-Credential được sinh ngẫu nhiên trong `.env`, không ghi vào Git. `make down` giữ volume.
-MinIO build từ source release đã pin vì image public không tải được; lần đầu có thể
-mất vài phút. Xem [runbook](docs/runbook.md) để xử lý Docker credential helper trong WSL.
-
-## Sinh dữ liệu nguồn
-
-Sau khi core chạy, thực hiện:
-
-```sh
+make up-core smoke-core  # PostgreSQL :5432, MinIO :9000 (console :9001)
 make build-generator
-make gen-sources
+make gen-sources         # 15.600 dòng JSONL (15.000 đơn) trên MinIO + 3.000 đơn Walmart trong PostgreSQL
 make verify-sources
 ```
 
-Nếu đã cài core từ trước, chạy `make init-core` để bổ sung quyền bảng tạm cho generator.
-Dataset mặc định có 15.600 dòng JSONL trên MinIO (15.000 đơn duy nhất) và 3.000 đơn
-Walmart trong PostgreSQL. Chạy lại cùng config không nhân đôi dữ liệu.
-
-[Hướng dẫn generator](docs/generators.md) · [Kết quả kiểm chứng](docs/generator-validation.md).
-Streaming và Airflow chưa triển khai; Spark Bronze/Silver đã chạy local.
-
-## Chạy Lakehouse (Phase 3)
+Dựng lakehouse và chạy pipeline batch trên fixture nhỏ:
 
 ```sh
-make env-batch
-make build-batch
-make up-batch
-make smoke-lakehouse
-make restart-lakehouse
-make verify-lakehouse
-make verify-objects-lakehouse
+make env-silver build-batch up-batch   # Lakekeeper :8181, Spark :7077 / UI :8080
+make prepare-silver-fixture            # fixture 375 đơn + Bronze
+make integration-silver                # Silver
+make smoke-gold smoke-features smoke-labels smoke-warehouse   # Gold → feature/label → warehouse
 ```
 
-Lakekeeper: http://localhost:8181/ui/ · Spark master UI: http://localhost:8080.
-`make down` dừng core + batch, giữ volume. Chạy các lệnh smoke/verify tuần tự.
-Chi tiết: [runbook](docs/runbook.md), [bằng chứng kiểm thử](docs/lakehouse-validation.md),
-[hợp đồng Bronze giai đoạn sau](docs/bronze-contract.md).
+`make down` dừng mọi dịch vụ và **giữ volume**. Credential nằm trong `.env`; các lệnh smoke/verify
+chạy tuần tự (không chạy song song nhiều Spark driver).
 
-## Chạy Silver (Phase 4B)
+---
+
+## Chạy từng luồng
+
+<details>
+<summary><b>Lakehouse và Bronze (Phase 3, 4A)</b></summary>
 
 ```sh
-make env-silver
-make build-generator build-batch
-make up-batch
-make prepare-silver-fixture
-make integration-silver
-make test-silver-dq
-make test-silver-recovery
-make reconcile-silver
-make verify-silver
+make env-batch build-batch up-batch
+make smoke-lakehouse restart-lakehouse verify-lakehouse verify-objects-lakehouse
+make smoke-bronze        # Walmart JSONL + 5 bảng JDBC, replay và đối soát
 ```
 
-Chạy tuần tự trên fixture riêng (375 orders). Dataset mặc định 15.000 orders dùng
-`make integration-silver-reference`, sau khi đã ingest đủ Bronze như runbook.
-`make verify-silver` chỉ đọc snapshots trong completed ledger; không publish lại.
-Giữ nguyên HMAC key/version trong `.env` khi replay. Xem
-[validation](docs/silver-validation.md), [runbook](docs/runbook.md) và
-[Gold handoff](docs/gold-handoff.md).
+Lakekeeper UI: http://localhost:8181/ui/ · Spark UI: http://localhost:8080.
+Bronze giữ nguyên payload (`_raw`), thêm cột audit, ghi completion record sau khi đối soát.
+[Bronze contract](docs/bronze-contract.md) · [ADR-0007](docs/adr/0007-bronze-ingestion.md) ·
+[lakehouse validation](docs/lakehouse-validation.md) · [Bronze validation](docs/bronze-validation.md)
+</details>
 
-## Chạy Gold (Phase 4C)
+<details>
+<summary><b>Silver (Phase 4B)</b></summary>
 
 ```sh
-make smoke-gold
-make verify-gold
-make test-gold-dq GOLD_RUN_ID=186ae107d0793d2ee237
-make test-gold-dq GOLD_RUN_ID=b1e64afaff0176de180a
-make reconcile-gold GOLD_RUN_ID=186ae107d0793d2ee237
-make reconcile-gold GOLD_RUN_ID=b1e64afaff0176de180a
+make env-silver build-generator build-batch up-batch
+make prepare-silver-fixture integration-silver
+make test-silver-dq test-silver-recovery reconcile-silver verify-silver
+make integration-silver-reference      # dataset mặc định 15.000 đơn (sau khi đủ Bronze)
+```
+
+5 entity × 5 kênh, dedup theo `updated_ts` + hash chuẩn hoá, PII → HMAC, bản ghi lỗi vào
+`quarantine_*`. Giữ nguyên HMAC key/version trong `.env` khi replay.
+[ADR-0008](docs/adr/0008-silver-contract.md) · [Silver validation](docs/silver-validation.md)
+</details>
+
+<details>
+<summary><b>Gold, feature/label, warehouse (Phase 4C–4E)</b></summary>
+
+```sh
+make smoke-gold verify-gold
+make test-gold-dq reconcile-gold GOLD_RUN_ID=186ae107d0793d2ee237
 make test-gold-recovery
+
+make smoke-features verify-features smoke-labels verify-labels
+make integration-dp3 test-dp3-dq DP3_RUN_ID=186ae107d0793d2ee237 test-dp3-recovery
+
+make smoke-warehouse verify-warehouse reconcile-warehouse
+make test-warehouse-dq test-warehouse-recovery
 ```
 
-Cả hai dataset (small fixture 375 đơn và default reference 15.000 đơn) cùng tồn tại
-trong `lh.gold.*` (tổng 15.375 đơn). Đối soát tiền tệ `DECIMAL(18,2)` khớp tuyệt đối
-giữa Gold, Silver và Bronze. Xem [Gold validation](docs/gold-validation.md) và
-[Handoff Phase 4D/4E](docs/features-warehouse-handoff.md).
+- **Gold:** star schema 8 bảng, surrogate key SHA-256, tiền tệ `DECIMAL(18,2)` khớp tuyệt đối với
+  Silver/Bronze. [ADR-0009](docs/adr/0009-gold-star-schema.md) · [Gold validation](docs/gold-validation.md)
+- **DP3:** `feat_customer_daily`, `feat_product_daily`, `lbl_order_return` với cutoff point-in-time và
+  maturity censoring. [ADR-0010](docs/adr/0010-features-and-return-labels.md) · [DP3 validation](docs/dp3-validation.md)
+- **Warehouse:** cửa sổ 30 ngày UTC sang PostgreSQL `warehouse.*` trong một giao dịch JDBC.
+  [ADR-0011](docs/adr/0011-warehouse-export.md) · [warehouse validation](docs/warehouse-validation.md)
+</details>
 
-## Chạy Feature Store & Return Labels (Phase 4D)
-
-```sh
-make smoke-features
-make verify-features
-make smoke-labels
-make verify-labels
-make integration-dp3
-make test-dp3-dq DP3_RUN_ID=186ae107d0793d2ee237
-make test-dp3-dq DP3_RUN_ID=b1e64afaff0176de180a
-make test-dp3-recovery
-```
-
-Xuất bản `lh.gold.feat_customer_daily`, `lh.gold.feat_product_daily` và `lh.gold.lbl_order_return`
-với ledger độc lập tại `/runtime/dp3/publication/ledger.json`. Đảm bảo point-in-time cutoff kép
-(`order_ts < as_of_ts` và `return_ts < as_of_ts`) và maturity censoring (`is_mature = false` → `is_returned IS NULL`).
-Xem [ADR-0010](docs/adr/0010-features-and-return-labels.md) và [DP3 validation](docs/dp3-validation.md).
-
-## Chạy Data Warehouse Export (Phase 4E)
+<details>
+<summary><b>Airflow (Phase 5)</b></summary>
 
 ```sh
-make smoke-warehouse
-make verify-warehouse
-make integration-warehouse
-make reconcile-warehouse
-make test-warehouse-dq
-make test-warehouse-recovery
-```
-
-Đồng bộ cửa sổ trượt 30 ngày `[run_date - 29 days, run_date + 1 day)` UTC của 8 bảng Gold
-từ snapshot đã pin sang PostgreSQL database `sources`, schema `warehouse.*` trong một
-giao dịch JDBC nguyên tử (`spark_writer`), bảo toàn `NUMERIC(18,2)`, PII hash và quyền đọc
-cho `trino_ro` cùng ledger độc lập `/runtime/warehouse/export/ledger.json`. Xem
-[ADR-0011](docs/adr/0011-warehouse-export.md) và [Warehouse validation](docs/warehouse-validation.md).
-
-## Chạy Airflow (Phase 5)
-
-```sh
-make env-orch
-make build-orch
-make up-orch            # UI: http://localhost:8081 (admin / AIRFLOW_ADMIN_PASSWORD trong .env)
-make smoke-orch
-make test-dags
-make e2e                # backfill batch_daily 2026-01-01..03 hai lần qua Airflow
+make env-orch build-orch
+make up-orch             # UI http://localhost:8081 — admin / AIRFLOW_ADMIN_PASSWORD trong .env
+make smoke-orch test-dags
+make e2e                 # backfill batch_daily 2026-01-01..03, chạy lại cho cùng kết quả
 ```
 
 ![batch_daily graph](docs/images/phase5/batch_daily-graph.png)
 
-Mỗi job có một DAG cùng tên (`dp1_bronze` … `dp4_warehouse`); `batch_daily` gọi lần lượt cho cùng
-ngày logic. `maintenance_iceberg` chỉ báo cáo snapshot có thể dọn (không xóa gì, ADR-0014);
-chạy tay bằng `make iceberg-report`. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
-Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
-[kiểm chứng](docs/orchestration-validation.md).
+Mỗi job một DAG cùng tên (`dp1_bronze` … `dp4_warehouse`); `batch_daily` gọi lần lượt cho cùng ngày
+logic. Airflow là Spark driver (client mode), dùng chung ledger và khoá driver với `make`.
+`maintenance_iceberg` chỉ báo cáo (`make iceberg-report`).
+[ADR-0013](docs/adr/0013-airflow-orchestration.md) · [orchestration validation](docs/orchestration-validation.md)
+</details>
 
-## Chạy DataHub (Phase 9)
-
-```sh
-make up-gov              # core + Lakekeeper + Kafka + DataHub (OpenSearch, GMS không port host, UI 127.0.0.1:9002)
-make smoke-gov           # 15 kiểm tra: health, đăng nhập, ghi/đọc/xoá entity thử, topic, quyền chỉ đọc, secret
-make gov-refresh         # 3 recipe chỉ đọc + lineage từ ledger + lineage job Airflow + metadata-as-code
-make gov-assert          # G1: Gold ← Silver ← Bronze ← nguồn, warehouse ← Gold, stream, CDC, cạnh ledger + drift metadata
-make gov-idempotency     # chạy lại toàn bộ, inventory phải giống hệt
-```
-
-Đăng nhập UI bằng user `datahub`, mật khẩu sinh ra trong `.local-data/governance/user.props`
-(không commit). DataHub nặng ~3,5 GiB: chỉ chạy cùng core + Kafka (`make up-gov-orch` thêm Airflow cho
-DAG `datahub_ingest`), không cùng Spark/Flink/Trino. Ingestion không đọc dòng dữ liệu (role
-`datahub_ro` không có SELECT, tắt profiling). Thiết kế: [ADR-0018](docs/adr/0018-governance-datahub.md);
-bằng chứng và ảnh lineage: [governance validation](docs/governance-validation.md).
-
-## Chạy CDC (Phase 8)
+<details>
+<summary><b>Trino + DBeaver (Phase 6)</b></summary>
 
 ```sh
-make up-cdc              # PostgreSQL, Kafka, Kafka Connect + Debezium (không port host), đăng ký connector
-make smoke-cdc           # slot, snapshot, chuỗi c/u/u/d theo thứ tự, không lộ secret, batch guard
-make up-batch            # Spark cho dp1_cdc
-make gen-cdc             # kịch bản INSERT/UPDATE/DELETE trên tiền tố riêng (không đụng 3 dataset batch)
-make bronze-cdc silver-cdc verify-cdc   # Kafka → Bronze → Silver hiện trạng → đối soát PostgreSQL
-make cdc-slot-lag        # giám sát replication slot
-```
-
-Connector chỉ bắt `walmart.orders` (không bắt `customers` có PII), tiền tệ dạng chuỗi decimal chính
-xác; Bronze ghi bằng MERGE theo toạ độ Kafka nên chạy lại/replay không nhân đôi; Silver chỉ nhận bản
-mới hơn theo `(lsn, offset)`. DAG `dp1_cdc` chạy mỗi 10 phút (pause khi tạo). Thiết kế:
-[ADR-0017](docs/adr/0017-cdc-debezium.md); bằng chứng: [CDC validation](docs/cdc-validation.md).
-
-## Chạy streaming (Phase 7)
-
-```sh
-make up-stream           # PostgreSQL, MinIO, Kafka 127.0.0.1:9092, kafka-ui :8085, Flink :8082 (không cần Spark/Airflow/Trino)
-make smoke-stream        # topic, Flink ghi S3 qua plugin, quyền user flink, không lộ secret
-make stream-acceptance   # job chạy trước, publish 6.312 record (50 rec/s), drain, đối soát ground truth, đóng run
-make bronze-stream STREAM_RUN_ID=e7a188e49b1e4042ef15 STREAM_RUN_DATE=2026-02-01   # cần up-batch
-```
-
-Generator stream tất định (`generators/stream.yaml`) ghi ground truth vào
-`s3://raw/manifests/<run>/`; job `amazon_late` (watermark 2 phút, window 5 phút, cho trễ 20 phút,
-event quá trễ ra nhánh `late`) và `tiktok_dedup` (loại trùng theo `event_id`, TTL 30 phút) ghi JSON
-Lines vào `s3://raw/stream/`, record hỏng vào DLQ Kafka. Thiết kế:
-[ADR-0016](docs/adr/0016-streaming-kafka-flink.md); bằng chứng:
-[streaming validation](docs/streaming-validation.md); số liệu: [benchmark](docs/benchmarks/streaming.md).
-
-## Chạy Trino (Phase 6)
-
-```sh
-make up-query            # PostgreSQL, MinIO, Lakekeeper, Trino 127.0.0.1:8083 (không cần Spark/Airflow)
+make up-query            # Trino 127.0.0.1:8083 (không cần Spark/Airflow)
 make smoke-query         # catalog, PII bị che, mọi lệnh ghi bị từ chối
 make query-samples       # 8 query mẫu × mọi dataset
-make verify-query        # cần thêm up-batch: Trino = Spark = ledger = warehouse
+make verify-query        # cần up-batch: Trino = Spark = ledger = warehouse
 make query-sql SQL=sql/trino/02_top_sellers.sql PARAMS='dataset_run_id=b1e64afaff0176de180a'
 ```
 
-Trino chỉ đọc (`iceberg.silver`, `iceberg.gold`, `postgresql.walmart`, `postgresql.warehouse`);
-`iceberg.bronze` (PII thô) và `iceberg.benchmark` bị ẩn, `walmart.customers.full_name/email` hiển
-thị `[redacted]`. Kết nối DBeaver: [docs/dbeaver.md](docs/dbeaver.md). Thiết kế:
-[ADR-0015](docs/adr/0015-trino-query-layer.md); bằng chứng: [query validation](docs/query-validation.md).
+Chỉ đọc `iceberg.silver`, `iceberg.gold`, `postgresql.walmart`, `postgresql.warehouse`; Bronze và
+benchmark bị ẩn; `full_name`/`email` hiển thị `[redacted]`. Kết nối DBeaver: [docs/dbeaver.md](docs/dbeaver.md).
+[ADR-0015](docs/adr/0015-trino-query-layer.md) · [query validation](docs/query-validation.md)
+</details>
 
-## Benchmark data skew (Phase 4F)
+<details>
+<summary><b>Streaming với Kafka + Flink (Phase 7)</b></summary>
 
 ```sh
-make test-benchmark
-make benchmark-dataset
-make verify-benchmark-dataset
-make benchmark-skew BENCH_CONFIG=smoke      # matrix-100k | matrix-1m | focus-1m | ci
-make verify-benchmark BENCH_CONFIG=smoke
-make report-benchmark BENCH_CONFIG=smoke
+make up-stream           # Kafka 127.0.0.1:9092, kafka-ui :8085, Flink :8082
+make smoke-stream
+make stream-acceptance   # chạy job, publish 6.312 record (50 rec/s), drain, đối soát ground truth, đóng run
+make bronze-stream STREAM_RUN_ID=e7a188e49b1e4042ef15 STREAM_RUN_DATE=2026-02-01   # cần up-batch
 ```
 
-Dataset benchmark được nhân bản tất định từ Gold đã pin (`lh.benchmark.*`, không phải ingestion
-end-to-end), mỗi trial là một Spark application riêng, so sánh với B0 bằng `exceptAll` và tổng
-DECIMAL. Không ghi Gold/ledger nghiệp vụ. Xem [kết quả](docs/benchmarks/skew.md),
-[ADR-0012](docs/adr/0012-skew-benchmark.md) và [runbook](docs/runbook.md).
+`amazon_late`: watermark 2 phút, cửa sổ 5 phút, cho trễ 20 phút, event quá trễ ra nhánh riêng.
+`tiktok_dedup`: loại trùng theo `event_id`, TTL 30 phút. Record hỏng vào DLQ.
+[ADR-0016](docs/adr/0016-streaming-kafka-flink.md) · [streaming validation](docs/streaming-validation.md) ·
+[benchmark](docs/benchmarks/streaming.md)
+</details>
 
-## Kiến trúc và source
+<details>
+<summary><b>CDC với Debezium (Phase 8)</b></summary>
 
-- `generators/`: dữ liệu batch, OLTP load, stream và cấu hình tái lập.
-- `spark/`: Bronze → Silver → Gold, feature/label và CDC.
-- `flink/`: event-time, late event, dedup, burst.
-- `airflow/`: DAG điều phối và kiểm thử.
-- `docker/`: Compose và image theo từng phase.
-- `sql/`: PostgreSQL, Iceberg, Trino.
-- `datahub/`: metadata ingestion và lineage.
-- `infra/`: Terraform và Ansible.
-- `observability/`: cấu hình metrics/dashboard theo phase.
-- `docs/`: [plan gốc](docs/plan.md), [data model](docs/data-model.md),
-  [ADR](docs/adr/), [runbook](docs/runbook.md), benchmarks.
+```sh
+make up-cdc smoke-cdc    # Kafka Connect + Debezium (không port host), slot, snapshot, thứ tự c/u/u/d
+make up-batch
+make gen-cdc             # INSERT/UPDATE/DELETE trên tiền tố id riêng (không đụng dataset batch)
+make bronze-cdc silver-cdc verify-cdc   # Kafka → Bronze → Silver hiện trạng → đối soát PostgreSQL
+make cdc-slot-lag cdc-batch-guard
+```
 
-Ưu tiên Walmart batch → Iceberg Gold → Trino, sau đó Airflow và các kênh còn lại.
-Streaming, CDC, governance và AWS triển khai sau MVP batch.
-Các điểm làm rõ so với plan được ghi riêng trong ADR; plan gốc được giữ nguyên.
+Chỉ bắt `walmart.orders` (không bắt `customers` có PII); Bronze `MERGE` theo toạ độ Kafka; Silver chỉ
+nhận bản mới hơn theo `(lsn, offset)`, xoá mềm. DAG `dp1_cdc` chạy mỗi 10 phút.
+[ADR-0017](docs/adr/0017-cdc-debezium.md) · [CDC validation](docs/cdc-validation.md)
+</details>
 
-Bronze Phase 4A: `make smoke-bronze` exercises Walmart JSONL and all
-5 JDBC tables with replay and verification. See [Bronze validation](docs/bronze-validation.md)
-and [runbook](docs/runbook.md); kết quả kiểm chứng chi tiết được lưu trong báo cáo validation.
+<details>
+<summary><b>DataHub governance (Phase 9)</b></summary>
+
+```sh
+make up-gov              # core + Lakekeeper + Kafka + DataHub; UI http://127.0.0.1:9002
+make smoke-gov           # 15 kiểm tra: health, đăng nhập, ghi/đọc/xoá entity thử, quyền chỉ đọc, secret
+make gov-refresh         # 3 recipe chỉ đọc + lineage từ ledger + lineage job Airflow + metadata-as-code
+make gov-assert          # G1: nguồn → Bronze → Silver → Gold → warehouse, stream, CDC + drift metadata
+make gov-idempotency     # chạy lại toàn bộ, inventory phải giống hệt
+```
+
+![DataHub lineage](docs/images/phase9/lineage-warehouse-fact-orders.png)
+
+Đăng nhập bằng user `datahub`, mật khẩu sinh trong `.local-data/governance/user.props`. DataHub cần
+~3,5 GiB: chỉ chạy cùng core + Kafka (`make up-gov-orch` thêm Airflow cho DAG `datahub_ingest`).
+[ADR-0018](docs/adr/0018-governance-datahub.md) · [governance validation](docs/governance-validation.md)
+</details>
+
+<details>
+<summary><b>Benchmark data skew (Phase 4F)</b></summary>
+
+```sh
+make test-benchmark benchmark-dataset verify-benchmark-dataset
+make benchmark-skew BENCH_CONFIG=smoke      # smoke | matrix-100k | matrix-1m | focus-1m | ci
+make verify-benchmark report-benchmark BENCH_CONFIG=smoke
+```
+
+So sánh AQE, broadcast, salting, partitioning trên dataset tới ~1M dòng; 240 trial đều đúng kết quả.
+[kết quả](docs/benchmarks/skew.md) · [ADR-0012](docs/adr/0012-skew-benchmark.md)
+</details>
+
+---
+
+## Kiểm thử và CI
+
+| Mức | Lệnh / nơi chạy | Nội dung |
+|---|---|---|
+| Lint + unit | `make check` | ruff, black, sqlfluff, yamllint; hơn 300 test pytest (không cần Docker) |
+| DAG | `make test-dags` | DagBag và contract DAG trong image Airflow |
+| Tích hợp | `smoke-*`, `verify-*`, `integration-*`, `test-*-recovery` | chạy trên stack thật, tuần tự |
+| CI tự động | [`ci.yml`](.github/workflows/ci.yml) | Scaffold checks mỗi lần push |
+| CI thủ công | [`.github/workflows/`](.github/workflows/) | `lakehouse`, `bronze`, `silver`, `gold-dp3`, `warehouse`, `benchmark`, `orchestration`, `query`, `stream`, `cdc`, `governance` |
+
+Log CI chỉ in sự kiện JSON trong allowlist (tên check, số đếm, hash) — không in log thô hay dữ liệu.
+Các workflow mới (từ Phase 7) được tái hiện trên một Compose project tách biệt trước khi chạy trên GitHub.
+
+---
+
+## Cấu trúc repo
+
+```text
+docker/          compose theo profile, Dockerfile (images/), script smoke/init
+generators/      batch, load, stream, cdc + cấu hình YAML tái lập
+spark/           jobs/ (dp1_bronze, dp2_silver, dp3_*, dp4_warehouse, dp1_cdc), lib/, tests/
+flink/           jobs/ (Java: amazon_late, tiktok_dedup)
+airflow/         dags/, plugins/, tests/
+sql/             postgres/ (DDL), iceberg/ (contract), trino/ (query mẫu)
+datahub/         recipes/, lineage/, metadata/, assertions/
+infra/           terraform/, ansible/ (Phase 10)
+observability/   metrics/dashboard (Phase 11)
+docs/            ADR, data model, runbook, validation, benchmarks
+```
+
+---
+
+## Tài liệu
+
+| Chủ đề | Tài liệu |
+|---|---|
+| Tổng quan | [project overview](docs/project-overview.md) · [kiến trúc](docs/architecture.md) · [plan gốc](docs/plan.md) · [trạng thái](docs/implementation-status.md) |
+| Hợp đồng dữ liệu | [data model](docs/data-model.md) · [Bronze contract](docs/bronze-contract.md) · [generators](docs/generators.md) |
+| Quyết định kỹ thuật | [ADR-0001 → ADR-0018](docs/adr/) |
+| Vận hành | [runbook](docs/runbook.md) · [DBeaver](docs/dbeaver.md) |
+| Kiểm chứng | [core](docs/core-validation.md) · [generator](docs/generator-validation.md) · [lakehouse](docs/lakehouse-validation.md) · [Bronze](docs/bronze-validation.md) · [Silver](docs/silver-validation.md) · [Gold](docs/gold-validation.md) · [DP3](docs/dp3-validation.md) · [warehouse](docs/warehouse-validation.md) · [orchestration](docs/orchestration-validation.md) · [query](docs/query-validation.md) · [streaming](docs/streaming-validation.md) · [CDC](docs/cdc-validation.md) · [governance](docs/governance-validation.md) |
+| Benchmark | [skew](docs/benchmarks/skew.md) · [streaming](docs/benchmarks/streaming.md) |
+| Checklist các phase | [3](docs/phase3-checklist.md) · [4A](docs/phase4a-checklist.md) · [4B](docs/phase4b-checklist.md) · [4C](docs/phase4c-checklist.md) · [4D](docs/phase4d-checklist.md) · [4E](docs/phase4e-checklist.md) · [4F](docs/phase4f-checklist.md) · [5](docs/phase5-checklist.md) · [6](docs/phase6-checklist.md) · [7](docs/phase7-checklist.md) · [8](docs/phase8-checklist.md) · [9](docs/phase9-checklist.md) |
+| Bàn giao | [Gold](docs/gold-handoff.md) · [4D/4E](docs/features-warehouse-handoff.md) · [5](docs/phase5-handoff.md) · [6](docs/phase6-handoff.md) · [7](docs/phase7-handoff.md) · [8](docs/phase8-handoff.md) · [9](docs/phase9-handoff.md) · [10](docs/phase10-handoff.md) |
+
+---
+
+## Đóng góp
+
+- Quy tắc làm việc (cấu trúc, port, idempotency, PII, Definition of Done): [AGENTS.md](AGENTS.md).
+- Commit theo [Conventional Commits](https://www.conventionalcommits.org/) (`feat(spark): …`,
+  `fix(flink): …`, `docs: …`); chỉ commit khi `make check` xanh.
+- Quyết định kỹ thuật quan trọng → một ADR ngắn trong `docs/adr/`; plan gốc giữ nguyên.
+- Không commit `.env`, `.local-data/`, dữ liệu hay secret.
+
+---
+
+## Giấy phép
+
+[MIT](LICENSE) © 2026 Nguyen Minh Tri. Logo công nghệ trong sơ đồ kiến trúc thuộc chủ sở hữu tương ứng,
+chỉ dùng để nhận diện (nguồn: [docs/architecture.md](docs/architecture.md)).
