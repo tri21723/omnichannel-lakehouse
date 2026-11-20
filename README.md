@@ -53,9 +53,10 @@ kiểm chứng.
 
 ## Kiến trúc
 
-![Kiến trúc hiện tại](docs/architecture-current.svg)
+![Kiến trúc hệ thống](docs/images/architecture-current.png)
 
-*Hệ thống hoàn chỉnh (v0.9-governance); màu viền theo profile Docker Compose.*
+*Hệ thống hoàn chỉnh (v0.9-governance); màu viền theo profile Docker Compose. Nguồn draw.io để chỉnh:
+[docs/architecture-current.drawio](docs/architecture-current.drawio).*
 
 | Luồng | Đường đi |
 |---|---|

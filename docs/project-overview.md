@@ -54,7 +54,7 @@ Nguồn và lý do chọn từng phiên bản: [ADR-0001](adr/0001-versions.md).
 
 ## 3. Kiến trúc tổng thể
 
-![Kiến trúc hiện tại](architecture-current.svg)
+![Kiến trúc hệ thống](images/architecture-current.png)
 
 Hình trên là hệ thống hoàn chỉnh: màu viền theo profile Compose, chia làn batch / CDC / streaming.
 

@@ -2,7 +2,11 @@
 
 ## Hệ thống hiện tại
 
-![Kiến trúc hiện tại](architecture-current.svg)
+![Kiến trúc hệ thống](images/architecture-current.png)
+
+Nguồn: [architecture-current.drawio](architecture-current.drawio) (mở bằng draw.io / app.diagrams.net hoặc
+extension draw.io của VS Code; logo được nhúng sẵn trong file). Bản SVG vẽ tay tương đương:
+[architecture-current.svg](architecture-current.svg).
 
 Chỉ gồm thành phần đã triển khai và kiểm chứng (đến `v0.9-governance`); màu viền là profile Docker
 Compose, ba làn batch / CDC / streaming, tên job, bảng, topic và cổng đúng như trong repo. Cập nhật
@@ -28,6 +32,8 @@ tương ứng và chỉ dùng để nhận diện công nghệ:
   (`datahub-project/datahub`), Debezium (`debezium/debezium.github.io`, cắt phần biểu tượng),
   Apache Iceberg (`apache/iceberg`, `iceberg-logo-icon.png`), Lakekeeper
   (`lakekeeper/lakekeeper`).
+- Python (bản draw.io): biểu tượng `Logo_Python` của IBM Carbon Icons (Apache-2.0), lấy qua icon
+  service của draw.io; bản draw.io dùng lại đúng các logo trên, nhúng dạng data URI.
 
 ## Bản rút gọn (Mermaid)
 
