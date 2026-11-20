@@ -1,6 +1,16 @@
 # Kiến trúc hệ thống
 
-Sơ đồ chi tiết (kiến trúc đích, dùng trong README):
+## Hệ thống hiện tại
+
+![Kiến trúc hiện tại](architecture-current.svg)
+
+Chỉ gồm thành phần đã triển khai và kiểm chứng (đến `v0.9-governance`); màu viền là profile Docker
+Compose, ba làn batch / CDC / streaming, tên job, bảng, topic và cổng đúng như trong repo. Cập nhật
+hình này khi thêm hoặc đổi một thành phần.
+
+## Kiến trúc đích
+
+Sơ đồ chi tiết (kiến trúc đích, gồm cả phần chưa triển khai như AWS):
 
 ![System architecture](architecture.svg)
 

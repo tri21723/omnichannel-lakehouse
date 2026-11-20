@@ -55,7 +55,10 @@ Nguồn và lý do chọn từng phiên bản: [ADR-0001](adr/0001-versions.md).
 
 ## 3. Kiến trúc tổng thể
 
-![System architecture](architecture.svg)
+![Kiến trúc hiện tại](architecture-current.svg)
+
+Hình trên là hệ thống đang chạy: chỉ gồm thành phần đã triển khai, màu viền theo profile Compose,
+chia làn batch / CDC / streaming. Kiến trúc đích (gồm AWS) nằm ở [architecture.svg](architecture.svg).
 
 Toàn bộ luồng dữ liệu, rút gọn:
 

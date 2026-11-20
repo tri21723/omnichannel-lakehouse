@@ -53,7 +53,10 @@ kiểm chứng.
 
 ## Kiến trúc
 
-![System architecture](docs/architecture.svg)
+![Kiến trúc hiện tại](docs/architecture-current.svg)
+
+*Hệ thống đang chạy (v0.9-governance), màu viền theo profile Docker Compose. Kiến trúc đích, gồm cả
+AWS/Terraform: [docs/architecture.svg](docs/architecture.svg).*
 
 | Luồng | Đường đi |
 |---|---|
