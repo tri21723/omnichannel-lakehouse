@@ -15,8 +15,7 @@ TikTok Shop, Shopee, Lazada) đổ dữ liệu vào một lakehouse chung, đư�
 star schema, sinh feature cho ML, xuất sang data warehouse, truy vấn bằng SQL và được quản trị
 (catalog, lineage, PII).
 
-Toàn bộ hệ thống **chạy local bằng Docker Compose**; phần AWS (Phase 10)
-đang tạm hoãn vì chi phí.
+Toàn bộ hệ thống **chạy local bằng Docker Compose**.
 
 Các bài toán kỹ thuật chính mà dự án chứng minh được:
 
@@ -57,8 +56,7 @@ Nguồn và lý do chọn từng phiên bản: [ADR-0001](adr/0001-versions.md).
 
 ![Kiến trúc hiện tại](architecture-current.svg)
 
-Hình trên là hệ thống đang chạy: chỉ gồm thành phần đã triển khai, màu viền theo profile Compose,
-chia làn batch / CDC / streaming. Kiến trúc đích (gồm AWS) nằm ở [architecture.svg](architecture.svg).
+Hình trên là hệ thống hoàn chỉnh: màu viền theo profile Compose, chia làn batch / CDC / streaming.
 
 Toàn bộ luồng dữ liệu, rút gọn:
 
@@ -431,8 +429,6 @@ flink/           jobs/ (Java: amazon_late, tiktok_dedup)
 airflow/         dags/, plugins/omnichannel/, tests/
 sql/             postgres/ (DDL nguồn + warehouse), iceberg/ (contract), trino/ (query mẫu)
 datahub/         recipes/, lineage/, metadata/, assertions/, tools/, requirements.lock
-infra/           terraform/, ansible/ (khung rỗng, Phase 10)
-observability/   (chưa triển khai)
 docs/            adr/, *-validation.md, phase*-checklist.md, runbook, data-model, benchmarks/
 ```
 
@@ -474,12 +470,9 @@ Hướng dẫn chi tiết từng luồng nằm trong [README](../README.md); x�
 | 7 | Kafka + Flink | xong | `v0.7-stream` |
 | 8 | Debezium CDC | xong | `v0.8-cdc` |
 | 9 | DataHub governance | xong | `v0.9-governance` |
-| 10 | AWS (Terraform + Ansible) | **tạm hoãn** (chi phí) | — |
-| 11 | Hoàn thiện: observability, bảo trì Iceberg, demo | chưa bắt đầu | — |
 
-Còn để sau: observability (Prometheus/Grafana), bảo trì Iceberg thật (snapshot expiry, compaction,
-dọn orphan file — hiện chỉ báo cáo), đọc JDBC song song, bảng seller riêng, quy đổi FX, quickstart
-một lệnh được kiểm chứng "dưới 30 phút", video demo và bài viết tổng kết.
+Dự án **hoàn thành ở Phase 9**. Các giới hạn có chủ đích (ghi trong ADR): bảo trì Iceberg chỉ ở mức
+báo cáo, đọc JDBC tuần tự, chưa có bảng seller riêng, không quy đổi FX.
 
 ---
 

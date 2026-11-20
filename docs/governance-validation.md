@@ -286,7 +286,7 @@ and G1 requires both chains (`--optional-chains` for CI only, unit-tested).
 - Memory: DataHub ≈ 3.4 GiB (GMS 1.6, OpenSearch 1.2, frontend 0.6) + Kafka 0.5 GiB; with Airflow
   1.5 GiB more; host available 3.1 GiB in that configuration.
 - Documentation: README (Chạy DataHub), runbook (DataHub section), implementation status, data model
-  (governance metadata), CLAUDE.md, ADR-0018, [Phase 10 handoff](phase10-handoff.md).
+  (governance metadata), CLAUDE.md, ADR-0018.
 - Hosted: `DataHub governance` green on GitHub
   ([run 44705945705](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44705945705),
   commit `9d2d9c7`, 21 min 41 s). `Scaffold checks` on the same commit failed in job `dags`

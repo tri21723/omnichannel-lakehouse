@@ -8,9 +8,9 @@ Chỉ gồm thành phần đã triển khai và kiểm chứng (đến `v0.9-gov
 Compose, ba làn batch / CDC / streaming, tên job, bảng, topic và cổng đúng như trong repo. Cập nhật
 hình này khi thêm hoặc đổi một thành phần.
 
-## Kiến trúc đích
+## Sơ đồ theo plan gốc (tham khảo)
 
-Sơ đồ chi tiết (kiến trúc đích, gồm cả phần chưa triển khai như AWS):
+Sơ đồ vẽ từ plan gốc ([plan](plan.md)), trước khi triển khai; hệ thống hoàn chỉnh là hình ở trên.
 
 ![System architecture](architecture.svg)
 

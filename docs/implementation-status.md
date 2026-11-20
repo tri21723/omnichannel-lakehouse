@@ -242,17 +242,13 @@ See [CDC validation](cdc-validation.md), [checklist](phase8-checklist.md) and
   test → restart), reproduced in a clean isolated Compose project and green on GitHub
   ([run 44705945705](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44705945705), commit `9d2d9c7`).
 
-See [governance validation](governance-validation.md), [checklist](phase9-checklist.md) and
-[Phase 10 handoff](phase10-handoff.md).
+See [governance validation](governance-validation.md) and [checklist](phase9-checklist.md).
 
-## Next: Phase 10 — AWS
+## Project complete
 
-Not started. See [Phase 10 handoff](phase10-handoff.md).
-
-## Later phases
-
-AWS (Terraform/Ansible) is not implemented; no cloud resources were provisioned. Parallel JDBC
-partitions, snapshot expiry, compaction and orphan cleanup remain deferred.
+The project is complete at Phase 9 (`v0.9-governance`). Deliberate limits recorded in the ADRs:
+Iceberg maintenance is report-only, JDBC reads are not partitioned, no standalone seller table, no FX
+conversion.
 
 ## Hosted CI update — 2026-11-13
 

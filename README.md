@@ -55,8 +55,7 @@ kiểm chứng.
 
 ![Kiến trúc hiện tại](docs/architecture-current.svg)
 
-*Hệ thống đang chạy (v0.9-governance), màu viền theo profile Docker Compose. Kiến trúc đích, gồm cả
-AWS/Terraform: [docs/architecture.svg](docs/architecture.svg).*
+*Hệ thống hoàn chỉnh (v0.9-governance); màu viền theo profile Docker Compose.*
 
 | Luồng | Đường đi |
 |---|---|
@@ -85,7 +84,6 @@ sơ đồ Mermaid: [architecture](docs/architecture.md).
 | Query | Trino 484 · DBeaver |
 | Governance | DataHub v1.7.0.1 · OpenSearch 2.19.3 |
 | Tooling | Python 3.11 · Docker Compose · GNU Make · ruff/black/sqlfluff/yamllint · pytest |
-| IaC (dự kiến) | Terraform · Ansible |
 
 Lý do chọn và nguồn của từng phiên bản: [ADR-0001](docs/adr/0001-versions.md).
 
@@ -102,10 +100,8 @@ Lý do chọn và nguồn của từng phiên bản: [ADR-0001](docs/adr/0001-ve
 | 7 | Kafka + Flink streaming | ✅ `v0.7-stream` |
 | 8 | Debezium CDC | ✅ `v0.8-cdc` |
 | 9 | DataHub governance | ✅ `v0.9-governance` |
-| 10 | AWS với Terraform + Ansible | ⏸️ tạm hoãn (chi phí) |
-| 11 | Hoàn thiện: observability, bảo trì Iceberg, demo | ⬜ chưa bắt đầu |
 
-Chi tiết: [implementation status](docs/implementation-status.md).
+Dự án hoàn thành ở Phase 9. Chi tiết: [implementation status](docs/implementation-status.md).
 
 ---
 
@@ -333,8 +329,6 @@ flink/           jobs/ (Java: amazon_late, tiktok_dedup)
 airflow/         dags/, plugins/, tests/
 sql/             postgres/ (DDL), iceberg/ (contract), trino/ (query mẫu)
 datahub/         recipes/, lineage/, metadata/, assertions/
-infra/           terraform/, ansible/ (Phase 10)
-observability/   metrics/dashboard (Phase 11)
 docs/            ADR, data model, runbook, validation, benchmarks
 ```
 
@@ -351,7 +345,7 @@ docs/            ADR, data model, runbook, validation, benchmarks
 | Kiểm chứng | [core](docs/core-validation.md) · [generator](docs/generator-validation.md) · [lakehouse](docs/lakehouse-validation.md) · [Bronze](docs/bronze-validation.md) · [Silver](docs/silver-validation.md) · [Gold](docs/gold-validation.md) · [DP3](docs/dp3-validation.md) · [warehouse](docs/warehouse-validation.md) · [orchestration](docs/orchestration-validation.md) · [query](docs/query-validation.md) · [streaming](docs/streaming-validation.md) · [CDC](docs/cdc-validation.md) · [governance](docs/governance-validation.md) |
 | Benchmark | [skew](docs/benchmarks/skew.md) · [streaming](docs/benchmarks/streaming.md) |
 | Checklist các phase | [3](docs/phase3-checklist.md) · [4A](docs/phase4a-checklist.md) · [4B](docs/phase4b-checklist.md) · [4C](docs/phase4c-checklist.md) · [4D](docs/phase4d-checklist.md) · [4E](docs/phase4e-checklist.md) · [4F](docs/phase4f-checklist.md) · [5](docs/phase5-checklist.md) · [6](docs/phase6-checklist.md) · [7](docs/phase7-checklist.md) · [8](docs/phase8-checklist.md) · [9](docs/phase9-checklist.md) |
-| Bàn giao | [Gold](docs/gold-handoff.md) · [4D/4E](docs/features-warehouse-handoff.md) · [5](docs/phase5-handoff.md) · [6](docs/phase6-handoff.md) · [7](docs/phase7-handoff.md) · [8](docs/phase8-handoff.md) · [9](docs/phase9-handoff.md) · [10](docs/phase10-handoff.md) |
+| Bàn giao | [Gold](docs/gold-handoff.md) · [4D/4E](docs/features-warehouse-handoff.md) · [5](docs/phase5-handoff.md) · [6](docs/phase6-handoff.md) · [7](docs/phase7-handoff.md) · [8](docs/phase8-handoff.md) · [9](docs/phase9-handoff.md) |
 
 ---
 

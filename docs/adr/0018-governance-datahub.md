@@ -106,4 +106,4 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
   was already reserved).
 - Lineage depends on the ledgers staying the source of truth; a new pipeline must extend the emitter.
 - Without metadata-service auth, any container on the compose network could write metadata; acceptable
-  locally, to revisit for any shared deployment (Phase 10).
+  locally, to revisit for any shared deployment.

@@ -13,7 +13,7 @@
 
   <!-- Title -->
   <text x="30" y="40" font-size="22" font-weight="700" fill="#0f172a">Omnichannel Lakehouse — kiến trúc hiện tại</text>
-  <text x="30" y="64" font-size="13" fill="#475569">v0.9-governance · chạy local bằng Docker Compose · mọi thành phần trong hình đã triển khai và kiểm chứng · màu viền = profile Compose</text>
+  <text x="30" y="64" font-size="13" fill="#475569">v0.9-governance · chạy local bằng Docker Compose · mọi thành phần đã triển khai và kiểm chứng · màu viền = profile Compose</text>
 
   <!-- Lanes -->
   <rect x="20" y="175" width="1660" height="250" rx="8" fill="#f8fafc"/>
@@ -214,12 +214,6 @@
   <text x="1213" y="577" font-size="11" fill="#1d4ed8">metadata</text>
   <polyline points="1210,690 1400,690 1400,632" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ab)"/>
   <text x="1240" y="683" font-size="11" fill="#1d4ed8">lineage từ ledger</text>
-
-  <!-- Not implemented -->
-  <rect x="1440" y="665" width="230" height="70" rx="8" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="1452" y="688" font-size="13" font-weight="700" fill="#6b7280">Chưa triển khai</text>
-  <text x="1452" y="707" font-size="12" fill="#6b7280">AWS · Terraform · Ansible (tạm hoãn)</text>
-  <text x="1452" y="725" font-size="12" fill="#6b7280">Prometheus / Grafana</text>
 
   <!-- Legend -->
   <text x="30" y="850" font-size="13" font-weight="700" fill="#0f172a">Profile Docker Compose</text>
