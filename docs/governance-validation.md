@@ -230,3 +230,27 @@ Evidence gathered for the decisions:
 - Idempotency of the whole flow (P9-04…P9-08): every recipe, lineage, jobs and metadata run twice or
   more with unchanged URN hashes and aspect versions. Sources unchanged: ledgers `51d0f9d6`,
   `be2e5d29`, `b2d6892e`, `cfa1cdf5`; `make cdc-batch-guard` ok.
+
+### UI evidence (P9-09)
+
+Screenshots taken headless (Playwright 1.49.1 container on the compose network, generated login read
+from the git-ignored file) after `make restart-gov`:
+
+| Image | Shows |
+|---|---|
+| [warehouse `fact_orders` lineage](images/phase9/lineage-warehouse-fact-orders.png) | Gold tables → `dp4_warehouse.warehouse_export` → `sources.warehouse.fact_orders`; owner, domain Sales, tag `gold`, terms |
+| [stream Bronze lineage](images/phase9/lineage-stream-tiktok.png) | `raw/stream/tiktok_shop` → `dp1_stream_bronze` job → `bronze.tiktok_shop_order_webhooks_raw`; tags `PII`, `bronze`, `raw`; domain Streaming |
+| [CDC Silver lineage](images/phase9/lineage-cdc-silver.png) | `platform_cdc.walmart.orders` + `bronze.walmart_orders_cdc` → `dp1_cdc` jobs → `silver.walmart_orders_cdc_current`; domain CDC |
+| [Gold `fact_orders`](images/phase9/dataset-gold-fact-orders.png) | schema (24 columns), description, owner, domain, tag, glossary terms |
+
+Two defects found through the UI and fixed:
+- Airflow task order was emitted as `inputDatajobs`, which DataHub drew as lineage (the Amazon stream
+  prefix appeared upstream of TikTok Bronze). Task order is now the `upstream_tasks` property; the jobs
+  hash is unchanged (the records are the same, only the emitted aspect changed).
+- The UI kept the removed edge after the fix while GraphQL `lineage`, `scrollAcrossLineage` and
+  `searchAcrossLineage` were already correct: GMS caches lineage results; `make restart-gov` cleared it
+  (runbook).
+
+Stream and CDC chains now follow evidence (completed stream Bronze slice per channel, `dp1_cdc`
+checkpoint) so a fresh environment does not claim them; locally the lineage hash stays `35224b8f…`
+and G1 requires both chains (`--optional-chains` for CI only, unit-tested).
