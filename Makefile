@@ -587,7 +587,7 @@ gov-metadata: ## Apply datahub/metadata/metadata.yml (tags, domains, glossary, o
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply $(if $(DRY_RUN),--dry-run) $(if $(VERIFY),--verify)
 .PHONY: gov-assert gov-assert-negative
 gov-assert: ## G1 lineage coverage (sources -> Bronze -> Silver -> Gold -> warehouse, stream, CDC, ledger edges) + metadata drift
-	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.lineage_g1
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.lineage_g1 $(G1_ARGS)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply --verify
 gov-assert-negative: ## G1 must fail when a probe entity loses its lineage edge, pass when restored (probe deleted after)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.negative_g1

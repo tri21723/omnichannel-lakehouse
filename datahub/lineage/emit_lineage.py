@@ -31,6 +31,7 @@ def load(runtime: Path) -> model.Lineage:
         read("gold/publication/ledger.json"),
         read("dp3/publication/ledger.json"),
         read("warehouse/export/ledger.json"),
+        cdc_ran=(runtime / "checkpoints/dp1_cdc").is_dir(),
     )
 
 

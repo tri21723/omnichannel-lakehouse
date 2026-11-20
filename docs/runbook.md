@@ -636,3 +636,7 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   `.local-data/governance/user.props` from `.env`; then `make restart-gov`.
 - `make up-gov` writes the system-update log to `.local-data/governance/system-update.log`; read it
   when the step exits non-zero (usually PostgreSQL/Kafka/OpenSearch not reachable).
+- The lineage view still shows an edge that was removed (GraphQL `lineage`/`scrollAcrossLineage` are
+  already correct): GMS caches lineage searches in memory; `make restart-gov` clears it.
+- Task order is not lineage: emitting `inputDatajobs` for Airflow task dependencies makes DataHub draw
+  one channel's prefix upstream of another channel's table; job order is a `customProperties` entry.

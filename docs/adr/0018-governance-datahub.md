@@ -71,7 +71,11 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
 - Airflow DataFlow/DataJob entities and their inputs/outputs are emitted from the DAG/task definitions
   by the same tooling (the plugin is incompatible, see §3): `omnichannel.datahub_export` (Airflow
   interpreter) dumps the DagBag, `lineage.emit_jobs` (DataHub venv) maps Spark tasks to datasets
-  through the lineage edges; verify tasks only read.
+  through the lineage edges; verify tasks only read. Task dependencies are recorded as a property
+  (`upstream_tasks`), not as `inputDatajobs`, which DataHub would draw as data lineage.
+- Stream and CDC chains are emitted only with evidence (a completed stream Bronze slice for that
+  channel; the `dp1_cdc` checkpoint). `make gov-assert` requires both chains locally; CI, which has
+  no stream/CDC run, passes `--optional-chains`.
 - Emission is idempotent (stable URNs, upserted aspects, sorted upstreams, fixed audit time).
 - MinIO prefixes (`raw/<channel>`, `raw/stream/<channel>`) have no recipe; the emitter declares them as
   `s3` datasets. `gold.dim_channel` is built from the static channel registry and has no upstream;

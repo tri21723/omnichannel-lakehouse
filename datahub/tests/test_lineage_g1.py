@@ -94,3 +94,14 @@ def test_reaches_handles_cycles_and_hop_limits():
     assert reaches(edges, "a", lambda u: u == "d")
     assert not reaches(edges, "a", lambda u: u == "d", max_hops=2)
     assert not reaches(edges, "a", lambda u: u == "z")
+
+
+def test_chains_follow_evidence_and_can_be_optional_on_ci():
+    expected = model.build([], {}, {}, {}, {}, cdc_ran=False)
+    assert expected == {}  # no stream slice, no CDC run: nothing to claim
+    batch = {k: v for k, v in full_lineage().items() if "cdc" not in k and "stream" not in k}
+    batch = {k: v for k, v in batch.items() if "webhooks" not in k and "notifications" not in k}
+    present = datasets(batch)
+    strict = failures(evaluate(present, batch, batch))
+    assert set(strict) == {"stream_bronze_reaches_topic", "cdc_silver_reaches_source"}
+    assert failures(evaluate(present, batch, batch, optional_chains=True)) == {}

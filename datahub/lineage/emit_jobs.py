@@ -47,6 +47,12 @@ def emit(records: list[dict], server: str) -> None:
         ]
         for task in flow["tasks"]:
             properties = {"operator": task["operator"]}
+            # Task order is not data flow: DataHub draws inputDatajobs as lineage (e.g. the Amazon
+            # prefix would appear upstream of TikTok Bronze), so the order is a property only.
+            if task["upstream_jobs"]:
+                properties["upstream_tasks"] = ",".join(
+                    urn.rsplit(",", 1)[1].rstrip(")") for urn in task["upstream_jobs"]
+                )
             if task["script"]:
                 properties["script"] = task["script"]
             proposals += [
@@ -64,7 +70,7 @@ def emit(records: list[dict], server: str) -> None:
                     aspect=DataJobInputOutputClass(
                         inputDatasets=task["inputs"],
                         outputDatasets=task["outputs"],
-                        inputDatajobs=task["upstream_jobs"],
+                        inputDatajobs=[],
                     ),
                 ),
                 MetadataChangeProposalWrapper(entityUrn=task["urn"], aspect=owners(flow["owner"])),

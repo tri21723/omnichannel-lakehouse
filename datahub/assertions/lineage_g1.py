@@ -40,7 +40,11 @@ def name(urn: str) -> str:
     return urn.split(",")[1]
 
 
-def evaluate(datasets: Iterable[str], live: Edges, expected: Edges) -> list[dict]:
+def evaluate(
+    datasets: Iterable[str], live: Edges, expected: Edges, optional_chains: bool = False
+) -> list[dict]:
+    """`optional_chains`: stream/CDC chains are checked only where they exist (a fresh CI runner has
+    no stream or CDC run); by default both must be present."""
     datasets = sorted(set(datasets))
     checks = []
 
@@ -78,10 +82,15 @@ def evaluate(datasets: Iterable[str], live: Edges, expected: Edges) -> list[dict
         warehouse,
         lambda d: model.iceberg(f"lh.gold.{name(d).split('.')[-1]}") in live.get(d, set()),
     )
-    stream = [model.iceberg(f"lh.bronze.{t}") for t in model.STREAM_TABLES.values()]
+    present = set(datasets)
+
+    def chain(urns: list[str]) -> list[str]:
+        return [u for u in urns if u in present] if optional_chains else urns
+
+    stream = chain([model.iceberg(f"lh.bronze.{t}") for t in model.STREAM_TABLES.values()])
     topics = {model.kafka(t) for t in model.STREAM_TOPICS.values()}
     check("stream_bronze_reaches_topic", stream, lambda d: reaches(live, d, lambda u: u in topics))
-    cdc = [model.iceberg(model.CDC_SILVER), model.iceberg(model.CDC_QUARANTINE)]
+    cdc = chain([model.iceberg(model.CDC_SILVER), model.iceberg(model.CDC_QUARANTINE)])
     check(
         "cdc_silver_reaches_source",
         cdc,
@@ -127,10 +136,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", type=Path, default=Path("/runtime"))
     parser.add_argument("--include", action="append", default=[], help="extra dataset URN to check")
+    parser.add_argument("--optional-chains", action="store_true", help="CI: no stream/CDC run")
     args = parser.parse_args()
     gms_url = os.environ.get("DATAHUB_GMS_URL", "http://datahub-gms:8080")
     datasets = sorted(set(all_urns("DATASET")) | set(args.include))
-    checks = evaluate(datasets, live_edges(datasets, gms_url), load(args.runtime))
+    checks = evaluate(
+        datasets, live_edges(datasets, gms_url), load(args.runtime), args.optional_chains
+    )
     for item in checks:
         print(json.dumps({"event": "g1_check", "ok": not item["failed"], **item}))
     ok = all(not item["failed"] for item in checks)

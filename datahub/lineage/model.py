@@ -172,10 +172,11 @@ def warehouse_edges(ledger: Mapping[str, Any]) -> Lineage:
     return edges
 
 
-def stream_edges() -> Lineage:
+def stream_edges(channels: Iterable[str] = tuple(STREAM_TOPICS)) -> Lineage:
     """Kafka topic → Flink → `raw/stream/<channel>` (+ DLQ topic); Bronze edges come from DP1."""
     edges: Lineage = {}
-    for channel, topic in STREAM_TOPICS.items():
+    for channel in channels:
+        topic = STREAM_TOPICS[channel]
         _add(edges, s3(f"raw/stream/{channel}"), [kafka(topic)])
         _add(edges, kafka(f"{topic}.dlq"), [kafka(topic)])
     return edges
@@ -204,15 +205,26 @@ def build(
     gold: Mapping[str, Any],
     dp3: Mapping[str, Any],
     warehouse: Mapping[str, Any],
+    cdc_ran: bool = True,
 ) -> Lineage:
+    """All edges with evidence: a stream chain only for channels with a completed stream Bronze
+    slice, the CDC chain only when the CDC job has run (its checkpoint exists)."""
+    records = list(bronze_records)
+    streamed = sorted(
+        {
+            r["selection"]["channel"]
+            for r in records
+            if r.get("status") == "completed" and r.get("selection", {}).get("source") == "stream"
+        }
+    )
     return merge(
-        bronze_edges(bronze_records),
+        bronze_edges(records),
         silver_edges(silver),
         gold_edges(gold),
         dp3_edges(dp3),
         warehouse_edges(warehouse),
-        stream_edges(),
-        cdc_edges(),
+        stream_edges(streamed),
+        cdc_edges() if cdc_ran else {},
     )
 
 
