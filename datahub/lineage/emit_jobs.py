@@ -18,24 +18,19 @@ from lineage.emit_lineage import load
 
 
 def emit(records: list[dict], server: str) -> None:
+    from tools import aspects
+
     from datahub.emitter.mcp import MetadataChangeProposalWrapper
     from datahub.emitter.rest_emitter import DatahubRestEmitter
     from datahub.metadata.schema_classes import (
         DataFlowInfoClass,
         DataJobInfoClass,
         DataJobInputOutputClass,
-        OwnerClass,
-        OwnershipClass,
-        OwnershipTypeClass,
         StatusClass,
     )
 
-    def owners(name: str) -> OwnershipClass:
-        return OwnershipClass(
-            owners=[
-                OwnerClass(owner=f"urn:li:corpuser:{name}", type=OwnershipTypeClass.TECHNICAL_OWNER)
-            ]
-        )
+    def owners(name: str):
+        return aspects.ownership(f"urn:li:corpuser:{name}")
 
     emitter = DatahubRestEmitter(server)
     proposals = []

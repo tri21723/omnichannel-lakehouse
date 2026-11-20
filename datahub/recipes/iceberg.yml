@@ -18,6 +18,10 @@ source:
       allow: ['^bronze$', '^silver$', '^gold$']
     table_pattern:
       deny: ['.*\._smoke_.*']
+    # Spark stamps `owner=root` on every table; owners are managed as code (gov-metadata), so the
+    # recipe must not emit an ownership aspect that would overwrite them.
+    user_ownership_property: null
+    group_ownership_property: null
     profiling:
       enabled: false
 sink:

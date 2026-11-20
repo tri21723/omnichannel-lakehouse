@@ -17,8 +17,8 @@ local.
 | PostgreSQL `sources.walmart` | `customers` (229), `orders` (3,275 incl. 140 live CDC-scenario orders), `order_items` (3,135), `products` (52), `returns` (312) | **`customers.full_name`, `customers.email`** |
 | PostgreSQL `sources.warehouse` | `dim_channel`, `dim_customer`, `dim_date`, `dim_product`, `dim_seller`, `fact_orders`, `fact_order_items`, `fact_returns`, `export_state` | hashes only |
 | Other databases | `airflow`, `lakekeeper`, `mlflow`, `postgres` — service metadata, **not** catalogued | — |
-| Iceberg `bronze` (16) | `<channel>_orders_raw` ×5 + `walmart_orders_export_raw`, `walmart_{customers,order_items,products,returns}_raw`, `amazon_order_notifications_raw`, `tiktok_shop_order_webhooks_raw`, `walmart_orders_cdc`; 3 `_smoke_*` fixtures (exclude) | **raw payloads (`_raw`, `before`/`after`) with names/emails** |
-| Iceberg `silver` (17) | `customers`, `orders`, `order_items`, `products`, `returns`, 5 `quarantine_*`, 5 `_contrib_*`, `walmart_orders_cdc_current`, `quarantine_walmart_orders_cdc` | hashes only (`customers.name_hash`, `email_hash`); quarantine keeps `_raw` → **PII** |
+| Iceberg `bronze` (16) | `<channel>_orders_raw` ×5 + `walmart_orders_export_raw`, `walmart_{customers,order_items,products,returns}_raw`, `amazon_order_notifications_raw`, `tiktok_shop_order_webhooks_raw`, `walmart_orders_cdc`; 3 `_smoke_*` fixtures (exclude) | **JSONL/stream payloads and `walmart_customers_raw`**; not `walmart_orders_raw` nor CDC (orders have no name/e-mail) |
+| Iceberg `silver` (17) | `customers`, `orders`, `order_items`, `products`, `returns`, 5 `quarantine_*`, 5 `_contrib_*`, `walmart_orders_cdc_current`, `quarantine_walmart_orders_cdc` | hashes only (`customers.name_hash`, `email_hash`); quarantine keeps no raw payload (corrected in P9-08) |
 | Iceberg `gold` (11) | `dim_*` ×5, `fact_*` ×3, `feat_customer_daily`, `feat_product_daily`, `lbl_order_return` | hashes only |
 | Iceberg `benchmark` (103) | benchmark inputs/results — not a contract (exclude or low tier) | derived |
 | Kafka | `amazon.order-notifications`, `tiktok_shop.order-webhooks` (+ `.dlq`), `platform_cdc.walmart.orders`; internal: `__consumer_offsets`, `__transaction_state`, `_connect.*`, `__debezium-heartbeat.platform_cdc`, `platform_cdc.signals`, `_smoke.stream` (exclude) | stream payloads and DLQs: **PII** |
@@ -179,3 +179,29 @@ Evidence gathered for the decisions:
   `6a50a9db…` did not change; the DAG was paused again afterwards.
 - `make test-dags`: 14 passed (new: DAG contract for `datahub_ingest`, export → dataset mapping for
   every Spark task). Memory with Airflow: Airflow 1.5 GiB, host available 3.1 GiB.
+
+## P9-08 — Metadata as code
+
+- `datahub/metadata/metadata.yml`: owner `data-platform`; tags `PII`, `raw`, `quarantine` and tier tags
+  `bronze`/`silver`/`gold`; domains Sales, Returns, Features, Streaming, CDC; glossary node
+  `Omnichannel` with 11 terms; ordered regex rules for tags/terms/domain/description; column
+  descriptions (PII columns, hashes, `_raw`, `net_amount`, label columns). `datahub/metadata/apply.py`
+  plans (pure) and upserts; `make gov-metadata` (`DRY_RUN=1`, `VERIFY=1`).
+- Unit tests `datahub/tests/test_metadata.py` over the 67 catalogued datasets (fixture from
+  `gov-inventory`): the `PII` tag is **exactly** the 20 raw-PII objects; every Gold/warehouse table has
+  domain, description and tier `gold`; every dataset has a domain and description; Iceberg tables
+  carry their tier; plans are deterministic; undefined tags/terms/domains are rejected.
+- Correction found while writing the rules: P9-01 marked Silver quarantine as PII; it keeps no raw
+  payload (data-model §Silver), and Bronze `walmart_orders_raw` and the CDC chain carry no
+  name/e-mail. The P9-01 table and ADR-0018 §5 are corrected.
+- Applied: 67 datasets, 20 `PII`, 0 without domain, plan hash `ea76250e…`; `VERIFY=1` → no drift.
+- Two defects found and fixed by the rerun check:
+  - the Iceberg recipe re-emitted `ownership` = `root` (Spark's table property) and erased the owner
+    → `user_ownership_property: null`;
+  - `ownership`/`domains` got a new version on every apply because GMS stores an enriched form
+    (`ownerTypes`, `lastModified`, `domainAssociations`) → `datahub/tools/aspects.py` sends that form
+    (also for DataFlow/DataJob owners).
+- After the fixes, three rounds of `gov-metadata` + `gov-jobs` leave every aspect version unchanged
+  (`gold.fact_orders`: globalTags 1, glossaryTerms 1, editableDatasetProperties 1, upstreamLineage 1,
+  ownership 12, domains 6; `warehouse_export` job ownership 4), and a full re-ingestion
+  (postgres, kafka, iceberg) + lineage followed by `VERIFY=1` reports no drift.

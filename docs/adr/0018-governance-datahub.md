@@ -81,8 +81,15 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
 
 - `datahub/metadata/` holds domains, glossary terms, tags (`PII`, `raw`, `gold`, `quarantine`), owners,
   descriptions (from `docs/data-model.md`) and tiers; applied idempotently.
-- Every object with raw names/emails (Bronze raw tables, silver quarantine `_raw`, stream payload
-  topics/DLQs, `walmart.customers`) carries tag `PII`.
+- Every object with raw names/emails carries tag `PII` (20 datasets): `walmart.customers`, Bronze
+  `walmart_customers_raw`, the JSONL `<channel>_orders_raw` + `walmart_orders_export_raw`, stream Bronze,
+  MinIO `raw/<channel>` and `raw/stream/<channel>`, stream topics and their DLQs. Not PII: Silver/Gold
+  (hashes only), Silver quarantine (no raw payload, data-model), the CDC chain and Bronze
+  `walmart_orders_raw` (`walmart.orders` has no name/e-mail).
+- Aspects owned by metadata-as-code: globalTags, glossaryTerms, domains, ownership,
+  editableDatasetProperties, editableSchemaMetadata. The Iceberg recipe disables ownership (Spark
+  stamps `owner=root`); ownership/domains are sent in the normalized form GMS stores, so reruns
+  create no new version. `make gov-metadata VERIFY=1` reports drift.
 - G1 (`datahub/assertions/lineage_g1.py`, GraphQL through the frontend or the network-internal GMS):
   every Gold table has a Silver upstream, every Silver table a Bronze upstream, the warehouse tables
   Gold upstreams, stream/CDC tables their upstreams; checked against the ledgers; exit code ≠ 0 when an

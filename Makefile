@@ -583,8 +583,8 @@ gov-jobs: ## Emit Airflow DataFlow/DataJob lineage: DagBag JSON from the Airflow
 	$(ORCH_GOV) run --rm --no-deps -T -e PYTHONPATH=/opt/airflow/plugins:/app -v "$(CURDIR)/.local-data/governance:/out" --entrypoint python airflow -m omnichannel.datahub_export /opt/airflow/dags --out /out/dags.json
 	$(GOV) run --rm --no-deps -v "$(CURDIR)/.local-data/governance/dags.json:/tmp/dags.json:ro" -w /app/datahub --entrypoint python datahub-ingest -m lineage.emit_jobs --dags /tmp/dags.json $(if $(DRY_RUN),--dry-run)
 .PHONY: gov-metadata
-gov-metadata: ## Apply datahub/metadata/metadata.yml (tags, domains, glossary, owners, descriptions); DRY_RUN=1 plans only
-	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply $(if $(DRY_RUN),--dry-run)
+gov-metadata: ## Apply datahub/metadata/metadata.yml (tags, domains, glossary, owners, descriptions); DRY_RUN=1 plans, VERIFY=1 checks drift
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply $(if $(DRY_RUN),--dry-run) $(if $(VERIFY),--verify)
 .PHONY: gov-inventory
 gov-inventory: ## Dataset counts per platform + URN-set hash from DataHub (LIST=1 prints the URNs)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m tools.inventory $(if $(LIST),--list)

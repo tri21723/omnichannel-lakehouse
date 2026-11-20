@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-07 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-08 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -173,14 +173,15 @@ dataset), DAG `datahub_ingest` chạy thật 2 run success, `make test-dags` 14 
 
 ### P9-08 — Metadata-as-code
 
-- [ ] `datahub/metadata/`: domain (Sales, Returns, Streaming, CDC…), glossary term (Order, Return label,
+- [x] `datahub/metadata/`: domain (Sales, Returns, Streaming, CDC…), glossary term (Order, Return label,
   Net amount…), tag `PII`/`raw`/`gold`/`quarantine`, owner, mô tả bảng/cột lấy từ `docs/data-model.md`,
   tier (Bronze/Silver/Gold).
-- [ ] Áp dụng idempotent (`make gov-metadata`); tag `PII` cho mọi đối tượng có PII thô.
-- [ ] Test: mọi bảng Gold có owner + domain + mô tả; mọi đối tượng PII có tag.
+- [x] Áp dụng idempotent (`make gov-metadata`); tag `PII` cho mọi đối tượng có PII thô.
+- [x] Test: mọi bảng Gold có owner + domain + mô tả; mọi đối tượng PII có tag.
 
 **Đạt khi:** metadata hiển thị trên UI; chạy lại không đổi.
-**Commit gợi ý:** `feat(gov): manage domains, glossary, tags and owners as code`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-08: 67 dataset, 20 `PII`, 0 thiếu
+domain; 3 lần áp dụng không đổi version; re-ingest xong `VERIFY=1` không drift.
 
 ### P9-09 — G1 assertions và bằng chứng
 

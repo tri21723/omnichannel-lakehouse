@@ -1,0 +1,213 @@
+# Metadata as code (ADR-0018 §5), applied by `make gov-metadata` (datahub/metadata/apply.py).
+# Datasets are matched by `<platform>:<name>` (the name inside the URN) with full-match regexes
+# (`match` is one regex or a list);
+# every matching rule contributes tags/terms, the first rule with a domain/description wins.
+# Descriptions summarise docs/data-model.md and the ADRs; they are not a second source of truth.
+owner: data-platform
+
+tags:
+  PII: Raw synthetic names or e-mails; restricted, never profiled or sampled.
+  raw: Unprocessed source data (MinIO prefix, source table, topic or Bronze payload).
+  quarantine: Rejected records with reason codes, kept for audit (never dropped silently).
+  bronze: "Tier: Bronze - raw payload plus audit columns (ADR-0007)."
+  silver: "Tier: Silver - cleaned, deduplicated, PII hashed (ADR-0008)."
+  gold: "Tier: Gold - published star schema, features and labels (ADR-0009, ADR-0010)."
+
+domains:
+  sales: {name: Sales, description: Orders, order lines, customers, products and sellers.}
+  returns: {name: Returns, description: Returns, refunds and the return label.}
+  features: {name: Features, description: Point-in-time customer and product features (DP3).}
+  streaming: {name: Streaming, description: Kafka notifications and webhooks processed by Flink.}
+  cdc: {name: CDC, description: Debezium change events of walmart.orders (ADR-0017).}
+
+glossary:
+  node: {name: Omnichannel, description: Business terms of the omnichannel lakehouse.}
+  terms:
+    Order: One customer order on one channel, keyed by (channel, order_id).
+    Order line: One line of an order, keyed by (channel, order_id, line_no).
+    Customer: A buyer on one channel; no cross-channel identity resolution.
+    Product: A product listed by a seller on one channel.
+    Seller: A seller identifier embedded in products and order lines (ID-only dimension).
+    Return: A returned order line with its refund, keyed by (channel, return_id, return_line_no).
+    Channel: One of walmart, amazon, tiktok_shop, shopee, lazada.
+    Net amount: Gross minus discount, DECIMAL(18,2) in the original currency (no FX conversion).
+    Return label: is_returned within the horizon; NULL while immature (right-censored).
+    Late event: A stream event behind the watermark, routed to the late side output or the DLQ.
+    Change event: A Debezium create/update/delete event ordered by source LSN.
+
+rules:
+# --- PII: every object that holds raw names or e-mails (docs/data-model.md, ADR-0016) ---
+- match: 'postgres:sources\.walmart\.customers'
+  tags: [PII, raw]
+  domain: sales
+  terms: [Customer]
+  description: Walmart OLTP customers with clear full_name and email (synthetic); CDC excluded.
+- match: 'iceberg:bronze\.walmart_customers_raw'
+  tags: [PII]
+# JSONL payloads embed the customer; Walmart JDBC `walmart_orders_raw` mirrors walmart.orders (no PII).
+- match:
+  - 'iceberg:bronze\.(amazon|tiktok_shop|shopee|lazada)_orders_raw'
+  - 'iceberg:bronze\.walmart_orders_export_raw'
+  tags: [PII]
+- match: 's3:raw/(walmart|amazon|tiktok_shop|shopee|lazada)'
+  tags: [PII, raw]
+  domain: sales
+  description: Batch JSONL per channel; orders embed customer, items, products and returns.
+- match:
+  - 'iceberg:bronze\.(amazon_order_notifications|tiktok_shop_order_webhooks)_raw'
+  - 's3:raw/stream/.*'
+  - 'kafka:(amazon\.order-notifications|tiktok_shop\.order-webhooks)(\.dlq)?'
+  tags: [PII]
+  domain: streaming
+  terms: [Late event]
+# --- other PostgreSQL sources ---
+- match: 'postgres:sources\.walmart\.orders'
+  tags: [raw]
+  domain: sales
+  terms: [Order]
+  description: Walmart OLTP orders; the only table published to CDC (REPLICA IDENTITY FULL).
+- match: 'postgres:sources\.walmart\.(order_items|products|returns)'
+  tags: [raw]
+- match: 'postgres:sources\.walmart\.order_items'
+  domain: sales
+  terms: [Order line]
+  description: Walmart OLTP order lines.
+- match: 'postgres:sources\.walmart\.products'
+  domain: sales
+  terms: [Product]
+  description: Walmart OLTP products with embedded seller_id.
+- match: 'postgres:sources\.walmart\.returns'
+  domain: returns
+  terms: [Return]
+  description: Walmart OLTP returns.
+# --- streaming and CDC ---
+- match: 'kafka:(amazon\.order-notifications|tiktok_shop\.order-webhooks)'
+  tags: [raw]
+  description: Stream events (contract stream-v2); Flink classifies on-time/late/too-late.
+- match: 'kafka:.*\.dlq'
+  tags: [quarantine]
+  description: Too-late or invalid stream events written by Flink (never dropped).
+- match: 's3:raw/stream/.*'
+  tags: [raw]
+  description: Flink FileSink output (accepted, late, duplicates, windows) for stream Bronze.
+- match: 'iceberg:bronze\.(amazon_order_notifications|tiktok_shop_order_webhooks)_raw'
+  description: Stream Bronze loaded from the closed Flink output manifest (ADR-0016).
+- match: 'kafka:platform_cdc\.walmart\.orders'
+  tags: [raw]
+  domain: cdc
+  terms: [Change event]
+  description: Debezium change events of walmart.orders (decimal as string, heartbeat excluded).
+- match: 'iceberg:bronze\.walmart_orders_cdc'
+  domain: cdc
+  terms: [Change event]
+  description: CDC Bronze; MERGE on Kafka coordinates, at-least-once events kept once.
+- match: 'iceberg:silver\.walmart_orders_cdc_current'
+  domain: cdc
+  terms: [Order, Change event]
+  description: Current state per order from CDC (latest by LSN/offset, soft delete).
+- match: 'iceberg:silver\.quarantine_walmart_orders_cdc'
+  domain: cdc
+  description: CDC events rejected with _error_reason (orders only, no PII).
+# --- tiers ---
+- match: 'iceberg:bronze\..*'
+  tags: [bronze, raw]
+  domain: sales
+  description: Bronze raw payload with audit columns _ingest_ts, _source_file, _channel, _batch_id.
+- match: 'iceberg:silver\.quarantine_.*'
+  tags: [silver, quarantine]
+  domain: sales
+  description: Rejected Silver occurrences with sorted reason codes; no raw PII.
+- match: 'iceberg:silver\._contrib_.*'
+  tags: [silver]
+  domain: sales
+  description: Private per-slice Silver candidates reduced into the entity table.
+- match: 'iceberg:silver\..*'
+  tags: [silver]
+- match: 'iceberg:gold\..*|postgres:sources\.warehouse\.(dim|fact)_.*'
+  tags: [gold]
+# --- Silver entities ---
+- match: 'iceberg:silver\.orders'
+  domain: sales
+  terms: [Order, Channel]
+  description: Orders keyed by (channel, order_id); dedup by updated_ts and normalized hash.
+- match: 'iceberg:silver\.order_items'
+  domain: sales
+  terms: [Order line]
+  description: Order lines keyed by (channel, order_id, line_no).
+- match: 'iceberg:silver\.customers'
+  domain: sales
+  terms: [Customer]
+  description: Customers with HMAC name_hash/email_hash and _pii_key_version, never clear PII.
+- match: 'iceberg:silver\.products'
+  domain: sales
+  terms: [Product]
+  description: Products keyed by (channel, product_id).
+- match: 'iceberg:silver\.returns'
+  domain: returns
+  terms: [Return]
+  description: Returns keyed by (channel, return_id, return_line_no).
+# --- Gold (Iceberg) and its warehouse mirror ---
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.dim_date'
+  domain: sales
+  description: Date dimension, integer date_key YYYYMMDD (UTC).
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.dim_channel'
+  domain: sales
+  terms: [Channel]
+  description: Channel dimension from the static channel registry.
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.dim_customer'
+  domain: sales
+  terms: [Customer]
+  description: Customer dimension with privacy hashes only.
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.dim_product'
+  domain: sales
+  terms: [Product]
+  description: Product dimension.
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.dim_seller'
+  domain: sales
+  terms: [Seller]
+  description: ID-only seller dimension derived from products and order lines.
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.fact_orders'
+  domain: sales
+  terms: [Order, Net amount]
+  description: One row per channel/order; amounts DECIMAL(18,2) per currency.
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.fact_order_items'
+  domain: sales
+  terms: [Order line, Net amount]
+  description: One row per order line.
+- match: '(iceberg:gold|postgres:sources\.warehouse)\.fact_returns'
+  domain: returns
+  terms: [Return]
+  description: One row per return line; refund never exceeds the line net amount.
+- match: 'iceberg:gold\.feat_customer_daily'
+  domain: features
+  terms: [Customer]
+  description: Customer RFM, order counts, spend and returns as of as_of_date (point in time).
+- match: 'iceberg:gold\.feat_product_daily'
+  domain: features
+  terms: [Product]
+  description: Product sales velocity, revenue and returns as of as_of_date (point in time).
+- match: 'iceberg:gold\.lbl_order_return'
+  domain: returns
+  terms: [Return label, Order]
+  description: Return label within horizon_days; is_returned NULL while is_mature is false.
+- match: 'postgres:sources\.warehouse\.export_state'
+  domain: sales
+  description: Provenance of the last warehouse export per dataset (internal, ADR-0011).
+- match: 'postgres:sources\.warehouse\..*'
+  domain: sales
+  description: Warehouse mirror of Gold, 30-day UTC window (ADR-0011).
+
+columns:
+  'postgres:sources\.walmart\.customers':
+    full_name: Clear synthetic name (PII).
+    email: Clear synthetic e-mail (PII).
+  'iceberg:(silver|gold)\.(customers|dim_customer)':
+    name_hash: HMAC-SHA256 of the normalized name (key version in _pii_key_version).
+    email_hash: HMAC-SHA256 of the normalized e-mail.
+  'iceberg:bronze\..*_raw':
+    _raw: Original payload as received; contains PII for customer-bearing sources.
+  '(iceberg:gold|postgres:sources\.warehouse)\.fact_orders':
+    net_amount: Gross minus discount, DECIMAL(18,2), original currency.
+  'iceberg:gold\.lbl_order_return':
+    is_returned: 1 if returned within horizon_days, NULL while immature.
+    is_mature: True once order_ts + horizon_days is before the as-of cutoff.
