@@ -591,6 +591,16 @@ gov-assert: ## G1 lineage coverage (sources -> Bronze -> Silver -> Gold -> wareh
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply --verify
 gov-assert-negative: ## G1 must fail when a probe entity loses its lineage edge, pass when restored (probe deleted after)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.negative_g1
+.PHONY: gov-refresh gov-idempotency
+gov-refresh: ## Full refresh: three recipes, dataset lineage, Airflow job lineage, metadata as code
+	$(MAKE) gov-ingest SOURCE=postgres
+	$(MAKE) gov-ingest SOURCE=kafka
+	$(MAKE) gov-ingest SOURCE=iceberg
+	$(MAKE) gov-lineage
+	$(MAKE) gov-jobs
+	$(MAKE) gov-metadata
+gov-idempotency: ## Rerun gov-refresh and require an identical inventory (URN hash and counts)
+	bash docker/governance/idempotency.sh
 .PHONY: gov-inventory
 gov-inventory: ## Dataset counts per platform + URN-set hash from DataHub (LIST=1 prints the URNs)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m tools.inventory $(if $(LIST),--list)

@@ -103,6 +103,17 @@ EVENTS = {
     "query_parity_prepared",
     "query_verify_finished",
     "query_checks_reconciled",
+    "gov_smoke_check",
+    "gov_smoke_finished",
+    "gov_idempotency",
+    "datahub_inventory",
+    "lineage_emitted",
+    "jobs_emitted",
+    "metadata_applied",
+    "metadata_verified",
+    "g1_check",
+    "g1_finished",
+    "g1_negative_finished",
 }
 BENCHMARK_STATUSES = {"ok", "error", "timeout", "correctness_failed"}
 ERROR_TYPES = {
@@ -176,6 +187,68 @@ CDC_CHECKS = {
     "scenario_events_present",
 }
 STREAM_NAMES = {"amazon", "tiktok_shop", "amazon_late", "tiktok_dedup"}
+# Phase 9 governance (ADR-0018): fixed check names, counts, 16-hex digests and booleans only;
+# dataset-name lists (failed, drift, pii) are reduced to their length.
+GOV_CHECKS = {
+    "gms_health",
+    "frontend_health",
+    "gms_no_host_port",
+    "frontend_loopback_only",
+    "login_generated_password",
+    "default_login_rejected",
+    "graphql_as_admin",
+    "graphql_version",
+    "probe_write",
+    "probe_read",
+    "probe_deleted",
+    "datahub_topics_present",
+    "broker_auto_create_off",
+    "datahub_ro_no_row_access",
+    "no_secret_in_logs",
+    "gold_has_silver_upstream",
+    "silver_has_bronze_upstream",
+    "bronze_has_source_upstream",
+    "warehouse_has_gold_upstream",
+    "stream_bronze_reaches_topic",
+    "cdc_silver_reaches_source",
+    "ledger_edges_present",
+    "ledger_downstreams_catalogued",
+}
+GOV_PLATFORMS = {"iceberg", "kafka", "postgres", "s3"}
+
+
+def _governance(item, clean):
+    if item.get("check") in GOV_CHECKS:
+        clean["check"] = item["check"]
+    for key in (
+        "subjects",
+        "data_flows",
+        "data_jobs",
+        "flows",
+        "jobs",
+        "jobs_with_datasets",
+        "downstreams",
+        "edges",
+    ):
+        if type(item.get(key)) is int:
+            clean[key] = item[key]
+    if type(item.get("datasets")) is int:
+        clean["datasets"] = item["datasets"]
+    elif isinstance(item.get("datasets"), dict):
+        clean["platforms"] = {
+            k: v for k, v in item["datasets"].items() if k in GOV_PLATFORMS and type(v) is int
+        }
+    for key in ("urn_sha256", "lineage_sha256", "jobs_sha256", "metadata_sha256"):
+        if isinstance(item.get(key), str) and re.fullmatch(r"[a-f0-9]{16}", item[key]):
+            clean[key] = item[key]
+    for key in ("failed", "drift", "pii", "without_domain"):
+        if isinstance(item.get(key), list):
+            clean[f"{key}_count"] = len(item[key])
+    for key in ("with_edge", "edge_removed", "failure_names_probe", "restored", "probe_deleted"):
+        if type(item.get(key)) is bool:
+            clean[key] = item[key]
+
+
 QUERY_CHECKS = {
     "catalogs",
     "iceberg_schemas",
@@ -207,6 +280,11 @@ REASONS = {
     "staging-byte-limit",
     "catalog-not-found",
     "source_unchanged",
+}
+
+
+GOVERNANCE_EVENTS = {
+    e for e in EVENTS if e.startswith(("gov_", "g1_", "datahub_", "lineage_", "jobs_", "metadata_"))
 }
 
 
@@ -359,6 +437,8 @@ def safe_events(lines):
             }
         if isinstance(item.get("error_type"), str) and item["error_type"] in ERROR_TYPES:
             clean["error_type"] = item["error_type"]
+        if item["event"] in GOVERNANCE_EVENTS:
+            _governance(item, clean)
         yield clean
 
 

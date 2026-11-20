@@ -1,0 +1,39 @@
+name: DataHub governance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  governance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: make setup check env-silver env-orch env-gov config-batch config-gov
+      - run: make build-generator build-batch build-orch build-gov
+      # Small batch fixture end to end, so the ledgers that lineage is built from exist.
+      - run: make up-batch
+      - run: sh docker/batch/ci_run.sh make prepare-silver-fixture
+      - run: sh docker/batch/ci_run.sh make integration-silver
+      - run: sh docker/batch/ci_run.sh make smoke-gold
+      - run: sh docker/batch/ci_run.sh make smoke-features
+      - run: sh docker/batch/ci_run.sh make smoke-labels
+      - run: sh docker/batch/ci_run.sh make smoke-warehouse
+      # Spark is no longer needed: DataHub runs with core + Lakekeeper + Kafka only (ADR-0018 §2).
+      - run: make down
+      - run: make up-gov
+      - run: sh docker/batch/ci_run.sh make smoke-gov
+      - run: sh docker/batch/ci_run.sh make gov-refresh
+      - run: sh docker/batch/ci_run.sh make gov-inventory
+      # No stream or CDC run on a fresh runner: those chains are checked only where present.
+      - run: sh docker/batch/ci_run.sh make gov-assert G1_ARGS=--optional-chains
+      - run: sh docker/batch/ci_run.sh make gov-idempotency
+      - run: sh docker/batch/ci_run.sh make gov-assert-negative
+      - run: make restart-gov
+      - run: sh docker/batch/ci_run.sh make smoke-gov
+      - run: sh docker/batch/ci_run.sh make gov-assert G1_ARGS=--optional-chains
+      - if: always()
+        run: make down

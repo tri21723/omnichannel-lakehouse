@@ -240,7 +240,7 @@ from the git-ignored file) after `make restart-gov`:
 |---|---|
 | [warehouse `fact_orders` lineage](images/phase9/lineage-warehouse-fact-orders.png) | Gold tables → `dp4_warehouse.warehouse_export` → `sources.warehouse.fact_orders`; owner, domain Sales, tag `gold`, terms |
 | [stream Bronze lineage](images/phase9/lineage-stream-tiktok.png) | `raw/stream/tiktok_shop` → `dp1_stream_bronze` job → `bronze.tiktok_shop_order_webhooks_raw`; tags `PII`, `bronze`, `raw`; domain Streaming |
-| [CDC Silver lineage](images/phase9/lineage-cdc-silver.png) | `platform_cdc.walmart.orders` + `bronze.walmart_orders_cdc` → `dp1_cdc` jobs → `silver.walmart_orders_cdc_current`; domain CDC |
+| [CDC Silver lineage](images/phase9/lineage-cdc-silver.png) | `bronze.walmart_orders_cdc` → `dp1_cdc.cdc_silver` → `silver.walmart_orders_cdc_current`; domain CDC, terms Change event/Order |
 | [Gold `fact_orders`](images/phase9/dataset-gold-fact-orders.png) | schema (24 columns), description, owner, domain, tag, glossary terms |
 
 Two defects found through the UI and fixed:

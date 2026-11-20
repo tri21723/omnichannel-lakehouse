@@ -270,3 +270,71 @@ def test_cdc_events_keep_counts_and_fixed_check_names_only():
         {"event": "cdc_verify_check", "check": "checksum_equal", "ok": True},
         {"event": "cdc_verify_check", "ok": True},
     ]
+
+
+def test_governance_events_keep_check_names_counts_and_digests_only():
+    lines = [
+        json.dumps(
+            {"event": "gov_smoke_check", "check": "probe_read", "ok": True, "version": "v1"}
+        ),
+        json.dumps({"event": "gov_smoke_check", "check": "password=hunter2", "ok": False}),
+        json.dumps(
+            {
+                "event": "datahub_inventory",
+                "datasets": {"iceberg": 41, "postgres": 14, "secret": 3},
+                "data_flows": 12,
+                "data_jobs": 39,
+                "urn_sha256": "6a50a9dbbc133854",
+                "urns": [
+                    "urn:li:dataset:(urn:li:dataPlatform:postgres,sources.walmart.customers,PROD)"
+                ],
+            }
+        ),
+        json.dumps(
+            {
+                "event": "g1_check",
+                "check": "gold_has_silver_upstream",
+                "subjects": 10,
+                "failed": ["gold.fact_orders"],
+                "ok": False,
+            }
+        ),
+        json.dumps(
+            {
+                "event": "metadata_verified",
+                "datasets": 67,
+                "pii": ["postgres:sources.walmart.customers"],
+                "drift": [],
+                "metadata_sha256": "ea76250eb8f9df7a",
+                "ok": True,
+            }
+        ),
+        json.dumps({"event": "g1_negative_finished", "edge_removed": False, "ok": True}),
+    ]
+    assert list(module.safe_events(lines)) == [
+        {"event": "gov_smoke_check", "check": "probe_read", "ok": True},
+        {"event": "gov_smoke_check", "ok": False},
+        {
+            "event": "datahub_inventory",
+            "platforms": {"iceberg": 41, "postgres": 14},
+            "data_flows": 12,
+            "data_jobs": 39,
+            "urn_sha256": "6a50a9dbbc133854",
+        },
+        {
+            "event": "g1_check",
+            "check": "gold_has_silver_upstream",
+            "subjects": 10,
+            "failed_count": 1,
+            "ok": False,
+        },
+        {
+            "event": "metadata_verified",
+            "datasets": 67,
+            "pii_count": 1,
+            "drift_count": 0,
+            "metadata_sha256": "ea76250eb8f9df7a",
+            "ok": True,
+        },
+        {"event": "g1_negative_finished", "edge_removed": False, "ok": True},
+    ]
