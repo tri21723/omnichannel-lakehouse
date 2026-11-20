@@ -154,3 +154,28 @@ Evidence gathered for the decisions:
   `tiktok_shop.order-webhooks` reaches `bronze.tiktok_shop_order_webhooks_raw` (2) and its DLQ (1).
 - `bronze.walmart_orders_export_raw` (Walmart JSONL export) has no downstream: Silver reads Walmart
   through JDBC (ADR-0008), which the lineage shows as it is.
+
+## P9-07 — Airflow job lineage and scheduled ingestion
+
+- Decision (ADR-0018 §3): no DataHub Airflow plugin (incompatible with the constraints). The Airflow
+  image gets the CLI in `/opt/datahub-venv` from `datahub/requirements.lock` (`pip check` in the Airflow
+  environment: no broken requirements; Airflow 3.3.2 unchanged); `datahub/` is bind-mounted read-only
+  like the DAGs, so only a lock change needs `make build-orch`.
+- `airflow/plugins/omnichannel/datahub_export.py` turns the DagBag into JSON (dag id, owner, tags,
+  timetable, tasks, dependencies, Spark script + `--channel/--source/--mode/--verify`);
+  `datahub/lineage/jobs.py` maps each Spark task to its datasets from the same edges as P9-06 (verify
+  tasks only read); `datahub/lineage/emit_jobs.py` upserts DataFlow/DataJob info, inputs/outputs,
+  upstream jobs and ownership. `make gov-jobs` runs it from Make.
+- Result: 12 DataFlows, 39 DataJobs, 24 with dataset inputs/outputs (all Bronze/Silver/Gold/DP3/
+  warehouse/stream/CDC tasks); hash `cde1c644…` on two emissions; `dataJobInputOutput` of
+  `dp4_warehouse.warehouse_export` stays at version 1 (8 inputs, 8 outputs).
+- DAG `datahub_ingest` (`@daily`, paused at creation, not in `spark_driver`): `ingest_postgres` →
+  `ingest_kafka` → `ingest_iceberg` → `emit_dataset_lineage` → `emit_job_lineage`.
+  `make up-gov-orch` starts Airflow next to DataHub without Spark. Real runs: unpausing created the
+  scheduled run `scheduled__2026-11-20` and the manual `p9_manual_1`; both **success** (the first
+  attempt of `emit_job_lineage` failed: Airflow 3 task processes have no metadata-DB URL, so the
+  DagBag export now runs with `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite://` — it only parses
+  files). The task logs carry the same hashes as Make (`35224b8f…`, `cde1c644…`); the inventory hash
+  `6a50a9db…` did not change; the DAG was paused again afterwards.
+- `make test-dags`: 14 passed (new: DAG contract for `datahub_ingest`, export → dataset mapping for
+  every Spark task). Memory with Airflow: Airflow 1.5 GiB, host available 3.1 GiB.

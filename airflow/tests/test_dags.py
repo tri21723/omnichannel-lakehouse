@@ -38,6 +38,7 @@ def test_dags_import_without_errors(dagbag):
         "maintenance_iceberg",
         "query_checks",
         "dp1_cdc",
+        "datahub_ingest",
     }
 
 
@@ -47,7 +48,7 @@ def test_every_dag_follows_defaults(dagbag):
         assert dag.max_active_runs == 1, dag_id
         assert dag.catchup is False, dag_id
         assert "omnichannel" in dag.tags, dag_id
-        if dag_id not in ("maintenance_iceberg", "query_checks", "dp1_cdc"):  # not tied to one run
+        if dag_id not in ("maintenance_iceberg", "query_checks", "dp1_cdc", "datahub_ingest"):
             assert dag.params.get_param("dataset_run_id").value == RUN
         for task in dag.tasks:
             assert task.owner == "data-platform", (dag_id, task.task_id)
@@ -217,3 +218,51 @@ def test_cdc_dag_is_scheduled_paused_and_uses_the_driver_lock(dagbag):
         )
         assert "--run-date 2026-11-19 --channel walmart" in command and "{{" not in command
     assert "--mode verify" in dag.get_task("cdc_silver_verify").bash_command
+
+
+def test_datahub_dag_is_paused_outside_the_driver_pool_and_uses_the_venv(dagbag):
+    dag = dagbag.dags["datahub_ingest"]
+    assert dag.is_paused_upon_creation is True
+    assert [t.task_id for t in dag.topological_sort()] == [
+        "ingest_postgres",
+        "ingest_kafka",
+        "ingest_iceberg",
+        "emit_dataset_lineage",
+        "emit_job_lineage",
+    ]
+    for task in dag.tasks:
+        assert task.pool != "spark_driver" and task.retries >= 1
+        assert "/opt/datahub-venv/bin/" in task.bash_command
+        assert "env -u PYTHONPATH" in task.bash_command
+        assert "spark-submit" not in task.bash_command
+    assert "--strict-warnings" in dag.get_task("ingest_postgres").bash_command
+    assert "--strict-warnings" not in dag.get_task("ingest_kafka").bash_command
+
+
+def test_datahub_export_maps_every_spark_task_to_datasets(dagbag):
+    import sys
+
+    sys.path.insert(0, "/app/datahub")
+    from lineage import jobs, model
+    from omnichannel.datahub_export import describe
+
+    dags = describe(dagbag)
+    assert [d["dag_id"] for d in dags] == sorted(dagbag.dag_ids)
+    tasks = {(d["dag_id"], t["task_id"]): t for d in dags for t in d["tasks"]}
+    assert tasks[("dp1_bronze", "bronze_walmart_jdbc")]["spark"] == {
+        "script": "dp1_bronze/main.py",
+        "args": {"--channel": "walmart", "--source": "jdbc", "--mode": "incremental"},
+    }
+    assert tasks[("dp2_gold", "gold_verify")]["spark"]["args"] == {"--verify": "true"}
+    assert tasks[("datahub_ingest", "ingest_kafka")]["spark"] is None
+    # Contract edges only (no ledgers needed): every publishing Spark task writes a dataset.
+    edges = model.merge(model.stream_edges(), model.cdc_edges())
+    for (dag_id, task_id), task in tasks.items():
+        spark = task["spark"]
+        if not spark or spark["script"].startswith("maintenance/"):
+            continue
+        inputs, outputs = jobs.spark_io(spark["script"], spark["args"], edges)
+        if "verify" in (spark["args"].get("--mode"), spark["args"].get("--verify") and "verify"):
+            assert inputs and not outputs, (dag_id, task_id)
+        elif spark["script"] != "dp1_bronze/main.py" and spark["script"] != "dp2_silver/main.py":
+            assert outputs, (dag_id, task_id)  # Bronze/Silver outputs come from ledger edges

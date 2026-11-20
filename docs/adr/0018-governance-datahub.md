@@ -69,7 +69,9 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
   `warehouse`, Kafka → Flink output → stream Bronze, `walmart.orders` → CDC topic → CDC Bronze → CDC
   Silver. The ledgers' pins make it checkable, and no job depends on DataHub being up.
 - Airflow DataFlow/DataJob entities and their inputs/outputs are emitted from the DAG/task definitions
-  by the same tooling (the plugin is incompatible, see §3).
+  by the same tooling (the plugin is incompatible, see §3): `omnichannel.datahub_export` (Airflow
+  interpreter) dumps the DagBag, `lineage.emit_jobs` (DataHub venv) maps Spark tasks to datasets
+  through the lineage edges; verify tasks only read.
 - Emission is idempotent (stable URNs, upserted aspects, sorted upstreams, fixed audit time).
 - MinIO prefixes (`raw/<channel>`, `raw/stream/<channel>`) have no recipe; the emitter declares them as
   `s3` datasets. `gold.dim_channel` is built from the static channel registry and has no upstream;

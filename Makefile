@@ -107,6 +107,7 @@ BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/com
 ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
 QUERY := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.query.yml --profile core --profile batch --profile query
 ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml -f docker/compose.governance.yml --profile core --profile batch --profile orch --profile query --profile stream --profile cdc --profile governance
+ORCH_GOV := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.stream.yml -f docker/compose.governance.yml --profile core --profile batch --profile orch --profile stream --profile governance
 GOV := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.stream.yml -f docker/compose.governance.yml --profile core --profile batch --profile stream --profile governance
 CDC := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml --profile core --profile stream --profile cdc
 STREAM := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml --profile core --profile stream
@@ -358,7 +359,7 @@ restart-orch: ## Restart Airflow; metadata in PostgreSQL and logs volume are pre
 	$(ORCH) restart airflow
 	$(ORCH) up -d --wait airflow
 test-dags: ## Run DagBag and DAG contract tests inside the Airflow image
-	$(ORCH) run --rm --no-deps -v "$(CURDIR)/airflow:/opt/omnichannel/airflow:ro" -w /opt/omnichannel --entrypoint python airflow -m pytest -q -p no:cacheprovider airflow/tests
+	$(ORCH) run --rm --no-deps -v "$(CURDIR)/airflow:/opt/omnichannel/airflow:ro" -v "$(CURDIR)/datahub:/app/datahub:ro" -w /opt/omnichannel --entrypoint python airflow -m pytest -q -p no:cacheprovider airflow/tests
 airflow-cli: ## Run an Airflow CLI command in the running container, e.g. ARGS='dags list'
 	$(AIRFLOW_EXEC) airflow $(ARGS)
 e2e: ## Backfill batch_daily via Airflow: ingest, converging replay (only DP3 may change), replay that changes nothing (needs up-orch)
@@ -574,6 +575,16 @@ gov-ingest: ## Run one read-only recipe: make gov-ingest SOURCE=postgres|kafka|i
 .PHONY: gov-lineage
 gov-lineage: ## Emit dataset lineage from the ledgers (read-only /runtime); DRY_RUN=1 prints the edges
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m lineage.emit_lineage $(if $(DRY_RUN),--dry-run)
+.PHONY: up-gov-orch gov-jobs
+up-gov-orch: env-orch up-gov ## DataHub + Airflow (no Spark) for the datahub_ingest DAG
+	$(ORCH_GOV) run --rm --no-deps airflow-init
+	$(ORCH_GOV) up -d --no-deps --wait airflow
+gov-jobs: ## Emit Airflow DataFlow/DataJob lineage: DagBag JSON from the Airflow image, emitted by datahub-ingest
+	$(ORCH_GOV) run --rm --no-deps -T -e PYTHONPATH=/opt/airflow/plugins:/app -v "$(CURDIR)/.local-data/governance:/out" --entrypoint python airflow -m omnichannel.datahub_export /opt/airflow/dags --out /out/dags.json
+	$(GOV) run --rm --no-deps -v "$(CURDIR)/.local-data/governance/dags.json:/tmp/dags.json:ro" -w /app/datahub --entrypoint python datahub-ingest -m lineage.emit_jobs --dags /tmp/dags.json $(if $(DRY_RUN),--dry-run)
+.PHONY: gov-metadata
+gov-metadata: ## Apply datahub/metadata/metadata.yml (tags, domains, glossary, owners, descriptions); DRY_RUN=1 plans only
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply $(if $(DRY_RUN),--dry-run)
 .PHONY: gov-inventory
 gov-inventory: ## Dataset counts per platform + URN-set hash from DataHub (LIST=1 prints the URNs)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m tools.inventory $(if $(LIST),--list)

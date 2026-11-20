@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-06 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-07 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -162,13 +162,14 @@ phát hai lần cùng hash, aspect giữ version 1; GraphQL lineage nguồn → 
 
 ### P9-07 — Airflow
 
-- [ ] Quyết định theo ADR: plugin Airflow (OpenLineage) hoặc phát DataFlow/DataJob từ DAG bằng script;
+- [x] Quyết định theo ADR: plugin Airflow (OpenLineage) hoặc phát DataFlow/DataJob từ DAG bằng script;
   kiểm tra không phá constraints Airflow 3.3.2, `make test-dags` vẫn xanh.
-- [ ] DataJob ↔ dataset (inlet/outlet) cho `dp1_*`…`dp4_*`, `dp1_stream_bronze`, `dp1_cdc`.
-- [ ] DAG `datahub_ingest` (pause khi tạo, không dùng pool `spark_driver`) chạy các recipe + lineage.
+- [x] DataJob ↔ dataset (inlet/outlet) cho `dp1_*`…`dp4_*`, `dp1_stream_bronze`, `dp1_cdc`.
+- [x] DAG `datahub_ingest` (pause khi tạo, không dùng pool `spark_driver`) chạy các recipe + lineage.
 
 **Đạt khi:** DataJob hiển thị lineage; DAG chạy thật thành công.
-**Commit gợi ý:** `feat(airflow): schedule DataHub ingestion and job lineage`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-07: 12 DataFlow / 39 DataJob (24 có
+dataset), DAG `datahub_ingest` chạy thật 2 run success, `make test-dags` 14 passed.
 
 ### P9-08 — Metadata-as-code
 

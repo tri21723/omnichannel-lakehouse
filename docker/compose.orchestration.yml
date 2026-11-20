@@ -38,6 +38,12 @@ x-airflow-env: &airflow-env
   AIRFLOW_ALERT_WEBHOOK_URL: ${AIRFLOW_ALERT_WEBHOOK_URL:-}
   # Read-only Trino (profile query) used by the query_checks DAG.
   TRINO_URL: ${TRINO_INTERNAL_URL:-http://trino:8080}
+  # DataHub (profile governance) for the datahub_ingest DAG; read-only source credentials.
+  DATAHUB_GMS_URL: http://datahub-gms:8080
+  DATAHUB_RO_DB_PASSWORD: ${DATAHUB_RO_DB_PASSWORD:-}
+  LAKEHOUSE_WAREHOUSE: ${LAKEHOUSE_WAREHOUSE:-}
+  TRINO_S3_ACCESS_KEY: ${TRINO_S3_ACCESS_KEY:-}
+  TRINO_S3_SECRET_KEY: ${TRINO_S3_SECRET_KEY:-}
 
 services:
   airflow-init:
@@ -81,6 +87,7 @@ services:
     - ../airflow/dags:/opt/airflow/dags:ro
     - ../airflow/plugins:/opt/airflow/plugins:ro
     - ../airflow/tests:/opt/airflow/tests:ro
+    - ../datahub:/app/datahub:ro  # recipes + lineage tooling; the CLI venv is baked into the image
     depends_on:
       postgres:
         condition: service_healthy

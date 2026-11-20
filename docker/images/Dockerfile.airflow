@@ -23,6 +23,13 @@ COPY --from=spark ${SPARK_JARS}/spark-token-provider-kafka-0-10_2.12-3.5.5.jar $
 COPY --from=spark ${SPARK_JARS}/kafka-clients-3.4.1.jar ${PYSPARK_JARS}/
 COPY --from=spark ${SPARK_JARS}/commons-pool2-2.11.1.jar ${PYSPARK_JARS}/
 RUN ln -s /home/airflow/.local/lib/python3.11/site-packages/pyspark /opt/spark
+# DataHub CLI in its own virtualenv: incompatible with the Airflow constraints (ADR-0018 §3).
+COPY datahub/requirements.lock /tmp/datahub-requirements.lock
+RUN python -m venv /opt/datahub-venv \
+    && /opt/datahub-venv/bin/pip install --no-cache-dir --no-deps --require-hashes \
+        -r /tmp/datahub-requirements.lock \
+    && rm /tmp/datahub-requirements.lock
+COPY datahub /app/datahub
 COPY spark /app/spark
 COPY sql /app/sql
 COPY docker/batch/ci_events.py /app/docker/batch/ci_events.py
