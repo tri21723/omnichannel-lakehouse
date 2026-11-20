@@ -40,7 +40,7 @@ kiểm chứng.
 - **Dữ liệu "khó" có chủ đích**: generator tất định (`--seed`) sinh trùng, trễ, lệch schema, skew và
   burst — kèm ground truth để đối soát.
 - **Streaming exactly-once** với Flink: event-time, watermark, cửa sổ, dedup có TTL, event quá trễ đi
-  side output/DLQ, phục hồi từ checkpoint.
+  nhánh `late` riêng, record hỏng vào DLQ (không bỏ dữ liệu), phục hồi từ checkpoint.
 - **CDC đúng thứ tự** từ WAL PostgreSQL qua Debezium, áp dụng theo `(lsn, offset)`, xoá mềm, đối soát
   PostgreSQL ↔ Silver.
 - **Feature store point-in-time** và return label có right-censoring (không rò rỉ nhãn).

@@ -282,7 +282,9 @@ flowchart LR
 ```
 
 - **Contract `stream-v2`:** watermark 2 phút, cửa sổ 5 phút, allowed lateness 20 phút, TTL dedup 30
-  phút; event trễ 11–16 phút vẫn được nhận, ≥ 31 phút là quá trễ → side output/DLQ (không bỏ).
+  phút; event trễ 11–16 phút vẫn được nhận, ≥ 31 phút là quá trễ → nhánh `late` ghi riêng xuống
+  `s3://raw/stream` (không bỏ). Record hỏng (không parse được, sai contract) → topic `<topic>.dlq`,
+  ghi transactional kèm header `dlq_reason`.
 - `amazon_late`: xử lý event trễ theo event-time. `tiktok_dedup`: khử trùng webhook theo id với state
   có TTL.
 - Exactly-once: checkpoint Flink + FileSink + DLQ transactional; phục hồi từ checkpoint đã kiểm chứng

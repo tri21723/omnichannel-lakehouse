@@ -32,7 +32,7 @@ glossary:
     Channel: One of walmart, amazon, tiktok_shop, shopee, lazada.
     Net amount: Gross minus discount, DECIMAL(18,2) in the original currency (no FX conversion).
     Return label: is_returned within the horizon; NULL while immature (right-censored).
-    Late event: A stream event behind the watermark, routed to the late side output or the DLQ.
+    Late event: An event behind the watermark; accepted within the allowed lateness, else sent to the late branch.
     Change event: A Debezium create/update/delete event ordered by source LSN.
 
 rules:
@@ -86,7 +86,7 @@ rules:
   description: Stream events (contract stream-v2); Flink classifies on-time/late/too-late.
 - match: 'kafka:.*\.dlq'
   tags: [quarantine]
-  description: Too-late or invalid stream events written by Flink (never dropped).
+  description: Malformed stream events (failed parsing or contract) written by Flink with a dlq_reason header.
 - match: 's3:raw/stream/.*'
   tags: [raw]
   description: Flink FileSink output (accepted, late, duplicates, windows) for stream Bronze.
