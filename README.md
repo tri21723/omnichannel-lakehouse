@@ -10,8 +10,7 @@ schema, feature store và data warehouse, truy vấn bằng Trino, điều phố
 DataHub. Toàn bộ chạy **local bằng Docker Compose**, mỗi thành phần được pin version và có bằng chứng
 kiểm chứng.
 
-> Dự án học tập / portfolio Data Engineering. Tổng quan chi tiết về mọi luồng dữ liệu:
-> **[docs/project-overview.md](docs/project-overview.md)**.
+> Tổng quan chi tiết về mọi luồng dữ liệu: **[docs/project-overview.md](docs/project-overview.md)**.
 
 ---
 
@@ -101,7 +100,7 @@ Lý do chọn và nguồn của từng phiên bản: [ADR-0001](docs/adr/0001-ve
 | 8 | Debezium CDC | ✅ `v0.8-cdc` |
 | 9 | DataHub governance | ✅ `v0.9-governance` |
 | 10 | AWS với Terraform + Ansible | ⏸️ tạm hoãn (chi phí) |
-| 11 | Hoàn thiện & portfolio (observability, demo) | ⬜ chưa bắt đầu |
+| 11 | Hoàn thiện: observability, bảo trì Iceberg, demo | ⬜ chưa bắt đầu |
 
 Chi tiết: [implementation status](docs/implementation-status.md).
 

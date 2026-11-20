@@ -15,7 +15,7 @@ TikTok Shop, Shopee, Lazada) đổ dữ liệu vào một lakehouse chung, đư�
 star schema, sinh feature cho ML, xuất sang data warehouse, truy vấn bằng SQL và được quản trị
 (catalog, lineage, PII).
 
-Đây là dự án học tập/portfolio, **chạy hoàn toàn local bằng Docker Compose**; phần AWS (Phase 10)
+Toàn bộ hệ thống **chạy local bằng Docker Compose**; phần AWS (Phase 10)
 đang tạm hoãn vì chi phí.
 
 Các bài toán kỹ thuật chính mà dự án chứng minh được:
@@ -472,7 +472,7 @@ Hướng dẫn chi tiết từng luồng nằm trong [README](../README.md); x�
 | 8 | Debezium CDC | xong | `v0.8-cdc` |
 | 9 | DataHub governance | xong | `v0.9-governance` |
 | 10 | AWS (Terraform + Ansible) | **tạm hoãn** (chi phí) | — |
-| 11 | Hoàn thiện & portfolio | chưa bắt đầu | — |
+| 11 | Hoàn thiện: observability, bảo trì Iceberg, demo | chưa bắt đầu | — |
 
 Còn để sau: observability (Prometheus/Grafana), bảo trì Iceberg thật (snapshot expiry, compaction,
 dọn orphan file — hiện chỉ báo cáo), đọc JDBC song song, bảng seller riêng, quy đổi FX, quickstart
