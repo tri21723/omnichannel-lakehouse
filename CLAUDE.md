@@ -8,7 +8,7 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 ## Trạng thái hiện tại
 
 - Phase đang làm: xem `TODO.md` (checklist phase hiện hành) và `docs/implementation-status.md`.
-- Tag đã có: `v0.3-phase3`, `v0.4a-bronze` … `v0.4f-benchmark`, `v0.5-orchestration`, `v0.5.1-orchestration`, `v0.6-query`, `v0.7-stream`, `v0.8-cdc`. Checklist phase cũ lưu ở
+- Tag đã có: `v0.3-phase3`, `v0.4a-bronze` … `v0.4f-benchmark`, `v0.5-orchestration`, `v0.5.1-orchestration`, `v0.6-query`, `v0.7-stream`, `v0.8-cdc`, `v0.9-governance`. Checklist phase cũ lưu ở
   `docs/phase*-checklist.md`; bằng chứng kiểm chứng ở `docs/*-validation.md`.
 - Các dataset phải cùng tồn tại: small fixture `186ae107d0793d2ee237` (375 orders), default
   reference `b1e64afaff0176de180a` (15.000 orders) và orchestration e2e `5f552019ee41c24af95f`
@@ -28,6 +28,9 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 - DataHub (`make up-gov`, ADR-0018, UI 127.0.0.1:9002, GMS không có port host) nặng ~3,5 GiB: chỉ chạy
   cùng core + Kafka (+ Airflow khi thử lịch ingestion), không cùng Spark/Flink/Trino. Mật khẩu UI nằm ở
   `.local-data/governance/user.props` (không in ra). Cài CLI DataHub từ `datahub/requirements.lock`.
+  Sau khi đổi recipe/lineage/metadata: `make gov-refresh gov-assert`; `make gov-idempotency` phải giữ
+  nguyên inventory. Thứ tự task không phải lineage (không phát `inputDatajobs`). UI còn hiện cạnh cũ
+  sau khi sửa lineage → `make restart-gov` (cache lineage của GMS).
 - CDC (`make up-cdc`, ADR-0017): Kafka Connect không có port host; thử CDC chỉ trên dòng có tiền tố
   riêng (không bao giờ đụng 3 dataset batch), kiểm bằng `make cdc-batch-guard`. Không đổi schema
   `walmart.orders` (Bronze JDBC batch đọc `SELECT *`). Sau khi build lại image Spark phải

@@ -26,9 +26,12 @@ Phase 7 hoàn thành local (`v0.7-stream`): Kafka 4.3.2 (KRaft) + Flink 2.2.1 (j
 event trễ, trùng và burst exactly-once, có ground truth, phục hồi từ checkpoint, nạp vào Bronze.
 Phase 8 hoàn thành local (`v0.8-cdc`): Debezium 3.6 đưa thay đổi của `walmart.orders` qua Kafka vào
 Bronze CDC và Silver trạng thái hiện tại (xoá mềm, đúng thứ tự LSN), đối soát PostgreSQL ↔ Silver.
-Tiếp theo là Phase 9 (DataHub).
+Phase 9 hoàn thành local (`v0.9-governance`): DataHub 1.7 (dùng lại PostgreSQL và Kafka) catalog
+PostgreSQL, Iceberg, Kafka và Airflow; lineage nguồn → Bronze → Silver → Gold → warehouse (batch, stream,
+CDC) phát từ ledger; tag `PII`, domain, glossary, owner quản lý bằng code; assertion G1.
+Tiếp theo là Phase 10 (AWS, Terraform/Ansible).
 Chi tiết: [implementation status](docs/implementation-status.md).
-Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md) · [Phase 7](docs/phase7-checklist.md) · [Streaming](docs/streaming-validation.md) · [Bàn giao Phase 8](docs/phase8-handoff.md) · [Phase 8](docs/phase8-checklist.md) · [CDC](docs/cdc-validation.md) · [Bàn giao Phase 9](docs/phase9-handoff.md).
+Checklist: [Phase 4B](docs/phase4b-checklist.md) · [Phase 4C](docs/phase4c-checklist.md) · [Phase 4D](docs/phase4d-checklist.md) · [Phase 4E](docs/phase4e-checklist.md) · [Gold validation](docs/gold-validation.md) · [DP3 validation](docs/dp3-validation.md) · [Warehouse validation](docs/warehouse-validation.md) · [Handoff 4D/4E](docs/features-warehouse-handoff.md) · [Phase 4F](docs/phase4f-checklist.md) · [Skew benchmark](docs/benchmarks/skew.md) · [Bàn giao Phase 5](docs/phase5-handoff.md) · [Phase 5](docs/phase5-checklist.md) · [Bàn giao Phase 6](docs/phase6-handoff.md) · [Phase 6](docs/phase6-checklist.md) · [Bàn giao Phase 7](docs/phase7-handoff.md) · [Phase 7](docs/phase7-checklist.md) · [Streaming](docs/streaming-validation.md) · [Bàn giao Phase 8](docs/phase8-handoff.md) · [Phase 8](docs/phase8-checklist.md) · [CDC](docs/cdc-validation.md) · [Bàn giao Phase 9](docs/phase9-handoff.md) · [Phase 9](docs/phase9-checklist.md) · [Governance](docs/governance-validation.md) · [Bàn giao Phase 10](docs/phase10-handoff.md).
 
 ## Bắt đầu phát triển
 
@@ -187,6 +190,22 @@ ngày logic. `maintenance_iceberg` chỉ báo cáo snapshot có thể dọn (kh�
 chạy tay bằng `make iceberg-report`. Airflow chạy `spark-submit` client mode, dùng chung ledger và khóa driver với `make`.
 Xem [ADR-0013](docs/adr/0013-airflow-orchestration.md), [runbook](docs/runbook.md) và
 [kiểm chứng](docs/orchestration-validation.md).
+
+## Chạy DataHub (Phase 9)
+
+```sh
+make up-gov              # core + Lakekeeper + Kafka + DataHub (OpenSearch, GMS không port host, UI 127.0.0.1:9002)
+make smoke-gov           # 15 kiểm tra: health, đăng nhập, ghi/đọc/xoá entity thử, topic, quyền chỉ đọc, secret
+make gov-refresh         # 3 recipe chỉ đọc + lineage từ ledger + lineage job Airflow + metadata-as-code
+make gov-assert          # G1: Gold ← Silver ← Bronze ← nguồn, warehouse ← Gold, stream, CDC, cạnh ledger + drift metadata
+make gov-idempotency     # chạy lại toàn bộ, inventory phải giống hệt
+```
+
+Đăng nhập UI bằng user `datahub`, mật khẩu sinh ra trong `.local-data/governance/user.props`
+(không commit). DataHub nặng ~3,5 GiB: chỉ chạy cùng core + Kafka (`make up-gov-orch` thêm Airflow cho
+DAG `datahub_ingest`), không cùng Spark/Flink/Trino. Ingestion không đọc dòng dữ liệu (role
+`datahub_ro` không có SELECT, tắt profiling). Thiết kế: [ADR-0018](docs/adr/0018-governance-datahub.md);
+bằng chứng và ảnh lineage: [governance validation](docs/governance-validation.md).
 
 ## Chạy CDC (Phase 8)
 

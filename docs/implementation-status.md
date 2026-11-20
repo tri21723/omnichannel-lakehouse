@@ -221,16 +221,37 @@ See [streaming validation](streaming-validation.md), [checklist](phase7-checklis
 See [CDC validation](cdc-validation.md), [checklist](phase8-checklist.md) and
 [Phase 9 handoff](phase9-handoff.md).
 
-## Next: Phase 9 — DataHub
+## Phase 9 — DataHub governance complete locally
 
-Not started. See [Phase 9 handoff](phase9-handoff.md).
+- Local milestone `v0.9-governance` ([ADR-0018](adr/0018-governance-datahub.md)). Profile `governance`:
+  DataHub v1.7.0.1 (OpenSearch 2.19.3, system update, GMS without host port, frontend
+  `127.0.0.1:9002`) on the platform PostgreSQL (database `datahub`) and Kafka (topics pre-created);
+  generated secrets, default login rejected; `make up-gov`, `smoke-gov` (15 checks), ~3.5 GiB.
+- Read-only ingestion from image `datahub-ingest` (CLI 1.7.0.19 from a hashed uv lock): PostgreSQL
+  `sources` with `datahub_ro` (schema USAGE only), Iceberg via Lakekeeper REST with the read-only MinIO
+  user, Kafka topic metadata; no profiling or sampling. 67 datasets.
+- Lineage emitted from the ledgers and contracts (`datahub/lineage`): 54 downstreams / 108 edges for
+  batch, stream and CDC; Airflow DataFlows/DataJobs (12/39) from the DagBag; DAG `datahub_ingest`
+  (venv `/opt/datahub-venv`, paused at creation) — the DataHub Airflow plugin is incompatible with the
+  Airflow 3.3.2 constraints.
+- Metadata as code (`datahub/metadata/metadata.yml`): tags (`PII` on exactly the 20 raw-PII objects,
+  tiers), domains, glossary, owner, descriptions; `VERIFY=1` drift check.
+- G1 (`make gov-assert`): 8 checks incl. ledger cross-check; live negative test on a probe entity;
+  full refresh idempotent (inventory, aspect versions); ledgers and CDC guard unchanged.
+- Manual workflow `governance.yml` (batch fixture → DataHub → refresh → G1 → idempotency → negative
+  test → restart), reproduced in a clean isolated Compose project.
+
+See [governance validation](governance-validation.md), [checklist](phase9-checklist.md) and
+[Phase 10 handoff](phase10-handoff.md).
+
+## Next: Phase 10 — AWS
+
+Not started. See [Phase 10 handoff](phase10-handoff.md).
 
 ## Later phases
 
-Airflow, Trino, streaming, CDC capture, governance and AWS are not implemented.
-Their placeholder Make targets fail explicitly. Later components need compatibility
-verification. No cloud resources were provisioned. Parallel
-JDBC partitions, snapshot expiry, compaction and orphan cleanup remain deferred.
+AWS (Terraform/Ansible) is not implemented; no cloud resources were provisioned. Parallel JDBC
+partitions, snapshot expiry, compaction and orphan cleanup remain deferred.
 
 ## Hosted CI update — 2026-11-13
 

@@ -254,3 +254,37 @@ Two defects found through the UI and fixed:
 Stream and CDC chains now follow evidence (completed stream Bronze slice per channel, `dp1_cdc`
 checkpoint) so a fresh environment does not claim them; locally the lineage hash stays `35224b8f…`
 and G1 requires both chains (`--optional-chains` for CI only, unit-tested).
+
+## P9-10 — CI reproduction, documentation and closing
+
+- Manual workflow [`governance.yml`](../.github/workflows/governance.yml): build images → small batch
+  fixture (Silver, Gold, features, labels, warehouse) → `make down` → `up-gov` → `smoke-gov` →
+  `gov-refresh` → `gov-inventory` → `gov-assert --optional-chains` → `gov-idempotency` →
+  `gov-assert-negative` → `restart-gov` → `smoke-gov` → `gov-assert`; console output is limited to
+  allowlisted events (`docker/batch/ci_events.py`, counts/hashes/check names only, unit-tested).
+- Clean reproduction (TODO rule 5): fresh clone at `8cd5aff` in the isolated Compose project
+  `omnilh-ci-repro`, main stack stopped. Every step green up to `gov-idempotency`; the negative test
+  then failed (`with_edge: false`) because it evaluated G1 strictly while a fresh environment has no
+  stream/CDC run. Fixed in `40d37cc` (`G1_ARGS=--optional-chains` also for the negative test) and the
+  remaining steps were rerun on the same project and volumes:
+
+| Step | Result on the clean project |
+|---|---|
+| `make check` | 317 passed, 1 skipped |
+| batch fixture → warehouse | green |
+| `smoke-gov` (twice, before and after `restart-gov`) | 15/15 |
+| `gov-refresh` | lineage 43 downstreams / 97 edges; jobs 12 flows / 39 jobs (24 with datasets) |
+| inventory | iceberg 35, postgres 14, s3 4 (no Kafka topics on a fresh broker); 12 flows, 39 jobs |
+| `gov-assert --optional-chains` (three times) | 8/8 checks, 53 datasets; metadata 10 `PII`, 0 drift |
+| `gov-idempotency` (twice) | unchanged URN hash `134104a4…` |
+| `gov-assert-negative` | with edge pass → removed fail (probe only) → restored pass → probe deleted |
+
+- Local stack at closing: ledgers `51d0f9d6`, `be2e5d29`, `b2d6892e`, `cfa1cdf5`; `cdc-batch-guard`
+  ok; inventory `iceberg 41, kafka 5, postgres 14, s3 7`, 12 flows, 39 jobs, URN hash `6a50a9db…`.
+- Images: DataHub `v1.7.0.1` (digests in §P9-03), OpenSearch 2.19.3, `omnichannel/datahub-ingest:1.7.0.19`
+  (1.15 GB), Airflow image + `/opt/datahub-venv`.
+- Memory: DataHub ≈ 3.4 GiB (GMS 1.6, OpenSearch 1.2, frontend 0.6) + Kafka 0.5 GiB; with Airflow
+  1.5 GiB more; host available 3.1 GiB in that configuration.
+- Documentation: README (Chạy DataHub), runbook (DataHub section), implementation status, data model
+  (governance metadata), CLAUDE.md, ADR-0018, [Phase 10 handoff](phase10-handoff.md).
+- Pending on GitHub: run `DataHub governance` manually and record its run URL/commit.

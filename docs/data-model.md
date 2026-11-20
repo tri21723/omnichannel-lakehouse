@@ -162,3 +162,14 @@ images; `REPLICA IDENTITY FULL` gives full `before`). `total_amount` is a decima
 Silver keeps the current state with soft deletes; an event is applied only if its `(lsn, offset)` is
 greater than the stored one. These tables are independent of the published batch Silver/Gold tables
 and of the three batch datasets.
+
+## Governance metadata (Phase 9)
+
+DataHub catalogues the contracts above without changing them ([ADR-0018](adr/0018-governance-datahub.md)).
+Raw PII (tag `PII`) lives only in `sources.walmart.customers`, Bronze `walmart_customers_raw`, the
+JSONL Bronze tables (`<channel>_orders_raw` for Amazon/TikTok Shop/Shopee/Lazada and
+`walmart_orders_export_raw`), stream Bronze, MinIO `raw/<channel>` and `raw/stream/<channel>`, and the
+stream topics with their DLQs. Silver, Gold, the warehouse, Silver quarantine and the CDC chain hold no
+clear name or e-mail. Lineage follows the ledgers: Bronze completion records, Silver slices/accounting,
+Gold/DP3 publications and warehouse export runs; descriptions, domains and glossary terms are in
+`datahub/metadata/metadata.yml`.
