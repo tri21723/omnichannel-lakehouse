@@ -6,6 +6,7 @@ TikTok Shop, Shopee và Lazada. Local-first, triển khai từng luồng end-to-
 ![System architecture](docs/architecture.svg)
 
 Chi tiết luồng và bản Mermaid: [docs/architecture.md](docs/architecture.md).
+Tổng quan toàn dự án (các luồng, nguyên tắc, cách chạy): [docs/project-overview.md](docs/project-overview.md).
 
 ## Trạng thái
 
