@@ -1,0 +1,4 @@
+# DataHub CLI/SDK pinned to the server line (ADR-0018 §1). `make gov-lock` compiles it into
+# requirements.lock (exact versions + hashes); pip's own resolver backtracks out on this set.
+# The lock is installed in the datahub-ingest image and the Airflow virtualenv /opt/datahub-venv.
+acryl-datahub[datahub-rest,postgres,kafka,iceberg]==1.7.0.19

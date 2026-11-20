@@ -19,9 +19,9 @@ env: ## Generate local credentials; preserve an existing .env
 lint: ## Check Python, YAML and SQL
 	$(BIN)/ruff check .
 	$(BIN)/black --check .
-	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml generators/cdc.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml docker/compose.cdc.yml
+	$(BIN)/yamllint .github .pre-commit-config.yaml .yamllint.yml generators/config.yaml generators/stream.yaml generators/fixtures/stream-small.yaml generators/fixtures/stream-bench.yaml generators/cdc.yaml docker/compose.core.yml docker/compose.batch.yml docker/compose.bronze-test.yml docker/compose.orchestration.yml docker/compose.query.yml docker/compose.stream.yml docker/compose.cdc.yml docker/compose.governance.yml
 	for script in docker/core/*.sh docker/batch/*.sh; do sh -n "$$script" || exit; done
-	for script in docker/stream/*.sh docker/cdc/*.sh; do bash -n "$$script" || exit; done
+	for script in docker/stream/*.sh docker/cdc/*.sh docker/governance/*.sh; do bash -n "$$script" || exit; done
 	$(BIN)/sqlfluff lint sql
 	cd sql/trino && ../../$(BIN)/sqlfluff lint .
 
@@ -34,9 +34,6 @@ test: ## Run unit tests; use smoke-core for runtime integration
 
 check: lint test ## Run lint and unit tests
 
-up-gov:
-	@echo "Target '$@' is not implemented yet. See docs/implementation-status.md."
-	@exit 2
 
 .PHONY: config-core pull-core init-core smoke-core restart-core status-core
 config-core: ## Validate Compose without printing secrets
@@ -109,7 +106,8 @@ DRIVER_LOCK := python -m spark.lib.driver_lock --
 BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml --profile core --profile batch
 ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
 QUERY := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.query.yml --profile core --profile batch --profile query
-ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml --profile core --profile batch --profile orch --profile query --profile stream --profile cdc
+ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml -f docker/compose.governance.yml --profile core --profile batch --profile orch --profile query --profile stream --profile cdc --profile governance
+GOV := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml -f docker/compose.governance.yml --profile core --profile stream --profile governance
 CDC := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml --profile core --profile stream --profile cdc
 STREAM := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml --profile core --profile stream
 AIRFLOW_EXEC = $(ORCH) exec -T airflow
@@ -538,3 +536,31 @@ cdc-resume: ## Resume the connector; it continues from its offsets
 	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh resume
 cdc-resnapshot: ## Blocking re-snapshot of walmart.orders through the Kafka signal channel (no slot drop)
 	CDC_COMPOSE="$(CDC)" bash docker/cdc/connect.sh resnapshot
+
+# Phase 9 governance (ADR-0018): minimal DataHub on the platform's PostgreSQL and Kafka.
+.PHONY: env-gov config-gov up-gov init-gov smoke-gov restart-gov
+env-gov: env-stream ## Add Phase 9 settings (DataHub version, generated secrets) and the UI login file
+	$(PYTHON) docker/governance/env.py
+config-gov: ## Validate merged core+stream+governance configuration silently
+	$(GOV) config --quiet
+up-gov: env-gov ## Start core + Kafka + DataHub (OpenSearch, system update, GMS, frontend on 127.0.0.1:9002)
+	$(MAKE) up-core
+	$(GOV) up -d --wait kafka
+	$(MAKE) init-gov
+	$(GOV) up -d --wait datahub-opensearch
+	@echo "datahub-system-update running; log in .local-data/governance/system-update.log"
+	$(GOV) up --no-log-prefix --exit-code-from datahub-system-update datahub-system-update > .local-data/governance/system-update.log 2>&1
+	$(GOV) up -d --wait datahub-gms datahub-frontend
+init-gov: ## Idempotent: PostgreSQL database/role datahub and ingestion role datahub_ro
+	$(GOV) run --rm --no-deps gov-postgres-init
+smoke-gov: ## GMS/frontend health, login, GraphQL write/read/delete, no default login, no secret in logs
+	GOV_COMPOSE="$(GOV)" bash docker/governance/smoke.sh
+restart-gov: ## Restart DataHub services; metadata lives in PostgreSQL, OpenSearch and Kafka
+	$(GOV) restart datahub-opensearch datahub-gms datahub-frontend
+	$(GOV) up -d --wait datahub-opensearch datahub-gms datahub-frontend
+.PHONY: gov-lock build-gov
+GOV_LOCK_CMD = pip install -q --user uv==0.9.5 && /tmp/.local/bin/uv pip compile -q --python-version 3.11 --python-platform x86_64-manylinux_2_28 --generate-hashes --no-header requirements.in -o requirements.lock
+gov-lock: ## Recompile datahub/requirements.lock (exact versions + hashes) from requirements.in with uv
+	docker run --rm --user $(shell id -u):$(shell id -g) -e HOME=/tmp -v "$(CURDIR)/datahub:/w" -w /w python:3.11.11-slim-bookworm sh -c '$(GOV_LOCK_CMD)'
+build-gov: ## Build the datahub-ingest image (pinned DataHub CLI from the lock, recipes, lineage tooling)
+	$(GOV) build datahub-ingest

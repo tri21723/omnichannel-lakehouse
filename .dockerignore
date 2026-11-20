@@ -24,3 +24,7 @@ spark/**/__pycache__/
 !flink/jobs/maven-mirror.xml
 !flink/jobs/src/
 !flink/jobs/src/**
+!docker/images/Dockerfile.datahub-ingest
+!datahub/
+!datahub/**
+datahub/**/__pycache__/

@@ -25,7 +25,9 @@ file này chỉ bổ sung ghi chú riêng cho Claude Code, không lặp lại qu
 - Kiểm tra nhanh không cần Docker: `make check` (lint + unit test). Các target
   `smoke-*`, `integration-*`, `test-*-recovery`, `test-review-regressions` cần
   `make up-batch` và chạy tuần tự (không chạy song song nhiều Spark driver).
-- Target chưa triển khai (`up-gov`) cố ý `exit 2`.
+- DataHub (`make up-gov`, ADR-0018, UI 127.0.0.1:9002, GMS không có port host) nặng ~3,5 GiB: chỉ chạy
+  cùng core + Kafka (+ Airflow khi thử lịch ingestion), không cùng Spark/Flink/Trino. Mật khẩu UI nằm ở
+  `.local-data/governance/user.props` (không in ra). Cài CLI DataHub từ `datahub/requirements.lock`.
 - CDC (`make up-cdc`, ADR-0017): Kafka Connect không có port host; thử CDC chỉ trên dòng có tiền tố
   riêng (không bao giờ đụng 3 dataset batch), kiểm bằng `make cdc-batch-guard`. Không đổi schema
   `walmart.orders` (Bronze JDBC batch đọc `SELECT *`). Sau khi build lại image Spark phải

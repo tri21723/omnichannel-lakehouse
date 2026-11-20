@@ -4,9 +4,24 @@ import os
 import secrets
 from pathlib import Path
 
+
+def merge_env(path: Path, settings: dict[str, str]) -> None:
+    """Fill keys that are missing or empty (a fresh .env copies empty values from .env.example);
+    never overwrite a non-empty value, so credentials are not rotated."""
+    lines = path.read_text().splitlines()
+    present = set()
+    for index, line in enumerate(lines):
+        key, sep, value = line.partition("=")
+        if sep and key in settings:
+            present.add(key)
+            if value == "":
+                lines[index] = f"{key}={settings[key]}"
+    lines += [f"{key}={value}" for key, value in settings.items() if key not in present]
+    path.write_text("\n".join(lines) + "\n")
+    os.chmod(path, 0o600)
+
+
 path = Path(".env")
-existing = path.read_text()
-keys = {line.split("=", 1)[0] for line in existing.splitlines() if "=" in line}
 settings = {
     "KAFKA_IMAGE": "apache/kafka:4.3.2",
     "KAFKA_UI_IMAGE": "kafbat/kafka-ui:v1.5.0",
@@ -16,10 +31,4 @@ settings = {
     "FLINK_S3_ACCESS_KEY": "flink_local",
     "FLINK_S3_SECRET_KEY": secrets.token_hex(24),
 }
-with path.open("a") as stream:
-    if not existing.endswith("\n"):
-        stream.write("\n")
-    for key, value in settings.items():
-        if key not in keys:
-            stream.write(f"{key}={value}\n")
-os.chmod(path, 0o600)
+merge_env(path, settings)

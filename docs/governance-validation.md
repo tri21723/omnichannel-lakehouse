@@ -56,3 +56,36 @@ Evidence gathered for the decisions:
   in `omnichannel/airflow:3.3.2-spark3.5.5` → `ResolutionImpossible` (the plugin is not usable).
 - The v1.7.0.1 quickstart pre-creates DataHub topics with the system-update job, supports PostgreSQL as
   the metadata store and uses OpenSearch 2.19.3; its defaults contain fixed secrets, which are replaced.
+
+## P9-03 — Governance profile
+
+- `docker/compose.governance.yml` (profile `governance`, merged with core + stream `kafka`):
+  `gov-postgres-init`, `datahub-opensearch`, `datahub-system-update`, `datahub-gms`,
+  `datahub-frontend`, `datahub-ingest`; each with `mem_limit`, long-running services with healthchecks,
+  OpenSearch on its own volume `datahub-opensearch`.
+- Image digests (pulled 2026-11-20): `datahub-gms@sha256:74e15e98…0173`,
+  `datahub-frontend-react@sha256:99513cc1…310d`, `datahub-upgrade@sha256:c3db54d8…a24c`,
+  `opensearch@sha256:e96cc6ae…0cdd`.
+- Bootstrap: `make init-gov` (idempotent) creates database/role `datahub` and `datahub_ro` (schema
+  `USAGE` only, `SELECT` on `walmart.customers` = false). DataHub's topics are pre-created by
+  `datahub-system-update`; the broker keeps `auto.create.topics.enable=false`.
+- Secrets: `make env-gov` fills missing *or empty* keys only (a fresh `.env` copied from `.env.example`
+  has empty values), never rotates; the UI login file `.local-data/governance/user.props` is derived
+  from `.env` and git-ignored. The same fill-empty rule now applies to `docker/stream/env.py` (tests in
+  `docker/governance/tests`).
+- `make smoke-gov`, 15 checks: GMS health, frontend health, GMS without host port binding, frontend
+  bound to `127.0.0.1:9002`, login with the generated password (200), default `datahub/datahub`
+  rejected (400 `Invalid Credentials`), GraphQL as admin, GraphQL `appVersion = v1.7.0.1`, probe
+  dataset write/read/delete through GMS, DataHub topics present, broker auto-create off, `datahub_ro`
+  without row access, no generated secret in GMS/frontend/system-update logs.
+- Runs: green after the first start, after `make restart-gov`, after `make down` + `make up-gov`
+  (cold start 166 s, system-update rerun is idempotent) and after a second `make up-gov` on the
+  running stack.
+- Memory (steady state, core + Kafka + DataHub): GMS 1.61 GiB (limit raised 1.75 → 2 GiB after this
+  measurement), OpenSearch 1.17 GiB, frontend 0.57 GiB, Kafka 0.57 GiB, MinIO 0.17 GiB, PostgreSQL
+  0.06 GiB; host available 4.1 GiB.
+- `datahub-ingest` image (`make build-gov`): `pip install acryl-datahub[datahub-rest,postgres,kafka,
+  iceberg]==1.7.0.19` fails with `ResolutionImpossible` (pip backtracks out on `postgres` + `iceberg`),
+  although a solution exists; `make gov-lock` compiles `datahub/requirements.lock` with uv 0.9.5
+  (exact versions + hashes, reproducible: same SHA-256 twice) and the image installs it with
+  `--require-hashes --no-deps`. CLI reports `1.7.0.19`; image 1.15 GB.

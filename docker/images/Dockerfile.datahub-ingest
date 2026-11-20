@@ -1,0 +1,10 @@
+# DataHub ingestion runtime (ADR-0018 §3): pinned CLI/SDK, recipes and lineage tooling.
+FROM python:3.11.11-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DATAHUB_TELEMETRY_ENABLED=false
+WORKDIR /app
+COPY datahub/requirements.lock /app/datahub/requirements.lock
+RUN pip install --no-cache-dir --no-deps --require-hashes -r datahub/requirements.lock \
+    && useradd --create-home --uid 1000 ingest
+COPY datahub /app/datahub
+USER ingest
+ENTRYPOINT ["datahub"]

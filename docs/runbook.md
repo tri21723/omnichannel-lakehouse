@@ -624,3 +624,15 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   `Dockerfile.spark` thử Maven Central rồi tới mirror chính thức của Google, mọi jar được pin SHA-256;
   `Dockerfile.flink` chạy lại Maven với `flink/jobs/maven-mirror.xml`. Kiểm đường dự phòng:
   `docker build --no-cache --add-host repo.maven.apache.org:127.0.0.1 -f docker/images/Dockerfile.spark .`
+
+## DataHub (Phase 9)
+
+- `pip install acryl-datahub[...,postgres,iceberg]` → `ResolutionImpossible` although a solution
+  exists: pip's resolver backtracks out. Install from `datahub/requirements.lock` (`make gov-lock`
+  recompiles it with uv); never loosen the CLI pin.
+- GMS close to its memory limit (heap 1 GiB + native ≈ 1.6 GiB): keep `mem_limit` at 2 GiB; if GMS
+  restarts in a loop, check `docker inspect --format '{{.State.OOMKilled}}'`.
+- Login fails with the generated password: `make env-gov` regenerates
+  `.local-data/governance/user.props` from `.env`; then `make restart-gov`.
+- `make up-gov` writes the system-update log to `.local-data/governance/system-update.log`; read it
+  when the step exits non-zero (usually PostgreSQL/Kafka/OpenSearch not reachable).

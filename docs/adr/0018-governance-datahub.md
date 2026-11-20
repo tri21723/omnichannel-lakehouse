@@ -27,7 +27,7 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
 |---|---|---|---|
 | `datahub-opensearch` | none | 1.5 GiB | single node, heap 768 MiB–1 GiB, security plugin off (loopback only) |
 | `datahub-system-update` | none | job | `datahub-upgrade -u SystemUpdate`: builds indices, SQL schema and **pre-creates DataHub's Kafka topics** (`DATAHUB_PRECREATE_TOPICS`), so broker auto-creation stays off |
-| `datahub-gms` | none (internal 8080) | 1.75 GiB | heap 1 GiB; internal schema registry (`SCHEMA_REGISTRY_TYPE=INTERNAL`); never published, so Spark keeps host 8080 |
+| `datahub-gms` | none (internal 8080) | 2 GiB | heap 1 GiB; internal schema registry (`SCHEMA_REGISTRY_TYPE=INTERNAL`); never published, so Spark keeps host 8080 |
 | `datahub-frontend` | `127.0.0.1:9002` | 1 GiB | heap 512 MiB; the only UI/GraphQL entry from the host |
 | `gov-postgres-init` | none | job | idempotent: database/role `datahub` (metadata store) and role `datahub_ro` (ingestion) — core bootstrap unchanged |
 
@@ -39,7 +39,7 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
   token salt and signing key, frontend secret, UI admin password); none of the quickstart defaults
   (`JohnSnowKnowsNothing`, fixed `DATAHUB_SECRET`, `datahub/datahub`) is used. GMS runs without
   metadata-service authentication but has no host port; the UI requires the generated password.
-- Budget ≈ 4 GiB; DataHub runs with `core` + Kafka (+ Lakekeeper/MinIO for Iceberg, + Airflow for the
+- Budget ≈ 4.5 GiB (measured: GMS 1.6 GiB, OpenSearch 1.2 GiB, frontend 0.6 GiB); DataHub runs with `core` + Kafka (+ Lakekeeper/MinIO for Iceberg, + Airflow for the
   scheduled ingestion), never together with Spark, Flink or Trino.
 
 ## 3. Ingestion

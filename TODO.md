@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-02 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-03 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -107,17 +107,18 @@ thì ghi rõ và hỏi lại trước khi làm.
 
 ### P9-03 — Hạ tầng `governance`
 
-- [ ] `docker/compose.governance.yml` profile `governance`: GMS, frontend (`127.0.0.1:9002`), search
+- [x] `docker/compose.governance.yml` profile `governance`: GMS, frontend (`127.0.0.1:9002`), search
   engine, job setup/system-update; `mem_limit`, healthcheck, volume riêng; gộp với core + `kafka`.
-- [ ] Bootstrap idempotent: database/role `datahub` trên PostgreSQL, topic nội bộ DataHub trên Kafka
+- [x] Bootstrap idempotent: database/role `datahub` trên PostgreSQL, topic nội bộ DataHub trên Kafka
   (không bật auto-create); secret qua `.env` (`make env-gov`, không xoay vòng).
-- [ ] Make: `env-gov`, `config-gov`, `up-gov` (thay placeholder), `smoke-gov`, `restart-gov`,
+- [x] Make: `env-gov`, `config-gov`, `up-gov` (thay placeholder), `smoke-gov`, `restart-gov`,
   `down`/`logs` gồm `governance`.
-- [ ] Smoke: GMS healthy, frontend trả trang đăng nhập, GraphQL trả version, ghi/đọc một entity thử
+- [x] Smoke: GMS healthy, frontend trả trang đăng nhập, GraphQL trả version, ghi/đọc một entity thử
   (sau đó xoá), không lộ secret trong log; RAM thực tế.
 
 **Đạt khi:** `make up-gov && make smoke-gov` xanh từ trạng thái dừng và sau restart.
-**Commit gợi ý:** `feat(gov): add DataHub governance profile`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-03: smoke 15/15 xanh sau khởi động
+lạnh, `restart-gov` và `up-gov` lần hai; RAM GMS 1,6 GiB (nâng limit lên 2 GiB), OpenSearch 1,2 GiB, frontend 0,6 GiB.
 
 ### P9-04 — Ingestion PostgreSQL và Kafka
 
