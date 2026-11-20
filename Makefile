@@ -585,6 +585,12 @@ gov-jobs: ## Emit Airflow DataFlow/DataJob lineage: DagBag JSON from the Airflow
 .PHONY: gov-metadata
 gov-metadata: ## Apply datahub/metadata/metadata.yml (tags, domains, glossary, owners, descriptions); DRY_RUN=1 plans, VERIFY=1 checks drift
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply $(if $(DRY_RUN),--dry-run) $(if $(VERIFY),--verify)
+.PHONY: gov-assert gov-assert-negative
+gov-assert: ## G1 lineage coverage (sources -> Bronze -> Silver -> Gold -> warehouse, stream, CDC, ledger edges) + metadata drift
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.lineage_g1
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply --verify
+gov-assert-negative: ## G1 must fail when a probe entity loses its lineage edge, pass when restored (probe deleted after)
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.negative_g1
 .PHONY: gov-inventory
 gov-inventory: ## Dataset counts per platform + URN-set hash from DataHub (LIST=1 prints the URNs)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m tools.inventory $(if $(LIST),--list)

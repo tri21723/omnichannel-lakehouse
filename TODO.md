@@ -185,10 +185,11 @@ domain; 3 lần áp dụng không đổi version; re-ingest xong `VERIFY=1` khô
 
 ### P9-09 — G1 assertions và bằng chứng
 
-- [ ] `datahub/assertions/lineage_g1.py` (GraphQL): mỗi Gold có upstream Silver, mỗi Silver có upstream
+- [x] `datahub/assertions/lineage_g1.py` (GraphQL): mỗi Gold có upstream Silver, mỗi Silver có upstream
   Bronze, warehouse có upstream Gold, stream/CDC có upstream đúng; đối chiếu ledger; exit ≠ 0 khi thiếu.
-- [ ] Test âm: xoá một cạnh lineage thử (trên entity thử) → G1 fail; khôi phục → pass.
+- [x] Test âm: xoá một cạnh lineage thử (trên entity thử) → G1 fail; khôi phục → pass.
 - [ ] Idempotency toàn bộ ingestion (chạy 2 lần), nguồn không đổi; ảnh chụp lineage UI.
+  (Idempotency + nguồn đã xong; còn ảnh chụp UI.)
 
 **Đạt khi:** `make gov-assert` xanh hai lần; có ảnh lineage.
 **Commit gợi ý:** `test(gov): assert lineage coverage from sources to warehouse`.

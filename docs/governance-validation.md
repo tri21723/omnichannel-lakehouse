@@ -205,3 +205,28 @@ Evidence gathered for the decisions:
   (`gold.fact_orders`: globalTags 1, glossaryTerms 1, editableDatasetProperties 1, upstreamLineage 1,
   ownership 12, domains 6; `warehouse_export` job ownership 4), and a full re-ingestion
   (postgres, kafka, iceberg) + lineage followed by `VERIFY=1` reports no drift.
+
+## P9-09 — G1 assertions
+
+- `datahub/assertions/lineage_g1.py` (`make gov-assert`, then `metadata.apply --verify`): reads every
+  catalogued dataset and its live `upstreamLineage` from GMS (404 = no aspect) and evaluates (pure
+  `evaluate()`, 4 unit tests incl. edge removal, broken CDC/warehouse edges, cycles):
+
+| Check | Subjects | Result |
+|---|---|---|
+| `gold_has_silver_upstream` (all Gold except static `dim_channel`) | 10 | ok |
+| `silver_has_bronze_upstream` | 17 | ok |
+| `bronze_has_source_upstream` (MinIO / PostgreSQL / Kafka) | 13 | ok |
+| `warehouse_has_gold_upstream` (same table name) | 8 | ok |
+| `stream_bronze_reaches_topic` | 2 | ok |
+| `cdc_silver_reaches_source` (CDC topic and `walmart.orders`) | 2 | ok |
+| `ledger_edges_present` (edges built from the ledgers) | 108 | ok |
+| `ledger_downstreams_catalogued` | 54 | ok |
+
+- Two consecutive runs: `g1_finished ok: true` (8 checks, 67 datasets) and metadata drift none.
+- Live negative test (`make gov-assert-negative`, probe `iceberg gold.g1_probe`, real entities never
+  touched): with edge → pass; edge removed → fail with exactly `gold_has_silver_upstream:
+  gold.g1_probe`; restored → pass; probe hard-deleted → inventory hash back to `6a50a9db…`.
+- Idempotency of the whole flow (P9-04…P9-08): every recipe, lineage, jobs and metadata run twice or
+  more with unchanged URN hashes and aspect versions. Sources unchanged: ledgers `51d0f9d6`,
+  `be2e5d29`, `b2d6892e`, `cfa1cdf5`; `make cdc-batch-guard` ok.
