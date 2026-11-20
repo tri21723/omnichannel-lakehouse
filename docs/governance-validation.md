@@ -126,3 +126,31 @@ Evidence gathered for the decisions:
   timestamptz`; `gold.fact_orders` `gross/discount/net_amount decimal(18, 2)`; CDC Bronze `_kafka_ts`,
   `_ingest_ts timestamptz`.
 - Ledgers unchanged (`51d0f9d6`, `be2e5d29`, `b2d6892e`, `cfa1cdf5`).
+
+## P9-06 — Dataset lineage from ledgers
+
+- `datahub/lineage/model.py` (pure, unit-tested in `datahub/tests/test_lineage_model.py`, 6 tests incl.
+  parity of its constants with `spark/lib`) builds the edges:
+  - Bronze from completion records (`/runtime/bronze/*.json`, completed only): `jsonl` → `s3 raw/<channel>`,
+    `jdbc` → `postgres sources.walmart.<entity>`, `stream` → `s3 raw/stream/<channel>`;
+  - Silver from the ledger slices (`input_tables`, or the `silver_input` rule for legacy slices) and
+    per-entity `accounting.input > 0`: Bronze → `_contrib_<entity>` + `quarantine_<entity>`,
+    `_contrib_<entity>` → `<entity>`;
+  - Gold/DP3 from the code contract per table (Silver entities / Gold tables read), checked against
+    the ledgers' table sets; `gold.dim_channel` is static (channel registry), no upstream;
+  - warehouse from the export ledger runs (`lh.gold.<t>` → `sources.warehouse.<t>`);
+  - stream: topic → `s3 raw/stream/<channel>` and topic → `.dlq`; CDC: `sources.walmart.orders` →
+    `platform_cdc.walmart.orders` → `bronze.walmart_orders_cdc` → `silver.walmart_orders_cdc_current`
+    + `silver.quarantine_walmart_orders_cdc`.
+- `make gov-lineage` (ledgers mounted read-only) upserts one `upstreamLineage` per downstream with
+  sorted upstreams and a fixed audit time; the seven S3 prefixes are declared as datasets (subtype
+  `Prefix`). `DRY_RUN=1` prints the edges.
+- Result: 54 downstreams, 108 edges, lineage hash `35224b8f…`, identical on two emissions; the
+  `upstreamLineage` aspect of `gold.fact_orders` stays at version 1 after the second run. Inventory:
+  `iceberg 41, kafka 5, postgres 14, s3 7`.
+- Downstream lineage (GraphQL `scrollAcrossLineage`): `sources.walmart.orders` reaches
+  `sources.warehouse.fact_orders` (5 hops), `gold.lbl_order_return` (5) and
+  `silver.walmart_orders_cdc_current` (3); `s3 raw/amazon` reaches `sources.warehouse.fact_returns` (5);
+  `tiktok_shop.order-webhooks` reaches `bronze.tiktok_shop_order_webhooks_raw` (2) and its DLQ (1).
+- `bronze.walmart_orders_export_raw` (Walmart JSONL export) has no downstream: Silver reads Walmart
+  through JDBC (ADR-0008), which the lineage shows as it is.

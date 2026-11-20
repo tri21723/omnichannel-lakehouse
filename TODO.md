@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-05 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-06 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -147,17 +147,18 @@ lại giữ nguyên hash URN; `walmart.customers` có schema, không profile; gu
 
 ### P9-06 — Lineage dataset-level
 
-- [ ] Script `datahub/lineage/emit_lineage.py`: đọc contract/ledger (Bronze completion, Silver/Gold/
+- [x] Script `datahub/lineage/emit_lineage.py`: đọc contract/ledger (Bronze completion, Silver/Gold/
   DP3/warehouse ledger, manifest stream/CDC) và phát upstream lineage:
   - raw JSONL/PostgreSQL `walmart` → Bronze; Bronze → Silver; Silver → Gold; Gold → DP3; Gold →
     PostgreSQL `warehouse`;
   - Kafka topic → Flink output (`raw/stream`) → Bronze stream;
   - PostgreSQL `walmart.orders` → topic CDC → Bronze CDC → Silver CDC.
-- [ ] Idempotent (chạy lại không đổi aspect); URN khớp entity ingest ở P9-04/05.
-- [ ] Unit test phần dựng lineage từ ledger (không cần DataHub).
+- [x] Idempotent (chạy lại không đổi aspect); URN khớp entity ingest ở P9-04/05.
+- [x] Unit test phần dựng lineage từ ledger (không cần DataHub).
 
 **Đạt khi:** UI hiển thị lineage nguồn → Bronze → Silver → Gold → warehouse cho cả batch, stream, CDC.
-**Commit gợi ý:** `feat(gov): emit dataset lineage from pipeline ledgers`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-06: 54 dataset hạ nguồn / 108 cạnh,
+phát hai lần cùng hash, aspect giữ version 1; GraphQL lineage nguồn → warehouse (5 bước), stream, CDC.
 
 ### P9-07 — Airflow
 

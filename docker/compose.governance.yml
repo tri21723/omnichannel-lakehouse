@@ -187,6 +187,7 @@ services:
       TRINO_S3_SECRET_KEY: ${TRINO_S3_SECRET_KEY:-}
     volumes:
     - ../datahub:/app/datahub:ro
+    - lakehouse-config:/runtime:ro  # ledgers for lineage (read-only)
     mem_limit: 768m
 
 volumes:

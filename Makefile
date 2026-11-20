@@ -571,6 +571,9 @@ build-gov: ## Build the datahub-ingest image (pinned DataHub CLI from the lock, 
 gov-ingest: ## Run one read-only recipe: make gov-ingest SOURCE=postgres|kafka|iceberg
 	@test -f datahub/recipes/$(SOURCE).yml || { echo "SOURCE must name a file in datahub/recipes (postgres, kafka, iceberg)"; exit 2; }
 	$(GOV) run --rm --no-deps datahub-ingest ingest $(if $(filter kafka,$(SOURCE)),,--strict-warnings) -c datahub/recipes/$(SOURCE).yml
+.PHONY: gov-lineage
+gov-lineage: ## Emit dataset lineage from the ledgers (read-only /runtime); DRY_RUN=1 prints the edges
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m lineage.emit_lineage $(if $(DRY_RUN),--dry-run)
 .PHONY: gov-inventory
 gov-inventory: ## Dataset counts per platform + URN-set hash from DataHub (LIST=1 prints the URNs)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m tools.inventory $(if $(LIST),--list)

@@ -70,7 +70,10 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
   Silver. The ledgers' pins make it checkable, and no job depends on DataHub being up.
 - Airflow DataFlow/DataJob entities and their inputs/outputs are emitted from the DAG/task definitions
   by the same tooling (the plugin is incompatible, see §3).
-- Emission is idempotent (stable URNs, upserted aspects).
+- Emission is idempotent (stable URNs, upserted aspects, sorted upstreams, fixed audit time).
+- MinIO prefixes (`raw/<channel>`, `raw/stream/<channel>`) have no recipe; the emitter declares them as
+  `s3` datasets. `gold.dim_channel` is built from the static channel registry and has no upstream;
+  G1 treats it as the only static Gold table.
 
 ## 5. Metadata as code and assertions
 
