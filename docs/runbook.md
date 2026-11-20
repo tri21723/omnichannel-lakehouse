@@ -640,3 +640,6 @@ Config is in `docker/query/trino/etc` (read-only mount); after editing rules or 
   already correct): GMS caches lineage searches in memory; `make restart-gov` clears it.
 - Task order is not lineage: emitting `inputDatajobs` for Airflow task dependencies makes DataHub draw
   one channel's prefix upstream of another channel's table; job order is a `customProperties` entry.
+- `Scaffold checks` job `dags` fails with `No module named 'lineage'`: that job runs `airflow/tests` on
+  the runner, not in the image, so `/app/datahub` does not exist; tests must resolve `datahub/` from
+  the repository first (fixed in `airflow/tests/test_dags.py`).

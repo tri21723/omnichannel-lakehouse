@@ -241,8 +241,11 @@ def test_datahub_dag_is_paused_outside_the_driver_pool_and_uses_the_venv(dagbag)
 
 def test_datahub_export_maps_every_spark_task_to_datasets(dagbag):
     import sys
+    from pathlib import Path
 
-    sys.path.insert(0, "/app/datahub")
+    # Repo checkout (CI `dags` job) first; the Airflow image has the tooling at /app/datahub.
+    repo = Path(__file__).resolve().parents[2] / "datahub"
+    sys.path.insert(0, str(repo if (repo / "lineage").is_dir() else Path("/app/datahub")))
     from lineage import jobs, model
     from omnichannel.datahub_export import describe
 
