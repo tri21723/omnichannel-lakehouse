@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đã lập kế hoạch, chưa triển khai Phase 9**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -79,17 +79,18 @@ thì ghi rõ và hỏi lại trước khi làm.
 
 ### P9-01 — Preflight
 
-- [ ] Git sạch tại `v0.8-cdc` (+ commit sau tag); `make check` xanh.
-- [ ] Inventory đối tượng cần catalog: schema PostgreSQL (`walmart`, `warehouse`), namespace Iceberg
+- [x] Git sạch tại `v0.8-cdc` (+ commit sau tag); `make check` xanh.
+- [x] Inventory đối tượng cần catalog: schema PostgreSQL (`walmart`, `warehouse`), namespace Iceberg
   (`bronze`, `silver`, `gold`, `benchmark`), topic Kafka (stream, DLQ, CDC), DAG Airflow, bucket/prefix
   MinIO; đánh dấu đối tượng chứa PII.
-- [ ] Ghi mốc ledger (Silver/Gold/DP3/warehouse), `cdc-batch-guard`; Phase 9 không được đổi.
-- [ ] Đo RAM `core` + Kafka (Spark/Flink/Trino/Airflow dừng); ngân sách DataHub.
-- [ ] Xác nhận credential chỉ đọc dùng được cho ingestion (`trino_ro` PostgreSQL, `trino_local`
+- [x] Ghi mốc ledger (Silver/Gold/DP3/warehouse), `cdc-batch-guard`; Phase 9 không được đổi.
+- [x] Đo RAM `core` + Kafka (Spark/Flink/Trino/Airflow dừng); ngân sách DataHub.
+- [x] Xác nhận credential chỉ đọc dùng được cho ingestion (`trino_ro` PostgreSQL, `trino_local`
   MinIO, Lakekeeper REST) hoặc cần role/user riêng `datahub_ro`.
 
 **Đạt khi:** inventory, mốc và ngân sách ghi vào `docs/governance-validation.md`.
-**Commit gợi ý:** `docs(gov): record Phase 9 preflight inventory and resource budget`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-01: inventory (đánh dấu PII), mốc ledger
++ guard, RAM còn 7,7 GiB; `trino_ro`/`spark_reader` đọc được `walmart.customers` → đề xuất role `datahub_ro`.
 
 ### P9-02 — ADR và version
 
