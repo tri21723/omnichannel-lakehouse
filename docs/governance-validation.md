@@ -287,4 +287,8 @@ and G1 requires both chains (`--optional-chains` for CI only, unit-tested).
   1.5 GiB more; host available 3.1 GiB in that configuration.
 - Documentation: README (Chạy DataHub), runbook (DataHub section), implementation status, data model
   (governance metadata), CLAUDE.md, ADR-0018, [Phase 10 handoff](phase10-handoff.md).
-- Pending on GitHub: run `DataHub governance` manually and record its run URL/commit.
+- Hosted: `DataHub governance` green on GitHub
+  ([run 44705945705](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44705945705),
+  commit `9d2d9c7`, 21 min 41 s). `Scaffold checks` on the same commit failed in job `dags`
+  (`No module named 'lineage'`: the test assumed the image path `/app/datahub`); fixed in `c34505e`,
+  which changes only `airflow/tests/test_dags.py`.

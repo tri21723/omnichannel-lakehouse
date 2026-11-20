@@ -11,5 +11,5 @@ Phase 9 (data governance với DataHub) đã hoàn thành local (`v0.9-governanc
 - [ ] Lập kế hoạch chi tiết Phase 10 (AWS: Terraform + Ansible) dựa trên
   [bàn giao Phase 10](docs/phase10-handoff.md) và `docs/plan.md`; chưa triển khai, không tạo tài nguyên
   cloud khi chưa được yêu cầu rõ.
-- [ ] Chạy thủ công trên GitHub: `DataHub governance` (`governance.yml`) và ghi run URL/commit (đã tái
-  hiện xanh trên môi trường trắng ở local).
+- [x] Chạy thủ công trên GitHub: `DataHub governance` xanh
+  ([run 44705945705](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44705945705), commit `9d2d9c7`).

@@ -239,7 +239,8 @@ See [CDC validation](cdc-validation.md), [checklist](phase8-checklist.md) and
 - G1 (`make gov-assert`): 8 checks incl. ledger cross-check; live negative test on a probe entity;
   full refresh idempotent (inventory, aspect versions); ledgers and CDC guard unchanged.
 - Manual workflow `governance.yml` (batch fixture → DataHub → refresh → G1 → idempotency → negative
-  test → restart), reproduced in a clean isolated Compose project.
+  test → restart), reproduced in a clean isolated Compose project and green on GitHub
+  ([run 44705945705](https://github.com/tri21723/omnichannel-lakehouse/actions/runs/44705945705), commit `9d2d9c7`).
 
 See [governance validation](governance-validation.md), [checklist](phase9-checklist.md) and
 [Phase 10 handoff](phase10-handoff.md).
