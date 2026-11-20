@@ -564,3 +564,12 @@ gov-lock: ## Recompile datahub/requirements.lock (exact versions + hashes) from 
 	docker run --rm --user $(shell id -u):$(shell id -g) -e HOME=/tmp -v "$(CURDIR)/datahub:/w" -w /w python:3.11.11-slim-bookworm sh -c '$(GOV_LOCK_CMD)'
 build-gov: ## Build the datahub-ingest image (pinned DataHub CLI from the lock, recipes, lineage tooling)
 	$(GOV) build datahub-ingest
+.PHONY: gov-ingest
+# Warnings fail a run, except for Kafka: its JSON topics have no registry subject, which DataHub reports
+# as one warning per topic (ADR-0018 §3).
+gov-ingest: ## Run one read-only recipe: make gov-ingest SOURCE=postgres|kafka|iceberg
+	@test -f datahub/recipes/$(SOURCE).yml || { echo "SOURCE must name a file in datahub/recipes (postgres, kafka, iceberg)"; exit 2; }
+	$(GOV) run --rm --no-deps datahub-ingest ingest $(if $(filter kafka,$(SOURCE)),,--strict-warnings) -c datahub/recipes/$(SOURCE).yml
+.PHONY: gov-inventory
+gov-inventory: ## Dataset counts per platform + URN-set hash from DataHub (LIST=1 prints the URNs)
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m tools.inventory $(if $(LIST),--list)

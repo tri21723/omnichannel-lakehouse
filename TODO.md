@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-03 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-04 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -122,16 +122,17 @@ lạnh, `restart-gov` và `up-gov` lần hai; RAM GMS 1,6 GiB (nâng limit lên 
 
 ### P9-04 — Ingestion PostgreSQL và Kafka
 
-- [ ] Image `datahub-ingest` (CLI + plugin `postgres`, `kafka`, `iceberg` đã pin), chạy qua
+- [x] Image `datahub-ingest` (CLI + plugin `postgres`, `kafka`, `iceberg` đã pin), chạy qua
   `make gov-ingest SOURCE=<recipe>`; recipe trong `datahub/recipes/`, secret qua biến môi trường.
-- [ ] Recipe PostgreSQL: `sources.walmart`, `sources.warehouse` bằng role chỉ đọc; **không profiling**
+- [x] Recipe PostgreSQL: `sources.walmart`, `sources.warehouse` bằng role chỉ đọc; **không profiling**
   `walmart.customers`.
-- [ ] Recipe Kafka: topic stream, DLQ, CDC (không đọc message).
-- [ ] Kiểm chứng: entity xuất hiện đúng số lượng; chạy lại không tạo entity mới (idempotent); nguồn
+- [x] Recipe Kafka: topic stream, DLQ, CDC (không đọc message).
+- [x] Kiểm chứng: entity xuất hiện đúng số lượng; chạy lại không tạo entity mới (idempotent); nguồn
   không đổi (`cdc-batch-guard`, ledger).
 
 **Đạt khi:** hai recipe chạy hai lần cho cùng kết quả; nguồn nguyên vẹn.
-**Commit gợi ý:** `feat(gov): ingest PostgreSQL and Kafka metadata into DataHub`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-04: 14 bảng PostgreSQL + 5 topic, chạy
+lại giữ nguyên hash URN; `walmart.customers` có schema, không profile; guard ok.
 
 ### P9-05 — Ingestion Iceberg
 

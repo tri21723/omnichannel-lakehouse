@@ -89,3 +89,24 @@ Evidence gathered for the decisions:
   although a solution exists; `make gov-lock` compiles `datahub/requirements.lock` with uv 0.9.5
   (exact versions + hashes, reproducible: same SHA-256 twice) and the image installs it with
   `--require-hashes --no-deps`. CLI reports `1.7.0.19`; image 1.15 GB.
+
+## P9-04 — PostgreSQL and Kafka ingestion
+
+- `make gov-ingest SOURCE=postgres|kafka` runs `datahub/recipes/<source>.yml` in `datahub-ingest`
+  (secrets from the environment only). Warnings fail the run, except for Kafka: the JSON topics have no
+  registry subject, reported as one warning per topic (5).
+- `make gov-inventory` (`datahub/tools/inventory.py`, GraphQL against the internal GMS) prints counts
+  per platform and a SHA-256 of the URN set, read only after two reads 5 s apart agree (the search
+  index is updated asynchronously; an immediate read once showed 2 of 5 topics).
+
+| Run | Result | Inventory |
+|---|---|---|
+| postgres #1 | 14 tables (`walmart` 5, `warehouse` 9), 75 events, 0 warnings | `postgres: 14`, `a4dc3929…` |
+| postgres #2 | same | unchanged `a4dc3929…` |
+| kafka #1…#3 | 5 topics: `amazon.order-notifications(.dlq)`, `tiktok_shop.order-webhooks(.dlq)`, `platform_cdc.walmart.orders`; 27 events | `kafka: 5, postgres: 14`, unchanged `947857af…` |
+
+- Read-only evidence: `walmart.customers` has its five columns with native types and **no
+  `datasetProfile`**; `walmart.orders.total_amount` is `NUMERIC(18, 2)`; `datahub_ro` cannot `SELECT`
+  the table. The Kafka source creates no consumer group (only DataHub's own, Flink's and `cdc-signals`
+  exist) and internal topics are filtered out.
+- Sources unchanged: `make cdc-batch-guard` ok; no Spark job ran, ledgers untouched.

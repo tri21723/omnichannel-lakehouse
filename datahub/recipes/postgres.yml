@@ -1,0 +1,24 @@
+# PostgreSQL `sources` (ADR-0018 §3): schema metadata only. `datahub_ro` has schema USAGE and no table
+# SELECT, so no row can be read; profiling stays off.
+source:
+  type: postgres
+  config:
+    host_port: postgres:5432
+    database: sources
+    username: datahub_ro
+    password: ${DATAHUB_RO_DB_PASSWORD}
+    platform_instance: null
+    env: PROD
+    schema_pattern:
+      allow: ['^walmart$', '^warehouse$']
+    include_tables: true
+    include_views: true
+    include_view_lineage: false
+    profiling:
+      enabled: false
+    stateful_ingestion:
+      enabled: false
+sink:
+  type: datahub-rest
+  config:
+    server: ${DATAHUB_GMS_URL}

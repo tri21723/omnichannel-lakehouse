@@ -59,7 +59,8 @@ add MySQL, its own Kafka and more, which does not fit the memory budget):
   - Iceberg via the Lakekeeper REST catalog with MinIO user `trino_local` (read-only `lakehouse`);
     namespaces `bronze`, `silver`, `gold`; `benchmark` and `_smoke_*` tables excluded.
   - Kafka topic metadata only (stream topics, DLQs, CDC topic); internal topics excluded; no payload
-    reads.
+    reads. The topics are JSON without registry subjects, so DataHub warns once per topic and the Kafka
+    run is the only one not executed with `--strict-warnings`.
 
 ## 4. Lineage
 

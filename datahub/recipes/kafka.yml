@@ -1,0 +1,20 @@
+# Kafka topic metadata (ADR-0018 §3). No consumer reads payloads; internal topics excluded. Topic
+# schemas live in code (JSON), not a registry; DataHub's internal registry is the configured endpoint.
+source:
+  type: kafka
+  config:
+    env: PROD
+    connection:
+      bootstrap: kafka:29092
+      schema_registry_url: ${DATAHUB_GMS_URL}/schema-registry/api/
+    topic_patterns:
+      allow:
+      - '^amazon\.order-notifications(\.dlq)?$'
+      - '^tiktok_shop\.order-webhooks(\.dlq)?$'
+      - '^platform_cdc\.walmart\.orders$'
+    stateful_ingestion:
+      enabled: false
+sink:
+  type: datahub-rest
+  config:
+    server: ${DATAHUB_GMS_URL}
