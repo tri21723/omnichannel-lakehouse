@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-04 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-05 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -136,13 +136,14 @@ lại giữ nguyên hash URN; `walmart.customers` có schema, không profile; gu
 
 ### P9-05 — Ingestion Iceberg
 
-- [ ] Recipe `iceberg` với REST catalog Lakekeeper + MinIO user chỉ đọc; namespace `bronze`, `silver`,
+- [x] Recipe `iceberg` với REST catalog Lakekeeper + MinIO user chỉ đọc; namespace `bronze`, `silver`,
   `gold` (benchmark loại trừ hoặc gắn tier thấp); không profiling/sampling Bronze.
-- [ ] Schema cột đúng contract (DECIMAL, timestamp), số bảng khớp catalog.
-- [ ] Platform instance/URN ổn định để lineage (P9-06) trỏ đúng.
+- [x] Schema cột đúng contract (DECIMAL, timestamp), số bảng khớp catalog.
+- [x] Platform instance/URN ổn định để lineage (P9-06) trỏ đúng.
 
 **Đạt khi:** mọi bảng Iceberg nghiệp vụ có trong DataHub với schema; chạy lại idempotent.
-**Commit gợi ý:** `feat(gov): ingest Iceberg tables through the Lakekeeper REST catalog`.
+**Bằng chứng:** [governance-validation](docs/governance-validation.md) §P9-05: 41 bảng (13/17/11), benchmark +
+`_smoke_*` loại trừ, 0 profile, 3 lần chạy cùng hash URN; DECIMAL/timestamptz đúng.
 
 ### P9-06 — Lineage dataset-level
 

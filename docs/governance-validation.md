@@ -110,3 +110,19 @@ Evidence gathered for the decisions:
   the table. The Kafka source creates no consumer group (only DataHub's own, Flink's and `cdc-signals`
   exist) and internal topics are filtered out.
 - Sources unchanged: `make cdc-batch-guard` ok; no Spark job ran, ledgers untouched.
+
+## P9-05 — Iceberg ingestion
+
+- `make up-gov` now also starts Lakekeeper (+ `init-lakehouse`), like `make up-query`; no Spark.
+- `make gov-ingest SOURCE=iceberg`: Lakekeeper REST catalog, MinIO `trino_local` (read-only
+  `lakehouse`), namespaces `bronze|silver|gold`; report `tables_scanned: 41`, `entities_profiled: 0`,
+  filtered `benchmark.*` and the three `bronze._smoke_*` fixtures; 345 events, 0 warnings.
+- Counts match the catalogue of P9-01: bronze 13 (16 − 3 smoke), silver 17, gold 11.
+- Three runs → inventory `iceberg: 41, kafka: 5, postgres: 14`, URN hash `af486736…` unchanged.
+- Stable URNs for lineage: `urn:li:dataset:(urn:li:dataPlatform:iceberg,<namespace>.<table>,PROD)`
+  (no platform instance), PostgreSQL `…:postgres,sources.<schema>.<table>,PROD`, Kafka
+  `…:kafka,<topic>,PROD`.
+- Column types follow the contract: `silver.orders.total_amount decimal(18, 2)`, `order_ts`/`updated_ts
+  timestamptz`; `gold.fact_orders` `gross/discount/net_amount decimal(18, 2)`; CDC Bronze `_kafka_ts`,
+  `_ingest_ts timestamptz`.
+- Ledgers unchanged (`51d0f9d6`, `be2e5d29`, `b2d6892e`, `cfa1cdf5`).

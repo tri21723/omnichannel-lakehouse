@@ -107,7 +107,7 @@ BATCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/com
 ORCH := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml --profile core --profile batch --profile orch
 QUERY := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.query.yml --profile core --profile batch --profile query
 ALL_PROFILES := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.orchestration.yml -f docker/compose.query.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml -f docker/compose.governance.yml --profile core --profile batch --profile orch --profile query --profile stream --profile cdc --profile governance
-GOV := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml -f docker/compose.governance.yml --profile core --profile stream --profile governance
+GOV := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.batch.yml -f docker/compose.stream.yml -f docker/compose.governance.yml --profile core --profile batch --profile stream --profile governance
 CDC := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml -f docker/compose.cdc.yml --profile core --profile stream --profile cdc
 STREAM := docker compose --env-file .env -f docker/compose.core.yml -f docker/compose.stream.yml --profile core --profile stream
 AIRFLOW_EXEC = $(ORCH) exec -T airflow
@@ -539,13 +539,14 @@ cdc-resnapshot: ## Blocking re-snapshot of walmart.orders through the Kafka sign
 
 # Phase 9 governance (ADR-0018): minimal DataHub on the platform's PostgreSQL and Kafka.
 .PHONY: env-gov config-gov up-gov init-gov smoke-gov restart-gov
-env-gov: env-stream ## Add Phase 9 settings (DataHub version, generated secrets) and the UI login file
+env-gov: env-batch env-stream ## Add Phase 9 settings (DataHub version, generated secrets) and the UI login file
 	$(PYTHON) docker/governance/env.py
 config-gov: ## Validate merged core+stream+governance configuration silently
 	$(GOV) config --quiet
-up-gov: env-gov ## Start core + Kafka + DataHub (OpenSearch, system update, GMS, frontend on 127.0.0.1:9002)
+up-gov: env-gov ## Start core + Lakekeeper + Kafka + DataHub (OpenSearch, GMS, frontend on 127.0.0.1:9002); no Spark
 	$(MAKE) up-core
-	$(GOV) up -d --wait kafka
+	$(GOV) up -d --wait lakekeeper kafka
+	$(MAKE) init-lakehouse
 	$(MAKE) init-gov
 	$(GOV) up -d --wait datahub-opensearch
 	@echo "datahub-system-update running; log in .local-data/governance/system-update.log"

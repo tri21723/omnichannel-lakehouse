@@ -1,0 +1,26 @@
+# Iceberg through the Lakekeeper REST catalog with the read-only MinIO user (ADR-0018 §3).
+# Only the contract namespaces; smoke fixtures and benchmark tables excluded; no profiling.
+source:
+  type: iceberg
+  config:
+    env: PROD
+    catalog:
+      lakekeeper:
+        type: rest
+        uri: ${LAKEKEEPER_URI}/catalog
+        warehouse: ${LAKEHOUSE_WAREHOUSE}
+        s3.endpoint: ${S3_ENDPOINT}
+        s3.region: ${AWS_DEFAULT_REGION}
+        s3.access-key-id: ${TRINO_S3_ACCESS_KEY}
+        s3.secret-access-key: ${TRINO_S3_SECRET_KEY}
+        s3.path-style-access: 'true'
+    namespace_pattern:
+      allow: ['^bronze$', '^silver$', '^gold$']
+    table_pattern:
+      deny: ['.*\._smoke_.*']
+    profiling:
+      enabled: false
+sink:
+  type: datahub-rest
+  config:
+    server: ${DATAHUB_GMS_URL}

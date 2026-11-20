@@ -1,5 +1,5 @@
 # Profile governance: a minimal DataHub (ADR-0018) reusing the platform's PostgreSQL and Kafka.
-# Merged with compose.core.yml and compose.stream.yml (only `kafka` is started from stream).
+# Merged with compose.core.yml, compose.batch.yml (only `lakekeeper`) and compose.stream.yml (only `kafka`).
 # Governance-only variables default to empty so `make down` works before `make env-gov`.
 x-datahub-db: &datahub-db
   EBEAN_DATASOURCE_USERNAME: datahub
