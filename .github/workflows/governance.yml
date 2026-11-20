@@ -31,7 +31,7 @@ jobs:
       # No stream or CDC run on a fresh runner: those chains are checked only where present.
       - run: sh docker/batch/ci_run.sh make gov-assert G1_ARGS=--optional-chains
       - run: sh docker/batch/ci_run.sh make gov-idempotency
-      - run: sh docker/batch/ci_run.sh make gov-assert-negative
+      - run: sh docker/batch/ci_run.sh make gov-assert-negative G1_ARGS=--optional-chains
       - run: make restart-gov
       - run: sh docker/batch/ci_run.sh make smoke-gov
       - run: sh docker/batch/ci_run.sh make gov-assert G1_ARGS=--optional-chains

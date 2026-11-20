@@ -590,7 +590,7 @@ gov-assert: ## G1 lineage coverage (sources -> Bronze -> Silver -> Gold -> wareh
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.lineage_g1 $(G1_ARGS)
 	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m metadata.apply --verify
 gov-assert-negative: ## G1 must fail when a probe entity loses its lineage edge, pass when restored (probe deleted after)
-	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.negative_g1
+	$(GOV) run --rm --no-deps -w /app/datahub --entrypoint python datahub-ingest -m assertions.negative_g1 $(G1_ARGS)
 .PHONY: gov-refresh gov-idempotency
 gov-refresh: ## Full refresh: three recipes, dataset lineage, Airflow job lineage, metadata as code
 	$(MAKE) gov-ingest SOURCE=postgres

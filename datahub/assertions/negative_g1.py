@@ -39,27 +39,32 @@ def emit_upstreams(server: str, upstreams: list[str]) -> None:
     emitter.flush()
 
 
-def g1(server: str, datasets: list[str], expected) -> tuple[bool, list[dict]]:
-    checks = evaluate(datasets, live_edges(datasets, server), expected)
+def g1(server: str, datasets: list[str], expected, optional: bool) -> tuple[bool, list[dict]]:
+    checks = evaluate(datasets, live_edges(datasets, server), expected, optional)
     return all(not item["failed"] for item in checks), checks
 
 
 def main() -> int:
+    import argparse
+
     from datahub.ingestion.graph.client import DatahubClientConfig, DataHubGraph
 
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--optional-chains", action="store_true", help="CI: no stream/CDC run")
+    args = parser.parse_args()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-gms:8080")
     expected = load(Path("/runtime"))
     datasets = sorted(set(all_urns("DATASET")) | {PROBE})
     results = {}
     try:
         emit_upstreams(server, [UPSTREAM])
-        results["with_edge"], _ = g1(server, datasets, expected)
+        results["with_edge"], _ = g1(server, datasets, expected, args.optional_chains)
         emit_upstreams(server, [])
-        results["edge_removed"], checks = g1(server, datasets, expected)
+        results["edge_removed"], checks = g1(server, datasets, expected, args.optional_chains)
         failed = {c["check"]: c["failed"] for c in checks if c["failed"]}
         results["failure_names_probe"] = failed == {"gold_has_silver_upstream": ["gold.g1_probe"]}
         emit_upstreams(server, [UPSTREAM])
-        results["restored"], _ = g1(server, datasets, expected)
+        results["restored"], _ = g1(server, datasets, expected, args.optional_chains)
     finally:
         DataHubGraph(DatahubClientConfig(server=server)).hard_delete_entity(PROBE)
     results["probe_deleted"] = PROBE not in live_edges_safe(server)
