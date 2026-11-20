@@ -1,6 +1,6 @@
 # TODO — Phase 9: Data governance với DataHub
 
-Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01 xong)**.
+Cập nhật: **2026-11-20**. Trạng thái: **đang triển khai Phase 9 (P9-01…P9-02 xong)**.
 
 Mục tiêu: một DataHub chạy local trong profile `governance` (chỉ bật khi cần), có metadata của các
 nguồn (PostgreSQL, Iceberg qua Lakekeeper, Kafka, Airflow), được làm giàu (owner, domain, tag `PII`,
@@ -94,15 +94,16 @@ thì ghi rõ và hỏi lại trước khi làm.
 
 ### P9-02 — ADR và version
 
-- [ ] Xác minh trên tài liệu chính thức: bản DataHub ≥ 2 tuần, thành phần tối thiểu, search engine được
+- [x] Xác minh trên tài liệu chính thức: bản DataHub ≥ 2 tuần, thành phần tối thiểu, search engine được
   hỗ trợ, PostgreSQL làm metadata store, dùng Kafka ngoài + schema registry nội bộ, biến cấu hình port
   GMS, source `iceberg` (REST + S3 endpoint), `postgres`, `kafka`, plugin Airflow 3 và yêu cầu provider.
-- [ ] Viết `docs/adr/0018-governance-datahub.md` chốt mọi mục §2 (gồm cách phát lineage, PII, quyền,
+- [x] Viết `docs/adr/0018-governance-datahub.md` chốt mọi mục §2 (gồm cách phát lineage, PII, quyền,
   lịch ingestion, giới hạn RAM).
-- [ ] Ghi pin vào ADR-0001.
+- [x] Ghi pin vào ADR-0001.
 
 **Đạt khi:** ADR có nguồn, version pin, không cần ngoại lệ AGENTS hoặc đã hỏi lại.
-**Commit gợi ý:** `docs(adr): define DataHub governance and pin its version`.
+**Bằng chứng:** [ADR-0018](docs/adr/0018-governance-datahub.md), ADR-0001 §Phase 9. Chốt: DataHub v1.7.0.1 + CLI
+1.7.0.19; plugin Airflow không cài được (thử thật) → lineage job bằng script; lịch qua DAG + venv riêng (bạn chọn).
 
 ### P9-03 — Hạ tầng `governance`
 

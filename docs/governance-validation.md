@@ -42,3 +42,17 @@ Spark, Flink, Trino and Airflow stopped; Airflow (~1.2 GiB) can join for the plu
 ### Placeholders
 
 `make up-gov` still `exit 2`; `datahub/recipes/` is empty.
+
+## P9-02 — Decisions
+
+[ADR-0018](adr/0018-governance-datahub.md): DataHub v1.7.0.1 + CLI 1.7.0.19, OpenSearch 2.19.3;
+minimal services reusing PostgreSQL (database/role `datahub`) and Kafka (topics pre-created by the
+system-update job); frontend `127.0.0.1:9002`, GMS without host port; generated secrets; ingestion in a
+`datahub-ingest` image and, for the schedule, a separate virtualenv in the Airflow image (owner
+decision); lineage emitted from ledgers and DAG definitions; `datahub_ro` with schema `USAGE` only.
+
+Evidence gathered for the decisions:
+- `pip install --dry-run acryl-datahub-airflow-plugin==1.7.0.19 -c constraints-3.3.2/constraints-3.11.txt`
+  in `omnichannel/airflow:3.3.2-spark3.5.5` → `ResolutionImpossible` (the plugin is not usable).
+- The v1.7.0.1 quickstart pre-creates DataHub topics with the system-update job, supports PostgreSQL as
+  the metadata store and uses OpenSearch 2.19.3; its defaults contain fixed secrets, which are replaced.

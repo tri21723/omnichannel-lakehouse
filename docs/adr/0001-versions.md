@@ -137,3 +137,22 @@ Sources checked (2026-11-19):
 - [quay.io/debezium/connect tags](https://quay.io/repository/debezium/connect?tab=tags)
 - [spark-sql-kafka-0-10_2.12 3.5.5 POM](https://repo.maven.apache.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.5/)
 - [Iceberg Structured Streaming](https://iceberg.apache.org/docs/1.9.2/spark-structured-streaming/) (no documented exactly-once for retried micro-batches → MERGE by Kafka coordinates)
+
+## Phase 9 selected pins (2026-11-20)
+
+See ADR-0018. DataHub server **v1.7.0.1** (`acryldata/datahub-gms`, `datahub-frontend-react`,
+`datahub-upgrade`; 2026-09-03) with CLI/SDK `acryl-datahub` **1.7.0.19** (2026-10-30): the newest pair on
+the same minor line where both are older than two weeks (server v1.8.0 is 4 weeks old but CLI 1.8.0 was
+2 days old; v1.9.x was days old). Search engine `opensearchproject/opensearch:2.19.3`, as in the
+v1.7.0.1 quickstart. Metadata store: the existing PostgreSQL 16; Kafka: the existing 4.3.2 broker. The
+DataHub Airflow plugin 1.7.0.19 cannot be installed with the Airflow 3.3.2 constraints
+(`ResolutionImpossible`), so the CLI lives in a separate virtualenv. Digests are recorded at pull time.
+No existing pin or port was changed (DataHub frontend 9002 was reserved; GMS gets no host port).
+
+Sources checked (2026-11-20):
+- [acryldata images on Docker Hub](https://hub.docker.com/u/acryldata) (tag dates)
+- [acryl-datahub on PyPI](https://pypi.org/project/acryl-datahub/1.7.0.19/) and
+  [acryl-datahub-airflow-plugin](https://pypi.org/project/acryl-datahub-airflow-plugin/1.7.0.19/)
+- DataHub `v1.7.0.1` `docker/quickstart/docker-compose.quickstart-profile.yml` and
+  `docker/profiles/docker-compose.gms.yml` (PostgreSQL datastore, OpenSearch, topic pre-creation)
+- [Airflow 3.3.2 constraints (Python 3.11)](https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.11.txt)
