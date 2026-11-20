@@ -61,42 +61,42 @@ Toàn bộ luồng dữ liệu, rút gọn:
 
 ```mermaid
 flowchart LR
-    subgraph GEN[Generators]
-        GB[batch JSONL<br/>5 kênh]
-        GL[load OLTP<br/>Walmart]
-        GS[stream events]
-        GC[CDC scenario]
+    subgraph GEN["Generators"]
+        GB["batch JSONL<br/>5 kênh"]
+        GL["load OLTP<br/>Walmart"]
+        GS["stream events"]
+        GC["CDC scenario"]
     end
 
-    RAW[(MinIO raw/)]
-    PG[(PostgreSQL<br/>sources.walmart)]
-    K[[Kafka]]
-    F[Flink<br/>amazon_late · tiktok_dedup]
-    DBZ[Debezium]
+    RAW[("MinIO raw/")]
+    PG[("PostgreSQL<br/>sources.walmart")]
+    K[["Kafka"]]
+    F["Flink<br/>amazon_late · tiktok_dedup"]
+    DBZ["Debezium"]
 
-    subgraph LH[Iceberg qua Lakekeeper]
-        B[Bronze]
-        S[Silver]
-        G[Gold<br/>star schema]
-        D[Gold DP3<br/>feature · label]
+    subgraph LH["Iceberg qua Lakekeeper"]
+        B["Bronze"]
+        S["Silver"]
+        G["Gold<br/>star schema"]
+        D["Gold DP3<br/>feature · label"]
     end
 
-    WH[(PostgreSQL<br/>sources.warehouse)]
-    T[Trino]
-    DH[DataHub]
-    AF[Airflow]
+    WH[("PostgreSQL<br/>sources.warehouse")]
+    T["Trino"]
+    DH["DataHub"]
+    AF["Airflow"]
 
     GB --> RAW --> B
     GL --> PG --> B
     GS --> K --> F --> RAW
     GC --> PG
-    PG -- WAL --> DBZ --> K --> B
+    PG -->|"WAL"| DBZ --> K --> B
     B --> S --> G --> D
     G --> WH
     LH --> T
     WH --> T
-    AF -. điều phối .-> B & S & G & D & WH
-    LH -. metadata + lineage .-> DH
+    AF -.->|"điều phối"| B & S & G & D & WH
+    LH -.->|"metadata + lineage"| DH
 ```
 
 Các tầng của lakehouse (namespace Iceberg):
@@ -191,14 +191,14 @@ Hợp đồng dữ liệu: [data model](data-model.md), [generators](generators.
 
 ```mermaid
 flowchart LR
-    J[JSONL raw/] -- dp1_bronze jsonl --> BR[bronze.<channel>_orders_raw]
-    P[(walmart.*)] -- dp1_bronze jdbc --> BJ[bronze.walmart_*_raw]
-    BR & BJ -- dp2_silver --> C[silver._contrib_*] --> SE[silver.orders ...]
-    BR & BJ -- reject --> Q[silver.quarantine_*]
-    SE -- dp2_gold --> G[gold dim_* / fact_*]
-    G -- dp3_features --> FE[gold.feat_*]
-    G -- dp3_return_labels --> LB[gold.lbl_order_return]
-    G -- dp4_warehouse --> W[(sources.warehouse.*)]
+    J["JSONL raw/"] -->|"dp1_bronze jsonl"| BR["bronze.{channel}_orders_raw"]
+    P[("walmart.*")] -->|"dp1_bronze jdbc"| BJ["bronze.walmart_*_raw"]
+    BR & BJ -->|"dp2_silver"| C["silver._contrib_*"] --> SE["silver.orders ..."]
+    BR & BJ -->|"reject"| Q["silver.quarantine_*"]
+    SE -->|"dp2_gold"| G["gold dim_* / fact_*"]
+    G -->|"dp3_features"| FE["gold.feat_*"]
+    G -->|"dp3_return_labels"| LB["gold.lbl_order_return"]
+    G -->|"dp4_warehouse"| W[("sources.warehouse.*")]
 ```
 
 ### 6.1 Bronze — `dp1_bronze` (ADR-0007)
@@ -271,13 +271,13 @@ nào của tầng trước, và lineage trong DataHub có thể đối chiếu v
 
 ```mermaid
 flowchart LR
-    G[stream generator] --> KA[amazon.order-notifications]
-    G --> KT[tiktok_shop.order-webhooks]
-    KA --> FA[Flink amazon_late]
-    KT --> FT[Flink tiktok_dedup]
-    FA & FT --> OUT[s3://raw/stream/<channel>/<br/>accepted · late · duplicates · windows]
-    FA & FT --> DLQ[topic .dlq]
-    OUT -- dp1_bronze --source stream --> B[bronze.*_raw stream]
+    G["stream generator"] --> KA["amazon.order-notifications"]
+    G --> KT["tiktok_shop.order-webhooks"]
+    KA --> FA["Flink amazon_late"]
+    KT --> FT["Flink tiktok_dedup"]
+    FA & FT --> OUT["s3://raw/stream/{channel}/<br/>accepted · late · duplicates · windows"]
+    FA & FT --> DLQ["topic .dlq"]
+    OUT -->|"dp1_bronze (source = stream)"| B["bronze.*_raw stream"]
 ```
 
 - **Contract `stream-v2`:** watermark 2 phút, cửa sổ 5 phút, allowed lateness 20 phút, TTL dedup 30
@@ -297,11 +297,11 @@ Bằng chứng: [streaming validation](streaming-validation.md), [benchmark](ben
 
 ```mermaid
 flowchart LR
-    PG[(walmart.orders)] -- WAL, slot dbz_walmart --> D[Debezium]
-    D --> T[platform_cdc.walmart.orders]
-    T -- dp1_cdc availableNow --> B[bronze.walmart_orders_cdc]
-    B -- MERGE theo lsn, offset --> S[silver.walmart_orders_cdc_current]
-    B -- lỗi --> Q[silver.quarantine_walmart_orders_cdc]
+    PG[("walmart.orders")] -->|"WAL, slot dbz_walmart"| D["Debezium"]
+    D --> T["platform_cdc.walmart.orders"]
+    T -->|"dp1_cdc availableNow"| B["bronze.walmart_orders_cdc"]
+    B -->|"MERGE theo (lsn, offset)"| S["silver.walmart_orders_cdc_current"]
+    B -->|"lỗi"| Q["silver.quarantine_walmart_orders_cdc"]
 ```
 
 - Chỉ bắt `walmart.orders` (publication `dbz_pub`), **không bắt `customers`** (có PII); `REPLICA
@@ -356,14 +356,14 @@ ngày chạy lại cho cùng kết quả.
 
 ```mermaid
 flowchart LR
-    R1[recipe postgres<br/>datahub_ro] --> GMS
-    R2[recipe iceberg<br/>Lakekeeper REST] --> GMS
-    R3[recipe kafka<br/>chỉ metadata topic] --> GMS
-    L[ledger /runtime] -- emit_lineage --> GMS
-    A[DagBag Airflow] -- emit_jobs --> GMS
-    M[metadata.yml] -- apply --> GMS
-    GMS[DataHub GMS] --> UI[UI 127.0.0.1:9002]
-    GMS --> G1[assertion G1]
+    R1["recipe postgres<br/>datahub_ro"] --> GMS
+    R2["recipe iceberg<br/>Lakekeeper REST"] --> GMS
+    R3["recipe kafka<br/>chỉ metadata topic"] --> GMS
+    L["ledger /runtime"] -->|"emit_lineage"| GMS
+    A["DagBag Airflow"] -->|"emit_jobs"| GMS
+    M["metadata.yml"] -->|"apply"| GMS
+    GMS["DataHub GMS"] --> UI["UI 127.0.0.1:9002"]
+    GMS --> G1["assertion G1"]
 ```
 
 - **Catalog:** 14 bảng PostgreSQL, 41 bảng Iceberg (bronze/silver/gold), 5 topic Kafka, 7 prefix
